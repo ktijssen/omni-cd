@@ -1,0 +1,201 @@
+version: '3'
+
+vars:
+  BINARY_NAME: omni-cd
+  BUILD_DIR: bin
+  MAIN_PATH: ./cmd/omni-cd
+  DOCKER_IMAGE: omni-cd
+  COMPOSE_PATH: deploy/compose
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  # Development tasks
+  dev:
+    desc: Run the application locally (requires omnictl and git)
+    cmds:
+      - go run {{.MAIN_PATH}}/main.go
+    env:
+      OMNI_ENDPOINT: '{{.OMNI_ENDPOINT}}'
+      OMNI_SERVICE_ACCOUNT_KEY: '{{.OMNI_SERVICE_ACCOUNT_KEY}}'
+      GIT_REPO: '{{.GIT_REPO}}'
+      GIT_BRANCH: '{{.GIT_BRANCH | default "main"}}'
+      GIT_TOKEN: '{{.GIT_TOKEN}}'
+      REFRESH_INTERVAL: '{{.REFRESH_INTERVAL | default "300"}}'
+      SYNC_INTERVAL: '{{.SYNC_INTERVAL | default "3600"}}'
+      MC_PATH: '{{.MC_PATH | default "machine-classes"}}'
+      CLUSTERS_PATH: '{{.CLUSTERS_PATH | default "clusters"}}'
+      CLUSTERS_ENABLED: '{{.CLUSTERS_ENABLED | default "true"}}'
+      WEB_PORT: '{{.WEB_PORT | default "8080"}}'
+      LOG_LEVEL: '{{.LOG_LEVEL | default "DEBUG"}}'
+
+  # Build tasks
+  build:
+    desc: Build the binary
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PATH}}
+    sources:
+      - '**/*.go'
+      - go.mod
+      - go.sum
+    generates:
+      - '{{.BUILD_DIR}}/{{.BINARY_NAME}}'
+
+  build:linux:
+    desc: Build the binary for Linux
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PATH}}
+    sources:
+      - '**/*.go'
+      - go.mod
+      - go.sum
+    generates:
+      - '{{.BUILD_DIR}}/{{.BINARY_NAME}}-linux-amd64'
+
+  install:
+    desc: Install the binary to $GOPATH/bin
+    deps: [build]
+    cmds:
+      - go install {{.MAIN_PATH}}
+
+  # Code quality tasks
+  fmt:
+    desc: Format Go code
+    cmds:
+      - go fmt ./...
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: Run golangci-lint (requires golangci-lint)
+    cmds:
+      - golangci-lint run ./...
+
+  check:
+    desc: Run all code quality checks
+    cmds:
+      - task: fmt
+      - task: vet
+
+  # Dependency tasks
+  deps:
+    desc: Download Go dependencies
+    cmds:
+      - go mod download
+
+  deps:tidy:
+    desc: Tidy Go dependencies
+    cmds:
+      - go mod tidy
+
+  deps:update:
+    desc: Update all dependencies
+    cmds:
+      - go get -u ./...
+      - go mod tidy
+
+  # Docker tasks
+  docker:build:
+    desc: Build Docker image
+    cmds:
+      - docker build -t {{.DOCKER_IMAGE}}:latest .
+
+  docker:run:
+    desc: Run Docker container locally
+    deps: [docker:build]
+    cmds:
+      - |
+        docker run --rm -it \
+          -e OMNI_ENDPOINT={{.OMNI_ENDPOINT}} \
+          -e OMNI_SERVICE_ACCOUNT_KEY={{.OMNI_SERVICE_ACCOUNT_KEY}} \
+          -e GIT_REPO={{.GIT_REPO}} \
+          -e GIT_BRANCH={{.GIT_BRANCH | default "main"}} \
+          -e LOG_LEVEL={{.LOG_LEVEL | default "INFO"}} \
+          -p 8080:8080 \
+          {{.DOCKER_IMAGE}}:latest
+
+  # Docker Compose tasks
+  compose:up:
+    desc: Start services with docker compose
+    dir: '{{.COMPOSE_PATH}}'
+    cmds:
+      - docker compose up -d
+
+  compose:down:
+    desc: Stop services with docker compose
+    dir: '{{.COMPOSE_PATH}}'
+    cmds:
+      - docker compose down
+
+  compose:build:
+    desc: Build and start services with docker compose
+    dir: '{{.COMPOSE_PATH}}'
+    cmds:
+      - docker compose up --build -d
+
+  compose:rebuild:
+    desc: Rebuild and restart services with docker compose
+    dir: '{{.COMPOSE_PATH}}'
+    cmds:
+      - docker compose down
+      - docker compose up --build -d
+
+  compose:logs:
+    desc: View docker compose logs
+    dir: '{{.COMPOSE_PATH}}'
+    cmds:
+      - docker compose logs -f
+
+  compose:restart:
+    desc: Restart docker compose services
+    dir: '{{.COMPOSE_PATH}}'
+    cmds:
+      - docker compose restart
+
+  # Cleanup tasks
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf {{.BUILD_DIR}}
+      - go clean
+
+  clean:docker:
+    desc: Remove Docker images
+    cmds:
+      - docker rmi {{.DOCKER_IMAGE}}:latest || true
+
+  clean:all:
+    desc: Clean everything
+    cmds:
+      - task: clean
+      - task: clean:docker
+
+  # Utility tasks
+  open:
+    desc: Open the web UI in browser
+    cmds:
+      - |
+        {{if eq OS "darwin"}}
+        open http://localhost:8080
+        {{else if eq OS "linux"}}
+        xdg-open http://localhost:8080 2>/dev/null || echo "Open http://localhost:8080 in your browser"
+        {{else}}
+        echo "Open http://localhost:8080 in your browser"
+        {{end}}
+
+  version:
+    desc: Show Go and tool versions
+    cmds:
+      - go version
+      - docker --version
+      - docker compose version
+    silent: true

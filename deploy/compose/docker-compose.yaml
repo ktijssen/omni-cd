@@ -1,0 +1,21 @@
+services:
+  omni-cd:
+    build: ../../.
+    restart: unless-stopped
+    environment:
+      - OMNI_ENDPOINT=${OMNI_ENDPOINT}
+      - OMNI_SERVICE_ACCOUNT_KEY=${OMNI_SERVICE_ACCOUNT_KEY}
+      - GIT_REPO=${GIT_REPO}
+      - GIT_BRANCH=${GIT_BRANCH:-main}
+      - GIT_TOKEN=${GIT_TOKEN:-}
+      - REFRESH_INTERVAL=${REFRESH_INTERVAL:-300}
+      - SYNC_INTERVAL=${SYNC_INTERVAL:-3600}
+      - MC_PATH=${MC_PATH:-machine-classes}
+      - CLUSTERS_PATH=${CLUSTERS_PATH:-clusters}
+      - CLUSTERS_ENABLED=${CLUSTERS_ENABLED:-true}
+      - WEB_PORT=${WEB_PORT:-8080}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    volumes:
+      - ./data:/data
