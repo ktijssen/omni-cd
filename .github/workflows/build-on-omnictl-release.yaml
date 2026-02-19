@@ -1,0 +1,199 @@
+name: Build on omnictl Release
+
+on:
+  schedule:
+    # Check for new omnictl releases every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    # Allow manual trigger
+  push:
+    branches:
+      - main
+    paths:
+      - 'Dockerfile'
+      - '.github/workflows/build-on-omnictl-release.yaml'
+
+jobs:
+  check-omnictl-version:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.compare.outputs.should_build }}
+      omnictl_version: ${{ steps.get_latest.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get latest omnictl version
+        id: get_latest
+        run: |
+          LATEST_VERSION=$(curl -s https://api.github.com/repos/siderolabs/omni/releases/latest | jq -r .tag_name)
+          echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          echo "Latest omnictl version: $LATEST_VERSION"
+
+      - name: Get last built version
+        id: get_last_built
+        run: |
+          # Extract omnictl version from latest tag (format: X.Y.Z-omnictl-vA.B.C)
+          LAST_TAG=$(git tag --list '*-omnictl-*' --sort=-v:refname | head -n1 || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            LAST_VERSION=$(echo "$LAST_TAG" | sed 's/.*-omnictl-//')
+          else
+            LAST_VERSION=""
+          fi
+          echo "last_version=$LAST_VERSION" >> $GITHUB_OUTPUT
+          echo "Last built version: $LAST_VERSION"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          LATEST="${{ steps.get_latest.outputs.version }}"
+          LAST="${{ steps.get_last_built.outputs.last_version }}"
+          
+          if [ "$LATEST" != "$LAST" ]; then
+            echo "New omnictl version detected: $LATEST (was: $LAST)"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            echo "No new omnictl version. Latest is still: $LATEST"
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-push:
+    needs: check-omnictl-version
+    if: needs.check-omnictl-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build omni-cd binary
+        run: |
+          echo "Building omni-cd with new omnictl version ${{ needs.check-omnictl-version.outputs.omnictl_version }}"
+          mkdir -p bin
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bin/omni-cd-linux-amd64 ./cmd/omni-cd
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bin/omni-cd-linux-arm64 ./cmd/omni-cd
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o bin/omni-cd-darwin-amd64 ./cmd/omni-cd
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o bin/omni-cd-darwin-arm64 ./cmd/omni-cd
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Uncomment if you want to push to Docker Hub as well
+      # - name: Log in to Docker Hub
+      #   uses: docker/login-action@v3
+      #   with:
+      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ needs.check-omnictl-version.outputs.omnictl_version }}
+            type=sha,prefix=
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Create release tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          OMNI_CD_VERSION=$(cat VERSION)
+          OMNICTL_VERSION="${{ needs.check-omnictl-version.outputs.omnictl_version }}"
+          TAG="${OMNI_CD_VERSION}-omnictl-${OMNICTL_VERSION}"
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Get omni-cd version
+        id: get_omni_cd_version
+        run: |
+          OMNI_CD_VERSION=$(cat VERSION)
+          echo "version=$OMNI_CD_VERSION" >> $GITHUB_OUTPUT
+          echo "omni-cd version: $OMNI_CD_VERSION"
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.get_omni_cd_version.outputs.version }}-omnictl-${{ needs.check-omnictl-version.outputs.omnictl_version }}
+          release_name: omni-cd ${{ steps.get_omni_cd_version.outputs.version }}
+          body: |
+            ## omni-cd built with omnictl ${{ needs.check-omnictl-version.outputs.omnictl_version }}
+            
+            ### Docker images:
+            - `ghcr.io/${{ github.repository }}:latest`
+            - `ghcr.io/${{ github.repository }}:${{ needs.check-omnictl-version.outputs.omnictl_version }}`
+            
+            ### Binaries:
+            Download the pre-built binaries for your platform from the assets below.
+          draft: false
+          prerelease: false
+
+      - name: Upload Linux AMD64 Binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bin/omni-cd-linux-amd64
+          asset_name: omni-cd-linux-amd64
+          asset_content_type: application/octet-stream
+
+      - name: Upload Linux ARM64 Binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bin/omni-cd-linux-arm64
+          asset_name: omni-cd-linux-arm64
+          asset_content_type: application/octet-stream
+
+      - name: Upload Darwin AMD64 Binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bin/omni-cd-darwin-amd64
+          asset_name: omni-cd-darwin-amd64
+          asset_content_type: application/octet-stream
+
+      - name: Upload Darwin ARM64 Binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bin/omni-cd-darwin-arm64
+          asset_name: omni-cd-darwin-arm64
+          asset_content_type: application/octet-stream
