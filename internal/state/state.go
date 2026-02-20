@@ -26,6 +26,13 @@ const (
 	StatusFailed  ReconcileStatus = "failed"
 )
 
+// OmniHealth holds the result of the last Omni connectivity check.
+type OmniHealth struct {
+	Status    string    `json:"status"`
+	LastCheck time.Time `json:"lastCheck"`
+	Error     string    `json:"error,omitempty"`
+}
+
 // GitInfo holds information about the current git state.
 type GitInfo struct {
 	Repo          string    `json:"repo"`
@@ -70,6 +77,7 @@ type SnapshotData struct {
 	OmniVersion     string         `json:"omniVersion"`
 	OmnictlVersion  string         `json:"omnictlVersion"`
 	VersionMismatch bool           `json:"versionMismatch"`
+	OmniHealth      OmniHealth     `json:"omniHealth"`
 	Git             GitInfo        `json:"git"`
 	LastReconcile   ReconcileInfo  `json:"lastReconcile"`
 	MachineClasses  []ResourceInfo `json:"machineClasses"`
@@ -85,6 +93,7 @@ type AppState struct {
 	OmniVersion     string         `json:"omniVersion"`
 	OmnictlVersion  string         `json:"omnictlVersion"`
 	VersionMismatch bool           `json:"versionMismatch"`
+	OmniHealth      OmniHealth     `json:"omniHealth"`
 	Git             GitInfo        `json:"git"`
 	LastReconcile   ReconcileInfo  `json:"lastReconcile"`
 	MachineClasses  []ResourceInfo `json:"machineClasses"`
@@ -93,7 +102,8 @@ type AppState struct {
 	ForceClusterID  string         // Cluster ID to force sync (not exported to JSON)
 	Logs            []LogEntry     `json:"logs"`
 	maxLogs         int
-	stateFile       string // Path to state file (not exported to JSON)
+	stateFile       string        // Path to state file (not exported to JSON)
+	changeCh        chan struct{}  // Closed/sent on every state mutation
 }
 
 // New creates a new AppState with a max log buffer size.
@@ -106,6 +116,7 @@ func New(maxLogs int, omniEndpoint string, clustersEnabled bool, stateFile strin
 		Clusters:        []ResourceInfo{},
 		Logs:            []LogEntry{},
 		stateFile:       stateFile,
+		changeCh:        make(chan struct{}, 1),
 		LastReconcile: ReconcileInfo{
 			Status: StatusIdle,
 		},
@@ -119,6 +130,20 @@ func New(maxLogs int, omniEndpoint string, clustersEnabled bool, stateFile strin
 	return s
 }
 
+// notifyChange does a non-blocking send on changeCh to signal a state mutation.
+// Must be called while NOT holding mu (the receiver in the web layer will re-read state).
+func (s *AppState) notifyChange() {
+	select {
+	case s.changeCh <- struct{}{}:
+	default:
+	}
+}
+
+// ChangeCh returns a channel that receives a value whenever the state changes.
+func (s *AppState) ChangeCh() <-chan struct{} {
+	return s.changeCh
+}
+
 // SetVersions sets the Omni and omnictl version strings and mismatch flag.
 func (s *AppState) SetVersions(omniVersion, omnictlVersion string, mismatch bool) {
 	s.mu.Lock()
@@ -128,41 +153,57 @@ func (s *AppState) SetVersions(omniVersion, omnictlVersion string, mismatch bool
 	s.VersionMismatch = mismatch
 }
 
+// SetOmniHealth updates the Omni connectivity health status.
+func (s *AppState) SetOmniHealth(status, errMsg string) {
+	s.mu.Lock()
+	s.OmniHealth = OmniHealth{
+		Status:    status,
+		LastCheck: time.Now().UTC(),
+		Error:     errMsg,
+	}
+	s.mu.Unlock()
+	s.notifyChange()
+}
+
 // UpdateGit updates the git information.
 func (s *AppState) UpdateGit(info GitInfo) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.Git = info
+	s.mu.Unlock()
+	s.notifyChange()
 }
 
 // SetReconcileStarted marks a reconciliation as started.
 func (s *AppState) SetReconcileStarted(t ReconcileType) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.LastReconcile = ReconcileInfo{
 		Type:      t,
 		Status:    StatusRunning,
 		StartedAt: time.Now().UTC(),
 	}
+	s.mu.Unlock()
+	s.notifyChange()
 }
 
 // SetReconcileFinished marks a reconciliation as finished.
 func (s *AppState) SetReconcileFinished(success bool) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if success {
 		s.LastReconcile.Status = StatusSuccess
 	} else {
 		s.LastReconcile.Status = StatusFailed
 	}
 	s.LastReconcile.FinishedAt = time.Now().UTC()
+	s.mu.Unlock()
+	s.notifyChange()
 }
 
 // SetMachineClasses replaces the machine class list.
 func (s *AppState) SetMachineClasses(resources []ResourceInfo) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.MachineClasses = resources
+	s.mu.Unlock()
+	s.notifyChange()
 }
 
 // GetClusters returns a copy of the current cluster list.
@@ -177,8 +218,46 @@ func (s *AppState) GetClusters() []ResourceInfo {
 // SetClusters replaces the cluster list.
 func (s *AppState) SetClusters(resources []ResourceInfo) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.Clusters = resources
+	s.mu.Unlock()
+	s.notifyChange()
+}
+
+// UpdateClusterStatus updates the status of a single cluster by ID.
+// If the cluster is not found, it is a no-op.
+func (s *AppState) UpdateClusterStatus(id, status string) {
+	s.mu.Lock()
+	for i := range s.Clusters {
+		if s.Clusters[i].ID == id {
+			s.Clusters[i].Status = status
+			s.mu.Unlock()
+			s.notifyChange()
+			return
+		}
+	}
+	s.mu.Unlock()
+}
+
+// UpsertClusterStatus updates the status of a cluster by ID.
+// If the cluster is not yet tracked in state, a minimal entry is added so it
+// becomes visible in the UI immediately.
+func (s *AppState) UpsertClusterStatus(id, status string) {
+	s.mu.Lock()
+	for i := range s.Clusters {
+		if s.Clusters[i].ID == id {
+			s.Clusters[i].Status = status
+			s.mu.Unlock()
+			s.notifyChange()
+			return
+		}
+	}
+	s.Clusters = append(s.Clusters, ResourceInfo{
+		ID:     id,
+		Type:   "Cluster",
+		Status: status,
+	})
+	s.mu.Unlock()
+	s.notifyChange()
 }
 
 // GetClustersEnabled returns the current clusters enabled state.
@@ -246,7 +325,6 @@ func (s *AppState) HasForceClusterID() bool {
 // AddLog appends a log entry, trimming old entries if needed.
 func (s *AppState) AddLog(level, label, message string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	entry := LogEntry{
 		Timestamp: time.Now().UTC(),
 		Level:     level,
@@ -257,6 +335,8 @@ func (s *AppState) AddLog(level, label, message string) {
 	if len(s.Logs) > s.maxLogs {
 		s.Logs = s.Logs[len(s.Logs)-s.maxLogs:]
 	}
+	s.mu.Unlock()
+	s.notifyChange()
 }
 
 // Snapshot returns a copy of the current state for JSON serialization.
@@ -268,6 +348,7 @@ func (s *AppState) Snapshot() SnapshotData {
 		OmniVersion:     s.OmniVersion,
 		OmnictlVersion:  s.OmnictlVersion,
 		VersionMismatch: s.VersionMismatch,
+		OmniHealth:      s.OmniHealth,
 		Git:             s.Git,
 		LastReconcile:   s.LastReconcile,
 		MachineClasses:  s.MachineClasses,
@@ -281,6 +362,23 @@ func (s *AppState) Snapshot() SnapshotData {
 func (s *AppState) SaveToFile(path string) error {
 	s.mu.RLock()
 
+	// Strip transient in-progress statuses so a crash or restart never
+	// leaves resources stuck in "syncing" or "deleting" on next boot.
+	filteredClusters := make([]ResourceInfo, 0, len(s.Clusters))
+	for _, c := range s.Clusters {
+		if c.Status == "syncing" || c.Status == "deleting" {
+			continue
+		}
+		filteredClusters = append(filteredClusters, c)
+	}
+	filteredMCs := make([]ResourceInfo, 0, len(s.MachineClasses))
+	for _, m := range s.MachineClasses {
+		if m.Status == "syncing" {
+			continue
+		}
+		filteredMCs = append(filteredMCs, m)
+	}
+
 	// Create snapshot without logs and git info (they're transient)
 	snapshot := SnapshotData{
 		OmniEndpoint:    s.OmniEndpoint,
@@ -289,8 +387,8 @@ func (s *AppState) SaveToFile(path string) error {
 		VersionMismatch: s.VersionMismatch,
 		// Git intentionally omitted
 		LastReconcile:   s.LastReconcile,
-		MachineClasses:  s.MachineClasses,
-		Clusters:        s.Clusters,
+		MachineClasses:  filteredMCs,
+		Clusters:        filteredClusters,
 		ClustersEnabled: s.ClustersEnabled,
 		// Logs intentionally omitted
 	}

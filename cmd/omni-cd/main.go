@@ -134,6 +134,14 @@ func doReconcile(gitClient *git.Client, rec *reconciler.Reconciler, cfg *config.
 		appState.SetReconcileStarted(state.ReconcileSoft)
 	}
 
+	// Check Omni connectivity
+	if err := omni.CheckConnectivity(); err != nil {
+		logError("Omni connectivity check failed", "error", err)
+		appState.SetOmniHealth("failed", err.Error())
+	} else {
+		appState.SetOmniHealth("healthy", "")
+	}
+
 	changed, err := gitClient.Sync()
 	if err != nil {
 		logError("Git sync failed", "error", err)

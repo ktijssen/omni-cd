@@ -96,7 +96,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	s.clients[conn] = true
 	s.clientsMu.Unlock()
 
-	slog.Info("WebSocket client connected", "component", "Web")
+	slog.Debug("WebSocket client connected", "component", "Web")
 
 	// Send initial state
 	snapshot := s.appState.Snapshot()
@@ -116,7 +116,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	delete(s.clients, conn)
 	s.clientsMu.Unlock()
 
-	slog.Info("WebSocket client disconnected", "component", "Web")
+	slog.Debug("WebSocket client disconnected", "component", "Web")
 }
 
 // handleBroadcasts sends state updates to all connected WebSocket clients.
@@ -138,32 +138,40 @@ func (s *Server) handleBroadcasts() {
 	}
 }
 
-// monitorStateChanges periodically checks for state changes and broadcasts updates.
+// monitorStateChanges broadcasts state immediately on any mutation, with a
+// 1-second ticker as a fallback to catch any updates that may be missed.
 func (s *Server) monitorStateChanges() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
+	changeCh := s.appState.ChangeCh()
 
 	var lastHash uint64
-	for range ticker.C {
+	maybeBroadcast := func() {
 		snapshot := s.appState.Snapshot()
 		currentHash := s.hashState(snapshot)
-
 		if currentHash != lastHash {
 			lastHash = currentHash
 			if data, err := json.Marshal(snapshot); err == nil {
 				select {
 				case s.broadcast <- data:
 				default:
-					// Channel full, skip this update
 				}
 			}
 		}
 	}
+
+	for {
+		select {
+		case <-changeCh:
+			maybeBroadcast()
+		case <-ticker.C:
+			maybeBroadcast()
+		}
+	}
 }
 
-// hashState creates a simple hash of the state for change detection.
+// hashState creates a hash of the state for change detection.
 func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
-	// Simple hash based on key state fields
 	var hash uint64
 	hash = uint64(len(snapshot.MachineClasses))
 	hash = hash*31 + uint64(len(snapshot.Clusters))
@@ -174,8 +182,21 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 	if snapshot.VersionMismatch {
 		hash = hash * 37
 	}
-	hash = hash*31 + uint64(snapshot.LastReconcile.Status[0])
+	if len(snapshot.LastReconcile.Status) > 0 {
+		hash = hash*31 + uint64(snapshot.LastReconcile.Status[0])
+	}
 	hash = hash*31 + uint64(len(snapshot.Git.SHA))
+	// Include per-resource statuses so a status-only change is detected.
+	for _, c := range snapshot.Clusters {
+		for _, b := range []byte(c.Status) {
+			hash = hash*31 + uint64(b)
+		}
+	}
+	for _, m := range snapshot.MachineClasses {
+		for _, b := range []byte(m.Status) {
+			hash = hash*31 + uint64(b)
+		}
+	}
 	return hash
 }
 
@@ -439,6 +460,8 @@ const uiHTML = `<!DOCTYPE html>
   .badge-failed { background: #451a1e; color: #f87171; }
   .badge-outofsync { background: #431407; color: #fb923c; }
   .badge-unmanaged { background: #27272a; color: #71717a; border: 1px solid #3f3f46; }
+  .badge-deleting { background: #4d1500; color: #fb7a37; }
+  .badge-syncing { background: #0d2d2a; color: #2dd4bf; }
   .badge-idle { background: #3f3f46; color: #a1a1aa; }
 
   .provision-type {
@@ -589,6 +612,9 @@ const uiHTML = `<!DOCTYPE html>
     margin-right: 8px;
   }
   .btn-export:hover { border-color: #22d3ee; background: rgba(34, 211, 238, 0.1); }
+  .btn-sort { background: none; border: 1px solid #3f3f46; color: #71717a; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .btn-sort:hover { border-color: #a1a1aa; color: #a1a1aa; }
+  .btn-sort.active { border-color: #FB326E; color: #FB326E; background: rgba(251, 50, 110, 0.1); }
   .diff-viewer {
     background: #18181b;
     border-top: 1px solid #3f3f46;
@@ -863,7 +889,9 @@ const uiHTML = `<!DOCTYPE html>
   var state = null;
   var autoScroll = true;
   var machineClassPage = 1;
+  var machineClassSortAZ = true;
   var clusterPage = 1;
+  var clusterSortAZ = true;
   var pageSize = 5;
   var logsCollapsed = true;
   var ws = null;
@@ -961,7 +989,16 @@ const uiHTML = `<!DOCTYPE html>
     if (st === 'failed') return 'badge-failed';
     if (st === 'outofsync' || st === 'out of sync') return 'badge-outofsync';
     if (st === 'unmanaged') return 'badge-unmanaged';
+    if (st === 'syncing') return 'badge-syncing';
+    if (st === 'deleting') return 'badge-deleting';
     return 'badge-idle';
+  }
+
+  function getOmniHealth(s) {
+    if (!s || !s.omniHealth || !s.omniHealth.lastCheck) return { status: 'unknown', label: 'Unknown' };
+    if (s.omniHealth.status === 'healthy') return { status: 'healthy', label: 'Healthy' };
+    if (s.omniHealth.status === 'failed') return { status: 'failed', label: 'Unreachable' };
+    return { status: 'unknown', label: 'Unknown' };
   }
 
   function getGitHealth(s) {
@@ -1144,6 +1181,18 @@ const uiHTML = `<!DOCTYPE html>
     render();
   }
 
+  function toggleMachineClassSort() {
+    machineClassSortAZ = !machineClassSortAZ;
+    machineClassPage = 1;
+    render();
+  }
+
+  function toggleClusterSort() {
+    clusterSortAZ = !clusterSortAZ;
+    clusterPage = 1;
+    render();
+  }
+
   function toggleLogs() {
     logsCollapsed = !logsCollapsed;
     render();
@@ -1201,11 +1250,18 @@ const uiHTML = `<!DOCTYPE html>
         '</div>' +
       '</div>' +
 
-      '<div class="status-bar">' +
+      (function() {
+        var omniHealth = getOmniHealth(s);
+        return '<div class="status-bar">' +
         '<div class="status-card">' +
-          '<div class="label">Omni Instance</div>' +
+          '<div class="label" style="display:flex;justify-content:space-between;align-items:center">' +
+            '<span>Omni Instance</span>' +
+            '<span class="badge ' + gitHealthBadgeClass(omniHealth.status) + '">' + omniHealth.label + '</span>' +
+          '</div>' +
           '<div class="value">' + (s.omniEndpoint ? '<a href="' + s.omniEndpoint + '" target="_blank" style="color:#FB326E;text-decoration:none">' + s.omniEndpoint + '</a>' : '-') + '</div>' +
           '<div class="sub">Omni: ' + (s.omniVersion || 'unknown') + ' &middot; omnictl: ' + (s.omnictlVersion || 'unknown') + '</div>' +
+          '<div class="sub">Last check: ' + ago(s.omniHealth && s.omniHealth.lastCheck) + '</div>' +
+          (s.omniHealth && s.omniHealth.error ? '<div class="sub" style="color:#f87171">' + s.omniHealth.error + '</div>' : '') +
         '</div>' +
         '<div class="status-card">' +
           '<div class="label">Resources</div>' +
@@ -1214,7 +1270,8 @@ const uiHTML = `<!DOCTYPE html>
             (s.clusters ? s.clusters.length : 0) + ' Clusters</div>' +
           '<div class="sub">Managed by Omni CD</div>' +
         '</div>' +
-      '</div>' +
+      '</div>';
+      })() +
 
       (function() {
         var gitHealth = getGitHealth(s);
@@ -1244,10 +1301,14 @@ const uiHTML = `<!DOCTYPE html>
       '<div class="panels">' +
         '<div class="panel">' +
           '<div class="panel-header">Machine Classes ' +
-            '<span class="count">' + (s.machineClasses ? s.machineClasses.length : 0) + '</span></div>' +
+            '<div class="panel-header-right">' +
+              '<button class="btn-sort active" onclick="window.__toggleMachineClassSort()">' + (machineClassSortAZ ? 'A→Z' : 'Z→A') + '</button>' +
+              '<span class="count">' + (s.machineClasses ? s.machineClasses.length : 0) + '</span>' +
+            '</div>' +
+          '</div>' +
           '<div class="resource-list">' +
             (s.machineClasses && s.machineClasses.length > 0
-              ? paginateItems(s.machineClasses, machineClassPage).map(function(r) {
+              ? paginateItems(s.machineClasses.slice().sort(function(a, b) { return machineClassSortAZ ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id); }), machineClassPage).map(function(r) {
                   var displayStatus = r.status === 'success' ? 'synced' : r.status;
                   var provisionBadge = r.provisionType ? '<span class="provision-type ' + r.provisionType + '">' + r.provisionType + '</span>' : '';
                   var hasDiff = r.diff && r.diff.length > 0;
@@ -1261,11 +1322,12 @@ const uiHTML = `<!DOCTYPE html>
                 }).join('')
               : '<div class="resource-item" style="color:#52525b">No machine classes</div>') +
           '</div>' +
-          (s.machineClasses && s.machineClasses.length > pageSize ? renderPagination(s.machineClasses, machineClassPage, 'window.__changeMachineClassPage') : '') +
+          (s.machineClasses && s.machineClasses.length > pageSize ? renderPagination(s.machineClasses.slice().sort(function(a, b) { return machineClassSortAZ ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id); }), machineClassPage, 'window.__changeMachineClassPage') : '') +
         '</div>' +
         '<div class="panel">' +
           '<div class="panel-header">Clusters ' +
             '<div class="panel-header-right">' +
+              '<button class="btn-sort active" onclick="window.__toggleClusterSort()">' + (clusterSortAZ ? 'A→Z' : 'Z→A') + '</button>' +
               '<span class="toggle-status ' + (s.clustersEnabled ? 'on' : 'off') + '">Auto Sync</span>' +
               '<button class="toggle-switch ' + (s.clustersEnabled ? 'on' : '') + '" onclick="window.__toggleClusters()">' +
                 '<div class="toggle-knob"></div>' +
@@ -1275,11 +1337,12 @@ const uiHTML = `<!DOCTYPE html>
           '</div>' +
           '<div class="resource-list">' +
             (s.clusters && s.clusters.length > 0
-              ? paginateItems(s.clusters, clusterPage).map(function(r) {
+              ? paginateItems(s.clusters.slice().sort(function(a, b) { return clusterSortAZ ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id); }), clusterPage).map(function(r) {
                   var hasDiff = r.diff && r.diff.length > 0;
                   var hasFile = r.fileContent && r.fileContent.length > 0;
                   var isFailed = r.status === 'failed';
-                  var hasDetails = hasFile || hasDiff || isFailed;
+                  var hasError = r.error && r.error.length > 0;
+                  var hasDetails = hasFile || hasDiff || isFailed || hasError;
                   var isOutOfSync = r.status === 'outofsync';
                   var isUnmanaged = r.status === 'unmanaged';
                   
@@ -1297,6 +1360,10 @@ const uiHTML = `<!DOCTYPE html>
                     badges = '<span class="badge badge-failed">failed</span>';
                   } else if (isUnmanaged) {
                     badges = '<span class="badge badge-unmanaged">unmanaged</span>';
+                  } else if (r.status === 'deleting') {
+                    badges = '<span class="badge badge-deleting">deleting</span>';
+                  } else if (r.status === 'syncing') {
+                    badges = '<span class="badge badge-syncing">syncing</span>';
                   } else {
                     badges = '<span class="badge badge-idle">' + r.status + '</span>';
                   }
@@ -1315,7 +1382,7 @@ const uiHTML = `<!DOCTYPE html>
                 }).join('')
               : '<div class="resource-item" style="color:#52525b">No clusters</div>') +
           '</div>' +
-          (s.clusters && s.clusters.length > pageSize ? renderPagination(s.clusters, clusterPage, 'window.__changeClusterPage') : '') +
+          (s.clusters && s.clusters.length > pageSize ? renderPagination(s.clusters.slice().sort(function(a, b) { return clusterSortAZ ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id); }), clusterPage, 'window.__changeClusterPage') : '') +
         '</div>' +
       '</div>' +
 
@@ -1391,6 +1458,8 @@ const uiHTML = `<!DOCTYPE html>
   window.__confirmAction = confirmAction;
   window.__changeMachineClassPage = changeMachineClassPage;
   window.__changeClusterPage = changeClusterPage;
+  window.__toggleMachineClassSort = toggleMachineClassSort;
+  window.__toggleClusterSort = toggleClusterSort;
   window.__toggleLogs = toggleLogs;
   window.__showMachineClassModal = showMachineClassModal;
 
