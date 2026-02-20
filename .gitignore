@@ -1,0 +1,8 @@
+# Build output
+bin/
+
+# Runtime state
+deploy/compose/data/
+
+# Environment files
+deploy/compose/.env

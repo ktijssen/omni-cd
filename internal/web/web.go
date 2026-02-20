@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,18 +27,20 @@ type Server struct {
 	triggerHard chan struct{}
 	triggerSoft chan struct{}
 	port        string
+	version     string
 	clients     map[*websocket.Conn]bool
 	clientsMu   sync.RWMutex
 	broadcast   chan []byte
 }
 
 // New creates a new web server.
-func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, port string) *Server {
+func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, port string, version string) *Server {
 	s := &Server{
 		appState:    appState,
 		triggerHard: triggerHard,
 		triggerSoft: triggerSoft,
 		port:        port,
+		version:     version,
 		clients:     make(map[*websocket.Conn]bool),
 		broadcast:   make(chan []byte, 256),
 	}
@@ -324,7 +327,7 @@ func (s *Server) handleExportCluster(w http.ResponseWriter, r *http.Request) {
 // handleUI serves the embedded UI.
 func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprint(w, uiHTML)
+	fmt.Fprint(w, strings.ReplaceAll(uiHTML, "{{APP_VERSION}}", s.version))
 }
 
 const uiHTML = `<!DOCTYPE html>
@@ -856,6 +859,7 @@ const uiHTML = `<!DOCTYPE html>
 <script>
 (function() {
   var app = document.getElementById('app');
+  var appVersion = '{{APP_VERSION}}';
   var state = null;
   var autoScroll = true;
   var machineClassPage = 1;
@@ -1330,7 +1334,7 @@ const uiHTML = `<!DOCTYPE html>
         '</div>' +
       '</div>' +
 
-      '<div class="refresh-indicator">Real-time updates via WebSocket</div>' +
+      '<div class="refresh-indicator">Omni CD ' + appVersion + ' · Real-time updates</div>' +
 
       '<div class="modal ' + (currentModal ? 'show' : '') + '" onclick="if(event.target === this) window.__closeModal()">' +
         '<div class="modal-content" onclick="event.stopPropagation()">' +

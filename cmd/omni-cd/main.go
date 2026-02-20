@@ -18,6 +18,9 @@ import (
 	"omni-cd/internal/web"
 )
 
+// version is set at build time via -ldflags "-X main.version=v1.0.0"
+var version = "dev"
+
 var appState *state.AppState
 
 func main() {
@@ -72,7 +75,7 @@ func main() {
 	triggerSoft := make(chan struct{}, 1)
 
 	// Start the web UI server
-	webServer := web.New(appState, triggerHard, triggerSoft, cfg.WebPort)
+	webServer := web.New(appState, triggerHard, triggerSoft, cfg.WebPort, version)
 	webServer.Start()
 
 	// Set up graceful shutdown

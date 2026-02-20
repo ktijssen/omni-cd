@@ -6,6 +6,8 @@ vars:
   MAIN_PATH: ./cmd/omni-cd
   DOCKER_IMAGE: omni-cd
   COMPOSE_PATH: deploy/compose
+  VERSION:
+    sh: git describe --tags --always 2>/dev/null || echo "dev"
 
 tasks:
   default:
@@ -18,7 +20,7 @@ tasks:
   dev:
     desc: Run the application locally (requires omnictl and git)
     cmds:
-      - go run {{.MAIN_PATH}}/main.go
+      - go run -ldflags "-X main.version={{.VERSION}}" {{.MAIN_PATH}}
     env:
       OMNI_ENDPOINT: '{{.OMNI_ENDPOINT}}'
       OMNI_SERVICE_ACCOUNT_KEY: '{{.OMNI_SERVICE_ACCOUNT_KEY}}'
@@ -38,7 +40,7 @@ tasks:
     desc: Build the binary
     cmds:
       - mkdir -p {{.BUILD_DIR}}
-      - go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PATH}}
+      - go build -ldflags "-X main.version={{.VERSION}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}} {{.MAIN_PATH}}
     sources:
       - '**/*.go'
       - go.mod
@@ -50,7 +52,7 @@ tasks:
     desc: Build the binary for Linux
     cmds:
       - mkdir -p {{.BUILD_DIR}}
-      - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PATH}}
+      - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version={{.VERSION}}" -o {{.BUILD_DIR}}/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PATH}}
     sources:
       - '**/*.go'
       - go.mod
@@ -107,7 +109,7 @@ tasks:
   docker:build:
     desc: Build Docker image
     cmds:
-      - docker build -t {{.DOCKER_IMAGE}}:latest .
+      - docker build --build-arg APP_VERSION={{.VERSION}} -t {{.DOCKER_IMAGE}}:{{.VERSION}} -t {{.DOCKER_IMAGE}}:latest .
 
   docker:run:
     desc: Run Docker container locally
