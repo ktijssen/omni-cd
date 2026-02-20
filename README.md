@@ -22,7 +22,7 @@ A GitOps tool for [Sidero Omni](https://www.siderolabs.com/omni/), written in Go
 Pre-built images are published to the GitHub Container Registry on every release:
 
 ```bash
-docker pull ghcr.io/ktijssen/sidero-omni-cd:latest
+docker pull ghcr.io/ktijssen/omni-cd:latest
 ```
 
 Run it:
@@ -33,7 +33,7 @@ docker run -d \
   -e OMNI_SERVICE_ACCOUNT_KEY=your-service-account-key \
   -e GIT_REPO=https://github.com/your-org/your-infra-repo.git \
   -p 8080:8080 \
-  ghcr.io/ktijssen/sidero-omni-cd:latest
+  ghcr.io/ktijssen/omni-cd:latest
 ```
 
 ### Docker Compose
@@ -63,10 +63,10 @@ docker compose up -d
 
 ### Binary
 
-Download the pre-built binary for your platform from the [latest release](https://github.com/ktijssen/sidero-omni-cd/releases/latest):
+Download the pre-built binary for your platform from the [latest release](https://github.com/ktijssen/omni-cd/releases/latest):
 
 ```bash
-curl -LO https://github.com/ktijssen/sidero-omni-cd/releases/latest/download/omni-cd-linux-amd64
+curl -LO https://github.com/ktijssen/omni-cd/releases/latest/download/omni-cd-linux-amd64
 chmod +x omni-cd-linux-amd64
 sudo mv omni-cd-linux-amd64 /usr/local/bin/omni-cd
 ```
@@ -211,7 +211,7 @@ task dev
 
 ## Releases
 
-Releases are published automatically to [GitHub Releases](https://github.com/ktijssen/sidero-omni-cd/releases) and GHCR when:
+Releases are published automatically to [GitHub Releases](https://github.com/ktijssen/omni-cd/releases) and GHCR when:
 
 - Code is pushed to `main`
 - A new `omnictl` version is detected (checked daily at 02:00 UTC)
