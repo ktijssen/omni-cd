@@ -407,13 +407,18 @@ func (r *Reconciler) ApplyClusters(dir string) {
 				if liveContent == "" {
 					liveContent, _ = omni.GetLiveCluster(clusterName)
 				}
+				talos, k8s, cp, wk := clusterDetailFromLive(liveContent)
 				mu.Lock()
 				resources = append(resources, state.ResourceInfo{
-					ID:          clusterName,
-					Type:        "Cluster",
-					Status:      "success",
-					FileContent: fileContent,
-					LiveContent: liveContent,
+					ID:                clusterName,
+					Type:              "Cluster",
+					Status:            "success",
+					FileContent:       fileContent,
+					LiveContent:       liveContent,
+					TalosVersion:      talos,
+					KubernetesVersion: k8s,
+					ControlPlane:      cp,
+					Workers:           wk,
 				})
 				mu.Unlock()
 				return
@@ -436,15 +441,20 @@ func (r *Reconciler) ApplyClusters(dir string) {
 				if liveContent == "" {
 					liveContent, _ = omni.GetLiveCluster(clusterName)
 				}
+				talos, k8s, cp, wk := clusterDetailFromLive(liveContent)
 				mu.Lock()
 				resources = append(resources, state.ResourceInfo{
-					ID:          clusterName,
-					Type:        "Cluster",
-					Status:      "failed",
-					Diff:        diffOutput,
-					FileContent: fileContent,
-					LiveContent: liveContent,
-					Error:       err.Error(),
+					ID:                clusterName,
+					Type:              "Cluster",
+					Status:            "failed",
+					Diff:              diffOutput,
+					FileContent:       fileContent,
+					LiveContent:       liveContent,
+					Error:             err.Error(),
+					TalosVersion:      talos,
+					KubernetesVersion: k8s,
+					ControlPlane:      cp,
+					Workers:           wk,
 				})
 				failed++
 				mu.Unlock()
@@ -453,13 +463,18 @@ func (r *Reconciler) ApplyClusters(dir string) {
 				r.state.UpsertClusterStatus(clusterName, "success")
 				// Always fetch fresh after sync — the pre-fetched cache is stale
 				liveContent, _ := omni.GetLiveCluster(clusterName)
+				talos, k8s, cp, wk := clusterDetailFromLive(liveContent)
 				mu.Lock()
 				resources = append(resources, state.ResourceInfo{
-					ID:          clusterName,
-					Type:        "Cluster",
-					Status:      "success",
-					FileContent: fileContent,
-					LiveContent: liveContent,
+					ID:                clusterName,
+					Type:              "Cluster",
+					Status:            "success",
+					FileContent:       fileContent,
+					LiveContent:       liveContent,
+					TalosVersion:      talos,
+					KubernetesVersion: k8s,
+					ControlPlane:      cp,
+					Workers:           wk,
 				})
 				synced++
 				mu.Unlock()
@@ -564,17 +579,21 @@ func (r *Reconciler) DiffClusters(dir string) {
 		// Validate the template
 		if err := omni.ClusterTemplateValidate(tmpl); err != nil {
 			r.logError("Cluster template validation failed", "component", "Clusters", "cluster", name, "error", err)
-			// Get from batch or fallback to individual fetch
 			liveContent := allLiveStates[name]
 			if liveContent == "" {
 				liveContent, _ = omni.GetLiveCluster(name)
 			}
+			talos, k8s, cp, wk := clusterDetailFromLive(liveContent)
 			resources = append(resources, state.ResourceInfo{
-				ID:          name,
-				Type:        "Cluster",
-				Status:      "failed",
-				FileContent: fileContent,
-				LiveContent: liveContent,
+				ID:                name,
+				Type:              "Cluster",
+				Status:            "failed",
+				FileContent:       fileContent,
+				LiveContent:       liveContent,
+				TalosVersion:      talos,
+				KubernetesVersion: k8s,
+				ControlPlane:      cp,
+				Workers:           wk,
 			})
 			errCount++
 			continue
@@ -582,35 +601,38 @@ func (r *Reconciler) DiffClusters(dir string) {
 
 		// Check if there are any changes
 		diffOutput, _ := omni.ClusterTemplateDiff(tmpl)
+		liveContent := allLiveStates[name]
+		if liveContent == "" {
+			liveContent, _ = omni.GetLiveCluster(name)
+		}
+		talos, k8s, cp, wk := clusterDetailFromLive(liveContent)
 		if diffOutput == "" || strings.Contains(diffOutput, "no changes") {
 			r.logDebug("Cluster in sync", "component", "Clusters", "cluster", name)
-			// Get from batch or fallback to individual fetch
-			liveContent := allLiveStates[name]
-			if liveContent == "" {
-				liveContent, _ = omni.GetLiveCluster(name)
-			}
 			resources = append(resources, state.ResourceInfo{
-				ID:          name,
-				Type:        "Cluster",
-				Status:      "success",
-				FileContent: fileContent,
-				LiveContent: liveContent,
+				ID:                name,
+				Type:              "Cluster",
+				Status:            "success",
+				FileContent:       fileContent,
+				LiveContent:       liveContent,
+				TalosVersion:      talos,
+				KubernetesVersion: k8s,
+				ControlPlane:      cp,
+				Workers:           wk,
 			})
 			inSync++
 		} else {
 			r.logWarn("Cluster out of sync (sync disabled, skipping...)", "component", "Clusters", "cluster", name)
-			// Get from batch or fallback to individual fetch
-			liveContent := allLiveStates[name]
-			if liveContent == "" {
-				liveContent, _ = omni.GetLiveCluster(name)
-			}
 			resources = append(resources, state.ResourceInfo{
-				ID:          name,
-				Type:        "Cluster",
-				Status:      "outofsync",
-				Diff:        diffOutput,
-				FileContent: fileContent,
-				LiveContent: liveContent,
+				ID:                name,
+				Type:              "Cluster",
+				Status:            "outofsync",
+				Diff:              diffOutput,
+				FileContent:       fileContent,
+				LiveContent:       liveContent,
+				TalosVersion:      talos,
+				KubernetesVersion: k8s,
+				ControlPlane:      cp,
+				Workers:           wk,
 			})
 			outOfSync++
 		}
@@ -889,6 +911,19 @@ func findClusterTemplates(dir string) ([]string, error) {
 		}
 	}
 	return templates, nil
+}
+
+// clusterDetailFromLive parses a live cluster template export and returns
+// the populated NodeGroup and version fields for a ResourceInfo.
+func clusterDetailFromLive(liveContent string) (talos, k8s string, cp state.NodeGroup, workers []state.NodeGroup) {
+	info := omni.ParseClusterTemplate(liveContent)
+	talos = info.TalosVersion
+	k8s = info.KubernetesVersion
+	cp = state.NodeGroup{Count: info.ControlPlaneCount, MachineClass: info.ControlPlaneMachineClass}
+	for _, wg := range info.WorkerGroups {
+		workers = append(workers, state.NodeGroup{Name: wg.Name, Count: wg.Count, MachineClass: wg.MachineClass})
+	}
+	return
 }
 
 // extractAllIDs extracts all resource ids from a YAML file.

@@ -52,6 +52,13 @@ type ReconcileInfo struct {
 }
 
 // ResourceInfo holds information about a managed resource.
+// NodeGroup holds information about a group of nodes (control plane or a workers pool).
+type NodeGroup struct {
+	Name         string `json:"name,omitempty"`
+	Count        int    `json:"count"`
+	MachineClass string `json:"machineClass,omitempty"`
+}
+
 type ResourceInfo struct {
 	ID            string `json:"id"`
 	Type          string `json:"type"`
@@ -61,6 +68,11 @@ type ResourceInfo struct {
 	FileContent   string `json:"fileContent,omitempty"`
 	LiveContent   string `json:"liveContent,omitempty"`
 	Error         string `json:"error,omitempty"`
+	// Cluster-specific detail (populated from live template export)
+	TalosVersion      string      `json:"talosVersion,omitempty"`
+	KubernetesVersion string      `json:"kubernetesVersion,omitempty"`
+	ControlPlane      NodeGroup   `json:"controlPlane,omitempty"`
+	Workers           []NodeGroup `json:"workers,omitempty"`
 }
 
 // LogEntry holds a single log entry.
