@@ -14,7 +14,7 @@ import (
 
 // CheckConnectivity verifies that omnictl can communicate with the Omni instance.
 func CheckConnectivity() error {
-	return run("omnictl", "get", "machineclasses")
+	return run("omnictl", "get", "sysversion")
 }
 
 // ============================================================

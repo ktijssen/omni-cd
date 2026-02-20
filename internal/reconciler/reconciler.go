@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"omni-cd/internal/omni"
@@ -50,14 +51,52 @@ func (r *Reconciler) ApplyMachineClasses(dir string) {
 
 	r.logInfo("Syncing machine classes", "component", "MachineClasses", "count", idCount)
 
+	// Detect duplicate IDs across files
+	idToFiles := make(map[string][]string)
+	for _, f := range files {
+		for _, id := range extractAllIDs(f) {
+			idToFiles[id] = append(idToFiles[id], f)
+		}
+	}
+	duplicateIDs := make(map[string]bool)
+	repoRoot := filepath.Dir(dir)
+	var resources []state.ResourceInfo
+	applied, failed := 0, 0
+	for id, idFiles := range idToFiles {
+		if len(idFiles) > 1 {
+			duplicateIDs[id] = true
+			relFiles := make([]string, len(idFiles))
+			for i, f := range idFiles {
+				relFiles[i] = strings.TrimPrefix(f, repoRoot)
+			}
+			errMsg := fmt.Sprintf("Conflicting machine class templates: %s", strings.Join(relFiles, ", "))
+			r.logError("Duplicate machine class ID found, skipping sync", "component", "MachineClasses", "id", id, "files", strings.Join(relFiles, ", "))
+			resources = append(resources, state.ResourceInfo{
+				ID:     id,
+				Type:   "MachineClass",
+				Status: "outofsync",
+				Error:  errMsg,
+			})
+			failed++
+		}
+	}
+
 	// Batch fetch all live machine class states once
 	allLiveStates, _ := omni.GetAllLiveMachineClasses()
 
-	var resources []state.ResourceInfo
-	applied, failed := 0, 0
-
 	for _, file := range files {
 		ids := extractAllIDs(file)
+		// Filter out duplicate IDs
+		var nonDupIDs []string
+		for _, id := range ids {
+			if !duplicateIDs[id] {
+				nonDupIDs = append(nonDupIDs, id)
+			}
+		}
+		if len(nonDupIDs) == 0 {
+			continue
+		}
+		ids = nonDupIDs
 		provisionType := detectProvisionType(file)
 
 		// Get dry-run diff to check if changes are needed
@@ -277,8 +316,45 @@ func (r *Reconciler) ApplyClusters(dir string) {
 	// Batch fetch all live cluster states once
 	allLiveStates, _ := omni.GetAllLiveClusters()
 
-	var resources []state.ResourceInfo
-	synced, failed := 0, 0
+	var (
+		mu        sync.Mutex
+		wg        sync.WaitGroup
+		resources []state.ResourceInfo
+		synced    int
+		failed    int
+	)
+
+	// Detect duplicate cluster IDs across templates before processing.
+	// Two cluster.yaml files with the same cluster name would conflict —
+	// mark both as out of sync with an error and skip them.
+	nameToFiles := make(map[string][]string)
+	for _, tmpl := range templates {
+		name := extractClusterName(tmpl)
+		if name != "" {
+			nameToFiles[name] = append(nameToFiles[name], tmpl)
+		}
+	}
+	duplicates := make(map[string]bool)
+	for name, files := range nameToFiles {
+		if len(files) > 1 {
+			duplicates[name] = true
+			relFiles := make([]string, len(files))
+			repoRoot := filepath.Dir(dir)
+			for i, f := range files {
+				relFiles[i] = strings.TrimPrefix(f, repoRoot)
+			}
+			errMsg := fmt.Sprintf("Conflicting cluster templates: %s", strings.Join(relFiles, ", "))
+			r.logError("Duplicate cluster ID found, skipping sync", "component", "Clusters", "cluster", name, "files", strings.Join(relFiles, ", "))
+			r.state.UpsertClusterStatus(name, "outofsync")
+			resources = append(resources, state.ResourceInfo{
+				ID:     name,
+				Type:   "Cluster",
+				Status: "outofsync",
+				Error:  errMsg,
+			})
+			failed++
+		}
+	}
 
 	for _, tmpl := range templates {
 		name := extractClusterName(tmpl)
@@ -287,91 +363,111 @@ func (r *Reconciler) ApplyClusters(dir string) {
 			continue
 		}
 
+		// Skip clusters with conflicting templates
+		if duplicates[name] {
+			continue
+		}
+
 		// If force-syncing a specific cluster, skip others
 		if forceClusterID != "" && name != forceClusterID {
 			continue
 		}
 
-		// Read file content for UI display
-		fileContent := readFileContent(tmpl)
+		wg.Add(1)
+		go func(tmplPath, clusterName string) {
+			defer wg.Done()
 
-		// Validate the template before syncing to prevent broken configs
-		if err := omni.ClusterTemplateValidate(tmpl); err != nil {
-			r.logError("Cluster template validation failed", "component", "Clusters", "cluster", name, "error", err)
-			resources = append(resources, state.ResourceInfo{
-				ID:          name,
-				Type:        "Cluster",
-				Status:      "failed",
-				FileContent: fileContent,
-				Error:       err.Error(),
-			})
-			failed++
-			continue
-		}
+			// Read file content for UI display
+			fileContent := readFileContent(tmplPath)
 
-		// Check if there are any changes to apply
-		diffOutput, _ := omni.ClusterTemplateDiff(tmpl)
-		isForceSync := forceClusterID != "" && name == forceClusterID
-
-		if !isForceSync && (diffOutput == "" || strings.Contains(diffOutput, "no changes")) {
-			r.logDebug("Cluster up to date", "component", "Clusters", "cluster", name)
-			// Get from batch or fallback to individual fetch
-			liveContent := allLiveStates[name]
-			if liveContent == "" {
-				liveContent, _ = omni.GetLiveCluster(name)
+			// Validate the template before syncing to prevent broken configs
+			if err := omni.ClusterTemplateValidate(tmplPath); err != nil {
+				r.logError("Cluster template validation failed", "component", "Clusters", "cluster", clusterName, "error", err)
+				r.state.UpsertClusterStatus(clusterName, "failed")
+				mu.Lock()
+				resources = append(resources, state.ResourceInfo{
+					ID:          clusterName,
+					Type:        "Cluster",
+					Status:      "failed",
+					FileContent: fileContent,
+					Error:       err.Error(),
+				})
+				failed++
+				mu.Unlock()
+				return
 			}
-			resources = append(resources, state.ResourceInfo{
-				ID:          name,
-				Type:        "Cluster",
-				Status:      "success",
-				FileContent: fileContent,
-				LiveContent: liveContent,
-			})
-			continue
-		}
 
-		// There is a diff or force sync — log it and sync
-		if isForceSync {
-			r.logWarn("Force syncing cluster", "component", "Clusters", "cluster", name)
-		} else {
-			r.logWarn("Cluster out of sync", "component", "Clusters", "cluster", name)
-		}
-		r.logInfo("Syncing cluster", "component", "Clusters", "cluster", name)
+			// Check if there are any changes to apply
+			diffOutput, _ := omni.ClusterTemplateDiff(tmplPath)
+			isForceSync := forceClusterID != "" && clusterName == forceClusterID
 
-		if err := omni.ClusterTemplateSync(tmpl); err != nil {
-			r.logError("Cluster sync failed", "component", "Clusters", "cluster", name, "error", err)
-			// Get from batch or fallback to individual fetch
-			liveContent := allLiveStates[name]
-			if liveContent == "" {
-				liveContent, _ = omni.GetLiveCluster(name)
+			if !isForceSync && (diffOutput == "" || strings.Contains(diffOutput, "no changes")) {
+				r.logDebug("Cluster up to date", "component", "Clusters", "cluster", clusterName)
+				liveContent := allLiveStates[clusterName]
+				if liveContent == "" {
+					liveContent, _ = omni.GetLiveCluster(clusterName)
+				}
+				mu.Lock()
+				resources = append(resources, state.ResourceInfo{
+					ID:          clusterName,
+					Type:        "Cluster",
+					Status:      "success",
+					FileContent: fileContent,
+					LiveContent: liveContent,
+				})
+				mu.Unlock()
+				return
 			}
-			resources = append(resources, state.ResourceInfo{
-				ID:          name,
-				Type:        "Cluster",
-				Status:      "failed",
-				Diff:        diffOutput,
-				FileContent: fileContent,
-				LiveContent: liveContent,
-				Error:       err.Error(),
-			})
-			failed++
-		} else {
-			r.logInfo("Cluster synced", "component", "Clusters", "cluster", name)
-			// Get from batch or fallback to individual fetch
-			liveContent := allLiveStates[name]
-			if liveContent == "" {
-				liveContent, _ = omni.GetLiveCluster(name)
+
+			// There is a diff or force sync — log it and sync
+			if isForceSync {
+				r.logWarn("Force syncing cluster", "component", "Clusters", "cluster", clusterName)
+			} else {
+				r.logWarn("Cluster out of sync", "component", "Clusters", "cluster", clusterName)
+				r.state.UpsertClusterStatus(clusterName, "outofsync")
 			}
-			resources = append(resources, state.ResourceInfo{
-				ID:          name,
-				Type:        "Cluster",
-				Status:      "success",
-				FileContent: fileContent,
-				LiveContent: liveContent,
-			})
-			synced++
-		}
+			r.logInfo("Syncing cluster", "component", "Clusters", "cluster", clusterName)
+			r.state.UpsertClusterStatus(clusterName, "syncing")
+
+			if err := omni.ClusterTemplateSync(tmplPath); err != nil {
+				r.logError("Cluster sync failed", "component", "Clusters", "cluster", clusterName, "error", err)
+				r.state.UpsertClusterStatus(clusterName, "failed")
+				liveContent := allLiveStates[clusterName]
+				if liveContent == "" {
+					liveContent, _ = omni.GetLiveCluster(clusterName)
+				}
+				mu.Lock()
+				resources = append(resources, state.ResourceInfo{
+					ID:          clusterName,
+					Type:        "Cluster",
+					Status:      "failed",
+					Diff:        diffOutput,
+					FileContent: fileContent,
+					LiveContent: liveContent,
+					Error:       err.Error(),
+				})
+				failed++
+				mu.Unlock()
+			} else {
+				r.logInfo("Cluster synced", "component", "Clusters", "cluster", clusterName)
+				r.state.UpsertClusterStatus(clusterName, "success")
+				// Always fetch fresh after sync — the pre-fetched cache is stale
+				liveContent, _ := omni.GetLiveCluster(clusterName)
+				mu.Lock()
+				resources = append(resources, state.ResourceInfo{
+					ID:          clusterName,
+					Type:        "Cluster",
+					Status:      "success",
+					FileContent: fileContent,
+					LiveContent: liveContent,
+				})
+				synced++
+				mu.Unlock()
+			}
+		}(tmpl, name)
 	}
+
+	wg.Wait()
 
 	// Always merge with existing cluster states to preserve unmanaged clusters
 	existing := r.state.GetClusters()
@@ -583,9 +679,14 @@ func (r *Reconciler) DeleteClusters(dir string) {
 	r.logInfo("Checking for template-managed clusters to delete", "component", "Clusters")
 
 	// Track unmanaged clusters to preserve in state
-	var unmanaged []state.ResourceInfo
+	var (
+		unmanaged []state.ResourceInfo
+		mu        sync.Mutex
+		wg        sync.WaitGroup
+		deleted   int
+		failed    int
+	)
 
-	deleted, failed := 0, 0
 	for _, id := range allIDs {
 		// If cluster is in Git, keep it
 		if contains(desiredIDs, id) {
@@ -603,15 +704,26 @@ func (r *Reconciler) DeleteClusters(dir string) {
 			continue
 		}
 
-		r.logWarn("Cluster not in Git, deleting", "component", "Clusters", "cluster", id)
-		if err := omni.DeleteCluster(id); err != nil {
-			r.logError("Cluster delete failed", "component", "Clusters", "cluster", id, "error", err)
-			failed++
-		} else {
-			r.logInfo("Cluster deleted", "component", "Clusters", "cluster", id)
-			deleted++
-		}
+		r.state.UpdateClusterStatus(id, "deleting")
+		wg.Add(1)
+		go func(clusterID string) {
+			defer wg.Done()
+			r.logWarn("Cluster not in Git, deleting", "component", "Clusters", "cluster", clusterID)
+			if err := omni.DeleteCluster(clusterID); err != nil {
+				r.logError("Cluster delete failed", "component", "Clusters", "cluster", clusterID, "error", err)
+				mu.Lock()
+				failed++
+				mu.Unlock()
+			} else {
+				r.logInfo("Cluster deleted", "component", "Clusters", "cluster", clusterID)
+				mu.Lock()
+				deleted++
+				mu.Unlock()
+			}
+		}(id)
 	}
+
+	wg.Wait()
 
 	// Update state - merge unmanaged clusters with managed ones from git
 	existing := r.state.GetClusters()
