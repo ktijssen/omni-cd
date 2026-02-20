@@ -85,8 +85,33 @@ func main() {
 	gitClient := git.New(cfg, appState)
 	rec := reconciler.New(appState)
 
+	// pollClusterStatuses fetches live ready-status for every cluster and
+	// writes it into AppState.  Defined here so it can be called both from
+	// the background ticker AND synchronously at the end of each reconcile
+	// (when s.Clusters is guaranteed to be populated).
+	pollClusterStatuses := func() {
+		statuses, err := omni.GetAllClusterReadyStatuses()
+		if err == nil {
+			appState.UpdateClusterReadyStatuses(statuses)
+		}
+	}
+
+	// Start background polling every 5 seconds for live ready-status updates
+	// between reconcile cycles.
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			pollClusterStatuses()
+		}
+	}()
+
 	// Run immediately on start (hard reconcile)
 	doReconcile(gitClient, rec, cfg, true)
+	// Poll right after the initial reconcile so ClusterReady is populated
+	// as soon as the cluster list exists in state (avoids waiting a full
+	// 5-second tick for the first badge to appear).
+	go pollClusterStatuses()
 
 	// Start refresh timer after first reconcile completes
 	refreshTimer := time.NewTimer(cfg.RefreshInterval)
@@ -98,18 +123,22 @@ func main() {
 		select {
 		case <-refreshTimer.C:
 			doReconcile(gitClient, rec, cfg, false)
+			go pollClusterStatuses()
 			refreshTimer.Reset(cfg.RefreshInterval)
 		case <-syncTicker.C:
 			logInfo("Sync reconcile triggered", "trigger", "scheduled")
 			doReconcile(gitClient, rec, cfg, true)
+			go pollClusterStatuses()
 			refreshTimer.Reset(cfg.RefreshInterval)
 		case <-triggerHard:
 			logInfo("Sync reconcile triggered", "trigger", "web UI")
 			doReconcile(gitClient, rec, cfg, true)
+			go pollClusterStatuses()
 			refreshTimer.Reset(cfg.RefreshInterval)
 		case <-triggerSoft:
 			logInfo("Git check triggered", "trigger", "web UI")
 			doReconcile(gitClient, rec, cfg, false)
+			go pollClusterStatuses()
 			refreshTimer.Reset(cfg.RefreshInterval)
 		case <-stop:
 			logInfo("Shutting down gracefully")

@@ -238,6 +238,66 @@ func GetClusterIDs() ([]string, error) {
 	return getResourceIDs("omnictl", "get", "clusters", "-o", "yaml")
 }
 
+// ClusterStatus holds relevant status fields from omnictl get clusterstatus.
+type ClusterStatus struct {
+	Ready              bool
+	KubernetesAPIReady bool
+}
+
+// GetAllClusterReadyStatuses fetches status fields for every cluster in one call.
+// Returns a map of cluster ID -> ClusterStatus.
+func GetAllClusterReadyStatuses() (map[string]ClusterStatus, error) {
+	cmd := exec.Command("omnictl", "get", "clusterstatus", "-o", "yaml")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return parseClusterStatuses(string(out)), nil
+}
+
+// parseClusterStatuses parses multi-doc YAML from omnictl get clusterstatus.
+func parseClusterStatuses(yamlContent string) map[string]ClusterStatus {
+	result := make(map[string]ClusterStatus)
+	docs := strings.Split(yamlContent, "\n---\n")
+	for _, doc := range docs {
+		doc = strings.TrimSpace(doc)
+		if doc == "" || doc == "---" {
+			continue
+		}
+		var id string
+		var st ClusterStatus
+		inSpec := false
+		for _, line := range strings.Split(doc, "\n") {
+			trimmed := strings.TrimSpace(line)
+			switch {
+			case trimmed == "metadata:":
+				inSpec = false
+			case trimmed == "spec:":
+				inSpec = true
+			case !inSpec && strings.HasPrefix(trimmed, "id:"):
+				parts := strings.Fields(trimmed)
+				if len(parts) >= 2 {
+					id = parts[1]
+				}
+			case inSpec && strings.HasPrefix(trimmed, "ready:"):
+				parts := strings.Fields(trimmed)
+				if len(parts) >= 2 {
+					st.Ready = parts[1] == "true"
+				}
+			case inSpec && strings.HasPrefix(trimmed, "kubernetesapiready:"):
+				parts := strings.Fields(trimmed)
+				if len(parts) >= 2 {
+					st.KubernetesAPIReady = parts[1] == "true"
+				}
+			}
+		}
+		if id != "" {
+			result[id] = st
+		}
+	}
+	return result
+}
+
 // DeleteCluster deletes a cluster from Omni by id.
 func DeleteCluster(id string) error {
 	return run("omnictl", "cluster", "delete", id)

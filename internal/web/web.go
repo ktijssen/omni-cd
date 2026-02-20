@@ -190,6 +190,16 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 		for _, b := range []byte(c.Status) {
 			hash = hash*31 + uint64(b)
 		}
+		if c.ClusterReady != "" {
+			for _, b := range []byte(c.ClusterReady) {
+				hash = hash*31 + uint64(b)
+			}
+		}
+		if c.KubernetesAPIReady != "" {
+			for _, b := range []byte(c.KubernetesAPIReady) {
+				hash = hash*31 + uint64(b)
+			}
+		}
 	}
 	for _, m := range snapshot.MachineClasses {
 		for _, b := range []byte(m.Status) {

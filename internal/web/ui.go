@@ -124,6 +124,8 @@ const uiHTML = `<!DOCTYPE html>
   .badge-deleting { background: #4d1500; color: #fb7a37; }
   .badge-syncing { background: #0d2d2a; color: #2dd4bf; }
   .badge-idle { background: #3f3f46; color: #a1a1aa; }
+  .badge-ready { background: #14532d; color: #4ade80; }
+  .badge-notready { background: #451a1e; color: #f87171; }
 
   .provision-type {
     display: inline-block;
@@ -280,7 +282,7 @@ const uiHTML = `<!DOCTYPE html>
   .btn-back:hover { border-color: #a1a1aa; color: #fff; }
   .panel-nav-link { cursor: pointer; transition: color 0.15s; }
   .panel-nav-link:hover { color: #FB326E; }
-  .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; padding: 24px; }
+  .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; padding: 24px; align-items: start; }
   .cluster-card { background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; overflow: hidden; }
   .cluster-card-header { padding: 14px 18px; border-bottom: 1px solid #3f3f46; display: flex; justify-content: space-between; align-items: center; }
   .cluster-card-title { font-size: 15px; font-weight: 600; color: #fff; }
@@ -318,41 +320,48 @@ const uiHTML = `<!DOCTYPE html>
   .diff-del { color: #f87171; }
   .diff-hdr { color: #60a5fa; }
 
-  .logs-panel {
-    background: #27272a;
-    border: 1px solid #3f3f46;
-    border-radius: 12px;
-    overflow: hidden;
-  }
-  .logs-panel.collapsed .logs-container {
-    display: none;
-  }
-  .logs-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid #3f3f46;
+  .btn-logs {
+    background: #FB326E;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
     font-size: 14px;
     font-weight: 600;
-    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-logs:hover { background: #e0285f; }
+  .btn-logs:active { background: #c92255; }
+  .logs-modal-header {
+    padding: 20px 24px 16px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    border-bottom: 1px solid #3f3f46;
+  }
+  .logs-modal-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+  }
+  .logs-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .btn-download {
+    background: #3f3f46;
+    color: #e4e4e7;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
-    user-select: none;
+    transition: all 0.2s;
   }
-  .logs-header:hover {
-    background: rgba(255, 255, 255, 0.02);
-  }
-  .logs-toggle {
-    font-size: 18px;
-    color: #a1a1aa;
-    transition: transform 0.2s;
-  }
-  .logs-panel.collapsed .logs-toggle {
-    transform: rotate(-90deg);
-  }
-  .logs-panel.collapsed .logs-header {
-    border-bottom: none;
-  }
+  .btn-download:hover { background: #52525b; }
   .logs-container {
     height: 400px;
     overflow-y: auto;
@@ -415,9 +424,9 @@ const uiHTML = `<!DOCTYPE html>
     background: #27272a;
     border: 1px solid #3f3f46;
     border-radius: 12px;
-    max-width: 900px;
-    width: 90%;
-    max-height: 85vh;
+    width: 900px;
+    max-width: 90%;
+    height: 75vh;
     display: flex;
     flex-direction: column;
     animation: slideIn 0.2s;
@@ -579,9 +588,11 @@ const uiHTML = `<!DOCTYPE html>
 </head>
 <body>
 <div class="container" id="app"></div>
+<div id="modals"></div>
 <script>
 (function() {
   var app = document.getElementById('app');
+  var modalsEl = document.getElementById('modals');
   var appVersion = '{{APP_VERSION}}';
   var state = null;
   var autoScroll = true;
@@ -590,7 +601,7 @@ const uiHTML = `<!DOCTYPE html>
   var clusterPage = 1;
   var clusterSortAZ = true;
   var pageSize = 5;
-  var logsCollapsed = true;
+  var logsModal = false;
   var viewClusters = window.location.pathname === '/clusters';
   var ws = null;
   var wsReconnectDelay = 1000;
@@ -650,9 +661,31 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   function setModalTab(tab) {
-    if (currentModal) {
-      currentModal.activeTab = tab;
-      render();
+    if (!currentModal) return;
+    currentModal.activeTab = tab;
+    // Update only the tab buttons and body content in-place to avoid a full
+    // re-render (which would cause the whole page to flicker).
+    var tabs = document.querySelectorAll('.modal-tabs .modal-tab');
+    tabs.forEach(function(btn) {
+      var btnTab = btn.getAttribute('onclick').match(/'([^']+)'\)/)[1];
+      btn.classList.toggle('active', btnTab === tab);
+    });
+    var body = document.querySelector('.modal-content > .modal-body');
+    if (body) {
+      if (tab === 'error') {
+        body.innerHTML = '<div style="color:#f87171;white-space:pre-wrap;">' + escHtml(currentModal.error) + '</div>';
+      } else if (tab === 'live') {
+        body.innerHTML = currentModal.liveContent
+          ? '<pre style="margin:0;white-space:pre-wrap;">' + escHtml(currentModal.liveContent) + '</pre>'
+          : '<div style="color:#71717a;text-align:center;padding:40px;">No live state available</div>';
+      } else if (tab === 'diff') {
+        body.innerHTML = currentModal.diff
+          ? '<pre style="margin:0;white-space:pre-wrap;">' + formatDiff(currentModal.diff) + '</pre>'
+          : '<div style="color:#71717a;text-align:center;padding:40px;">No diff available</div>';
+      } else {
+        body.innerHTML = '<div style="color:#71717a;text-align:center;padding:40px;">No content available</div>';
+      }
+      body.scrollTop = 0;
     }
   }
 
@@ -920,6 +953,7 @@ const uiHTML = `<!DOCTYPE html>
           (syncDisabled ? 'disabled' : '') + '>' +
           (isRunning ? 'Syncing...' : 'Sync') +
         '</button>' +
+        '<button class="btn-logs" onclick="window.__showLogsModal()">Logs</button>' +
       '</div>' +
     '</div>';
   }
@@ -963,7 +997,11 @@ const uiHTML = `<!DOCTYPE html>
             (hasDetails ? ' onclick="window.__showClusterModal(\'' + c.id + '\')"' : '') + '>' +
             c.id +
           '</span>' +
-          '<span class="badge ' + badgeClass(c.status) + '">' + (c.status === 'success' ? 'synced' : c.status) + '</span>' +
+          '<div style="display:flex;align-items:center;gap:6px">' +
+            (c.clusterReady ? '<span class="badge ' + (c.clusterReady === 'ready' ? 'badge-ready' : c.clusterReady === 'not-ready' ? 'badge-notready' : 'badge-idle') + '">' + (c.clusterReady === 'ready' ? 'healthy' : c.clusterReady === 'not-ready' ? 'unhealthy' : 'unknown') + '</span>' : '') +
+            (c.kubernetesApiReady ? '<span class="badge ' + (c.kubernetesApiReady === 'ready' ? 'badge-ready' : 'badge-notready') + '">apiserver</span>' : '') +
+            '<span class="badge ' + badgeClass(c.status) + '">' + (c.status === 'success' ? 'synced' : c.status) + '</span>' +
+          '</div>' +
         '</div>' +
         '<div class="cluster-cp-section">' +
           '<div>' +
@@ -986,8 +1024,7 @@ const uiHTML = `<!DOCTYPE html>
       '</div>' +
       (clusters.length > 0
         ? '<div class="cluster-grid">' + cards + '</div>'
-        : '<div style="padding:24px;color:#52525b">No clusters</div>') +
-      renderModal();
+        : '<div style="padding:24px;color:#52525b">No clusters</div>');
   }
 
   function renderModal() {
@@ -1028,12 +1065,95 @@ const uiHTML = `<!DOCTYPE html>
           '</div>' +
         '</div>' +
       '</div>' +
+    '</div>' +
+    '<div class="modal ' + (logsModal ? 'show' : '') + '" onclick="if(event.target === this) window.__closeLogsModal()">' +
+      '<div class="modal-content" style="max-width:1000px" onclick="event.stopPropagation()">' +
+        '<div class="logs-modal-header">' +
+          '<div class="logs-modal-title">Logs</div>' +
+          '<div class="logs-modal-actions">' +
+            '<button class="btn-download" onclick="window.__downloadLogs()">Download Logs</button>' +
+            '<button class="modal-close" onclick="window.__closeLogsModal()">&times;</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="logs-container" id="logs-modal-container" style="height:600px;padding:12px 0">' +
+          (state && state.logs && state.logs.length > 0
+            ? state.logs.map(function(l) {
+                return '<div class="log-entry">' +
+                  '<span class="log-msg">' + l.message + '</span></div>';
+              }).join('')
+            : '<div class="log-entry" style="color:#52525b">No logs yet</div>') +
+        '</div>' +
+      '</div>' +
     '</div>';
   }
 
-  function toggleLogs() {
-    logsCollapsed = !logsCollapsed;
+  function showLogsModal() {
+    logsModal = true;
     render();
+  }
+
+  function closeLogsModal() {
+    logsModal = false;
+    render();
+  }
+
+  function updateLogsInPlace() {
+    var el = document.getElementById('logs-modal-container');
+    if (!el) return;
+    var atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    el.innerHTML = state && state.logs && state.logs.length > 0
+      ? state.logs.map(function(l) {
+          return '<div class="log-entry"><span class="log-msg">' + l.message + '</span></div>';
+        }).join('')
+      : '<div class="log-entry" style="color:#52525b">No logs yet</div>';
+    if (atBottom) el.scrollTop = el.scrollHeight;
+  }
+
+  function renderMainOnly() {
+    // Re-render only the main app content, leaving the modals container untouched
+    if (!state) return;
+    var s = state;
+    if (viewClusters) {
+      app.innerHTML = renderClustersView(s);
+    } else {
+      app.innerHTML =
+        renderHeader(s) +
+        (function() {
+          var omniHealth = getOmniHealth(s);
+          return '<div class="status-bar">' +
+          '<div class="status-card">' +
+            '<div class="label" style="display:flex;justify-content:space-between;align-items:center">' +
+              '<span>Omni Instance</span>' +
+              '<span class="badge ' + gitHealthBadgeClass(omniHealth.status) + '">' + omniHealth.label + '</span>' +
+            '</div>' +
+            '<div class="value">' + (s.omniEndpoint ? '<a href="' + s.omniEndpoint + '" target="_blank" style="color:#FB326E;text-decoration:none">' + s.omniEndpoint + '</a>' : '-') + '</div>' +
+            '<div class="sub">Omni: ' + (s.omniVersion || 'unknown') + ' &middot; omnictl: ' + (s.omnictlVersion || 'unknown') + '</div>' +
+            '<div class="sub">Last check: ' + ago(s.omniHealth && s.omniHealth.lastCheck) + '</div>' +
+            (s.omniHealth && s.omniHealth.error ? '<div class="sub" style="color:#f87171">' + s.omniHealth.error + '</div>' : '') +
+          '</div>' +
+          '<div class="status-card">' +
+            '<div class="label">Resources</div>' +
+            '<div class="value">' +
+              (s.machineClasses ? s.machineClasses.length : 0) + ' MachineClasses &middot; ' +
+              (s.clusters ? s.clusters.length : 0) + ' Clusters</div>' +
+            '<div class="sub">Managed by Omni CD</div>' +
+          '</div>' +
+        '</div>';
+        })();
+    }
+  }
+
+  function downloadLogs() {
+    if (!state || !state.logs) return;
+    var blob = new Blob([JSON.stringify(state.logs, null, 2)], { type: 'application/json' });
+    var url = window.URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'omni-cd-logs.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   }
 
   function paginateItems(items, page) {
@@ -1061,12 +1181,14 @@ const uiHTML = `<!DOCTYPE html>
   function render() {
     if (!state) {
       app.innerHTML = '<div style="text-align:center;padding:60px;color:#52525b">Loading...</div>';
+      modalsEl.innerHTML = '';
       return;
     }
     var s = state;
 
     if (viewClusters) {
       app.innerHTML = renderClustersView(s);
+      modalsEl.innerHTML = renderModal();
       return;
     }
 
@@ -1133,7 +1255,7 @@ const uiHTML = `<!DOCTYPE html>
             (s.machineClasses && s.machineClasses.length > 0
               ? paginateItems(s.machineClasses.slice().sort(function(a, b) { return machineClassSortAZ ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id); }), machineClassPage).map(function(r) {
                   var displayStatus = r.status === 'success' ? 'synced' : r.status;
-                  var provisionBadge = r.provisionType ? '<span class="provision-type ' + r.provisionType + '">' + r.provisionType + '</span>' : '';
+                  var provisionBadge = r.provisionType ? '<span class="provision-type ' + r.provisionType + '">' + (r.provisionType === 'auto' ? 'auto provision' : r.provisionType) + '</span>' : '';
                   var hasDiff = r.diff && r.diff.length > 0;
                   var hasFile = r.fileContent && r.fileContent.length > 0;
                   var hasDetails = hasDiff || hasFile;
@@ -1199,6 +1321,8 @@ const uiHTML = `<!DOCTYPE html>
                     '<div class="resource-right">' +
                       (isUnmanaged ? '<button class="btn-export" onclick="window.__exportCluster(\'' + r.id + '\', event)">export</button>' : '') +
                       (isOutOfSync && !isFailed ? '<button class="btn-sync" onclick="window.__forceSync(\'' + r.id + '\', event)">force sync</button>' : '') +
+                      (r.clusterReady ? '<span class="badge ' + (r.clusterReady === 'ready' ? 'badge-ready' : r.clusterReady === 'not-ready' ? 'badge-notready' : 'badge-idle') + '">' + (r.clusterReady === 'ready' ? 'healthy' : r.clusterReady === 'not-ready' ? 'unhealthy' : 'unknown') + '</span>' : '') +
+                      (r.kubernetesApiReady ? '<span class="badge ' + (r.kubernetesApiReady === 'ready' ? 'badge-ready' : 'badge-notready') + '">apiserver</span>' : '') +
                       badges +
                     '</div>' +
                   '</div>';
@@ -1209,27 +1333,12 @@ const uiHTML = `<!DOCTYPE html>
         '</div>' +
       '</div>' +
 
-      '<div class="logs-panel' + (logsCollapsed ? ' collapsed' : '') + '">' +
-        '<div class="logs-header" onclick="window.__toggleLogs()">' +
-          '<span>Logs</span>' +
-          '<span class="logs-toggle">▼</span>' +
-        '</div>' +
-        '<div class="logs-container" id="logs">' +
-          (s.logs && s.logs.length > 0
-            ? s.logs.map(function(l) {
-                return '<div class="log-entry">' +
-                  '<span class="log-msg">' + l.message + '</span></div>';
-              }).join('')
-            : '<div class="log-entry" style="color:#52525b">No logs yet</div>') +
-        '</div>' +
-      '</div>' +
+      '<div class="refresh-indicator">Omni CD ' + appVersion + ' · Real-time updates</div>';
 
-      '<div class="refresh-indicator">Omni CD ' + appVersion + ' · Real-time updates</div>' +
+    modalsEl.innerHTML = renderModal();
 
-      renderModal();
-
-    if (autoScroll) {
-      var el = document.getElementById('logs');
+    if (logsModal) {
+      var el = document.getElementById('logs-modal-container');
       if (el) el.scrollTop = el.scrollHeight;
     }
   }
@@ -1247,7 +1356,9 @@ const uiHTML = `<!DOCTYPE html>
   window.__toggleClusterSort = toggleClusterSort;
   window.__showClustersView = showClustersView;
   window.__hideClustersView = hideClustersView;
-  window.__toggleLogs = toggleLogs;
+  window.__showLogsModal = showLogsModal;
+  window.__closeLogsModal = closeLogsModal;
+  window.__downloadLogs = downloadLogs;
   window.__showMachineClassModal = showMachineClassModal;
 
   // WebSocket connection
@@ -1266,7 +1377,15 @@ const uiHTML = `<!DOCTYPE html>
       ws.onmessage = function(event) {
         try {
           state = JSON.parse(event.data);
-          render();
+          if (logsModal) {
+            // Update logs in-place to prevent flickering
+            updateLogsInPlace();
+          } else if (currentModal || confirmModal) {
+            // Only update the main content, not the modal
+            renderMainOnly();
+          } else {
+            render();
+          }
         } catch(e) {
           console.error('Failed to parse WebSocket message:', e);
         }
@@ -1294,6 +1413,8 @@ const uiHTML = `<!DOCTYPE html>
     if (e.key === 'Escape') {
       if (confirmModal) {
         closeConfirmModal();
+      } else if (logsModal) {
+        closeLogsModal();
       } else if (currentModal) {
         closeModal();
       }

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"omni-cd/internal/omni"
 )
 
 // ReconcileType identifies the type of reconciliation.
@@ -69,10 +71,12 @@ type ResourceInfo struct {
 	LiveContent   string `json:"liveContent,omitempty"`
 	Error         string `json:"error,omitempty"`
 	// Cluster-specific detail (populated from live template export)
-	TalosVersion      string      `json:"talosVersion,omitempty"`
-	KubernetesVersion string      `json:"kubernetesVersion,omitempty"`
-	ControlPlane      NodeGroup   `json:"controlPlane,omitempty"`
-	Workers           []NodeGroup `json:"workers,omitempty"`
+	TalosVersion       string      `json:"talosVersion,omitempty"`
+	KubernetesVersion  string      `json:"kubernetesVersion,omitempty"`
+	ControlPlane       NodeGroup   `json:"controlPlane,omitempty"`
+	Workers            []NodeGroup `json:"workers,omitempty"`
+	ClusterReady       string      `json:"clusterReady,omitempty"`
+	KubernetesAPIReady string      `json:"kubernetesApiReady,omitempty"`
 }
 
 // LogEntry holds a single log entry.
@@ -115,7 +119,7 @@ type AppState struct {
 	Logs            []LogEntry     `json:"logs"`
 	maxLogs         int
 	stateFile       string        // Path to state file (not exported to JSON)
-	changeCh        chan struct{}  // Closed/sent on every state mutation
+	changeCh        chan struct{} // Closed/sent on every state mutation
 }
 
 // New creates a new AppState with a max log buffer size.
@@ -227,9 +231,33 @@ func (s *AppState) GetClusters() []ResourceInfo {
 	return out
 }
 
-// SetClusters replaces the cluster list.
+// transientClusterFields holds polling-derived fields that must survive a
+// SetClusters call (which uses freshly-built structs from the reconciler).
+type transientClusterFields struct {
+	ClusterReady       string
+	KubernetesAPIReady string
+}
+
+// SetClusters replaces the cluster list, preserving transient fields (e.g.
+// ClusterReady, KubernetesAPIReady) that are populated by background polling
+// rather than the reconciler itself.
 func (s *AppState) SetClusters(resources []ResourceInfo) {
 	s.mu.Lock()
+	// Build a lookup of existing transient values so we don't lose them when
+	// the reconciler overwrites the list with freshly-built structs.
+	existing := make(map[string]transientClusterFields, len(s.Clusters))
+	for _, c := range s.Clusters {
+		existing[c.ID] = transientClusterFields{
+			ClusterReady:       c.ClusterReady,
+			KubernetesAPIReady: c.KubernetesAPIReady,
+		}
+	}
+	for i := range resources {
+		if f, ok := existing[resources[i].ID]; ok {
+			resources[i].ClusterReady = f.ClusterReady
+			resources[i].KubernetesAPIReady = f.KubernetesAPIReady
+		}
+	}
 	s.Clusters = resources
 	s.mu.Unlock()
 	s.notifyChange()
@@ -270,6 +298,40 @@ func (s *AppState) UpsertClusterStatus(id, status string) {
 	})
 	s.mu.Unlock()
 	s.notifyChange()
+}
+
+// UpdateClusterReadyStatuses updates the ClusterReady and KubernetesAPIReady fields
+// for each cluster from a status map. Clusters not present in the map are marked as "unknown".
+func (s *AppState) UpdateClusterReadyStatuses(statuses map[string]omni.ClusterStatus) {
+	s.mu.Lock()
+	changed := false
+	for i := range s.Clusters {
+		var newReady, newAPIReady string
+		if st, ok := statuses[s.Clusters[i].ID]; ok {
+			if st.Ready {
+				newReady = "ready"
+			} else {
+				newReady = "not-ready"
+			}
+			if st.KubernetesAPIReady {
+				newAPIReady = "ready"
+			} else {
+				newAPIReady = "not-ready"
+			}
+		} else {
+			newReady = "unknown"
+			newAPIReady = "unknown"
+		}
+		if s.Clusters[i].ClusterReady != newReady || s.Clusters[i].KubernetesAPIReady != newAPIReady {
+			s.Clusters[i].ClusterReady = newReady
+			s.Clusters[i].KubernetesAPIReady = newAPIReady
+			changed = true
+		}
+	}
+	s.mu.Unlock()
+	if changed {
+		s.notifyChange()
+	}
 }
 
 // GetClustersEnabled returns the current clusters enabled state.
