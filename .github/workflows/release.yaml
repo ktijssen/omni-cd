@@ -11,6 +11,8 @@ on:
     paths-ignore:
       # Updating this file is done by the workflow itself; ignore it to avoid loops
       - '.omnictl-version'
+      - '.github/workflows/release.yaml'
+      - 'README.md'
 
 # Prevent concurrent releases to avoid version tag conflicts
 concurrency:
@@ -133,7 +135,7 @@ jobs:
       - name: Generate contributors list
         id: contributors
         run: |
-          CONTRIBUTORS=$(git log --format='%aN' | sort -u | sed 's/^/- /' | tr '\n' '\n')
+          CONTRIBUTORS=$(git log --format='%aN' | sort -u | grep -v 'github-actions\[bot\]' | sed 's/^/- /' | tr '\n' '\n')
           echo "list<<EOF" >> $GITHUB_OUTPUT
           echo "$CONTRIBUTORS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -149,9 +151,6 @@ jobs:
             ### 📦 Artifacts
             - Linux AMD64 binary: `omni-cd-linux-amd64`
             - Docker image: `ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}`
-
-            ### 🔧 Dependencies
-            - omnictl: `${{ needs.check.outputs.omnictl_version }}`
 
             ### 📥 Installation
 

@@ -1,41 +1,52 @@
 # Omni CD
 
-A GitOps continuous deployment tool for [Sidero Omni](https://www.siderolabs.com/omni/), written in Go. Automatically synchronizes MachineClasses and Cluster Templates from a Git repository to your Omni instance.
+A GitOps tool for [Sidero Omni](https://www.siderolabs.com/omni/), written in Go. It watches a Git repository and automatically synchronises **MachineClasses** and **Cluster** templates to your Omni instance.
 
 ![Omni CD Dashboard](docs/dashboard-screenshot.png)
 
 ## Features
 
-- 🔄 **Automatic Synchronization**: Continuously syncs MachineClasses and Clusters from Git to Omni
-- 🎯 **GitOps Workflow**: Declarative infrastructure management using Git as the source of truth
-- 🌐 **Web Dashboard**: Real-time monitoring of sync status, resources, and logs
-- 📊 **State Tracking**: Persistent state management with diff detection
-- 🔍 **Live State Comparison**: View live vs desired state for all resources
-- ⚡ **Dual Reconciliation**: Refresh mode (5min) and Sync mode (1hr) for optimized performance
-- 🚨 **Error Handling**: Detailed error reporting with validation feedback
-- 📦 **Single Binary**: Lightweight deployment with Docker support
-- 📝 **Structured Logging**: JSON-formatted logs with configurable verbosity levels
+- 🔄 **Automatic Synchronisation** — Continuously syncs MachineClasses and Clusters from Git to Omni
+- 🎯 **GitOps Workflow** — Git is the single source of truth for your Omni infrastructure
+- 🌐 **Web Dashboard** — Real-time monitoring of sync status, resources, and logs
+- 🔍 **Drift Detection** — Live vs desired state comparison with diff view per resource
+- ⚡ **Dual Reconciliation** — Lightweight refresh (default: 5 min) and full sync (default: 1 h)
+- 🔖 **Version Safety** — Sync is blocked automatically when Omni and omnictl versions mismatch
+- 📦 **Single Container** — Lightweight deployment; no external dependencies beyond omnictl
+- 📝 **Structured Logging** — JSON logs with configurable verbosity, streamed to the web UI
 
-## Quick Start
+## Installation
 
-### Prerequisites
+### Docker (recommended)
 
-- Docker and Docker Compose
-- Omni Service Account with the role "Operator"
-- Git repository with MachineClass and Cluster definitions
+Pre-built images are published to the GitHub Container Registry on every release:
 
-### Deployment
-
-1. Clone this repository:
 ```bash
-git clone <your-repo>
-cd omni-cd
+docker pull ghcr.io/ktijssen/sidero-omni-cd:latest
 ```
 
-2. Create a `.env` file (or use docker-compose.yaml directly):
+Run it:
+
+```bash
+docker run -d \
+  -e OMNI_ENDPOINT=https://your-omni.omni.siderolabs.io \
+  -e OMNI_SERVICE_ACCOUNT_KEY=your-service-account-key \
+  -e GIT_REPO=https://github.com/your-org/your-infra-repo.git \
+  -p 8080:8080 \
+  ghcr.io/ktijssen/sidero-omni-cd:latest
+```
+
+### Docker Compose
+
+1. Copy the example environment file:
+```bash
+cp deploy/compose/.env.example deploy/compose/.env
+```
+
+2. Fill in your values:
 ```env
-OMNI_ENDPOINT=https://your-omni-instance.omni.siderolabs.io
-OMNI_SERVICE_ACCOUNT_KEY=your-service-account-key-here
+OMNI_ENDPOINT=https://your-omni.omni.siderolabs.io
+OMNI_SERVICE_ACCOUNT_KEY=your-service-account-key
 GIT_REPO=https://github.com/your-org/your-infra-repo.git
 GIT_BRANCH=main
 CLUSTERS_ENABLED=true
@@ -48,30 +59,38 @@ cd deploy/compose
 docker compose up -d
 ```
 
-4. Access the web UI at http://localhost:8080
+4. Open the web UI at http://localhost:8080
+
+### Binary
+
+Download the pre-built binary for your platform from the [latest release](https://github.com/ktijssen/sidero-omni-cd/releases/latest):
+
+```bash
+curl -LO https://github.com/ktijssen/sidero-omni-cd/releases/latest/download/omni-cd-linux-amd64
+chmod +x omni-cd-linux-amd64
+sudo mv omni-cd-linux-amd64 /usr/local/bin/omni-cd
+```
 
 ## Configuration
 
 ### Environment Variables
 
 | Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `OMNI_ENDPOINT` | Your Omni instance URL | Yes | - |
-| `OMNI_SERVICE_ACCOUNT_KEY` | Service account key for authentication | Yes | - |
-| `GIT_REPO` | Git repository URL containing your infrastructure | Yes | - |
-| `GIT_BRANCH` | Git branch to track | No | `main` |
-| `GIT_TOKEN` | Git token for private repositories (PAT, etc.) | No | - |
+|---|---|---|---|
+| `OMNI_ENDPOINT` | Your Omni instance URL | Yes | — |
+| `OMNI_SERVICE_ACCOUNT_KEY` | Service account key | Yes | — |
+| `GIT_REPO` | Git repository URL | Yes | — |
+| `GIT_BRANCH` | Branch to track | No | `main` |
+| `GIT_TOKEN` | Token for private repositories | No | — |
 | `CLUSTERS_ENABLED` | Enable automatic cluster syncing | No | `true` |
-| `REFRESH_INTERVAL` | Refresh interval in seconds (git pull + diff only) | No | `300` (5m) |
-| `SYNC_INTERVAL` | Sync interval in seconds (full reconciliation) | No | `3600` (1h) |
-| `MC_PATH` | Path to machine classes in repo | No | `machine-classes` |
-| `CLUSTERS_PATH` | Path to cluster templates in repo | No | `clusters` |
+| `REFRESH_INTERVAL` | Refresh interval in seconds (git pull + diff) | No | `300` |
+| `SYNC_INTERVAL` | Sync interval in seconds (full reconciliation) | No | `3600` |
+| `MC_PATH` | Path to MachineClasses in repo | No | `machine-classes` |
+| `CLUSTERS_PATH` | Path to Cluster templates in repo | No | `clusters` |
 | `WEB_PORT` | Web UI port | No | `8080` |
-| `LOG_LEVEL` | Logging level (DEBUG, INFO, WARN, ERROR) | No | `INFO` |
+| `LOG_LEVEL` | Log level (`DEBUG`, `INFO`, `WARN`, `ERROR`) | No | `INFO` |
 
 ### Repository Structure
-
-Your Git repository should follow this structure:
 
 ```
 your-infra-repo/
@@ -89,84 +108,76 @@ your-infra-repo/
         └── cluster.yaml
 ```
 
-**Important Notes:**
-- **Machine Classes**: All `.yaml` files in the `machine-classes/` directory are processed
-- **Clusters**: Only files named **`cluster.yaml`** are processed from the `clusters/` directory and its subdirectories
-  - The application recursively searches for `cluster.yaml` files
-  - Other YAML files (like `patches/`) are ignored by the application
-  - Each cluster template must be in its own subdirectory with a `cluster.yaml` file
+**Notes:**
+- **MachineClasses** — all `.yaml` files in `machine-classes/` are processed
+- **Clusters** — only files named `cluster.yaml` are processed (searched recursively); other YAML files such as patches are ignored
 
 ## How It Works
 
 ### Reconciliation Modes
 
-1. **Refresh Mode** (Soft, default: every 5 minutes):
-   - Pulls latest changes from Git
-   - Runs diff detection on clusters
-   - Updates state without applying changes
-   - Useful for monitoring drift
+| Mode | Default interval | What it does |
+|---|---|---|
+| **Refresh** (soft) | 5 minutes | Git pull + drift detection, no changes applied |
+| **Sync** (hard) | 1 hour | Full reconciliation — apply, update, and delete resources |
 
-2. **Sync Mode** (Hard, default: every 1 hour):
-   - Pulls latest changes from Git
-   - Applies MachineClasses (create/update)
-   - Syncs Cluster Templates
-   - Deletes resources removed from Git
-   - Full reconciliation
+Both modes can also be triggered manually from the web UI.
 
-### Log Levels
+### Reconciliation Order
 
-Control logging verbosity with the `LOG_LEVEL` environment variable:
+To avoid dependency issues, resources are applied and deleted in a fixed order:
 
-- **ERROR**: Only critical failures (auth failed, sync failed, validation errors)
-- **WARN**: Recoverable issues (missing directories, resource conflicts, out of sync warnings)
-- **INFO** (default): Normal operations (startup, reconcile events, successful syncs)
-- **DEBUG**: Detailed diagnostics (version info, per-resource status, internal state)
+**Apply:** MachineClasses → Clusters
+**Delete:** Clusters → MachineClasses
 
-Logs are output in JSON format to stdout and displayed in the web UI. Both stdout and the web UI respect the configured log level.
+### Version Safety
 
-### MachineClass Management
+On startup, Omni CD compares the version reported by the live Omni instance with the version of the bundled `omnictl`. If they differ, all sync operations are disabled and a warning is shown in the UI. Each release of Omni CD is automatically built against the latest `omnictl` release.
 
-- **Validation**: Files are validated before applying
-- **Smart Apply**: Only applies when changes are detected (not just metadata updates)
-- **Multi-Document Support**: YAML files can contain multiple resources separated by `---`
-- **Error Tracking**: Validation errors are captured and displayed in the UI
+## Web Dashboard
 
-### Cluster Template Management
-
-- **Diff Detection**: Uses `omnictl cluster template diff` to detect changes
-- **Selective Sync**: Only syncs clusters that are out of sync
-- **Force Sync**: Manual sync option available in the UI for individual clusters
-- **Unmanaged Clusters**: Preserves clusters not in Git (marked as "unmanaged")
-- **Export**: Export unmanaged clusters as YAML templates
-
-### Web Dashboard
-
-The web UI provides:
-- **Git Status**: Current commit, branch, sync health
-- **Resource Overview**: Count of MachineClasses and Clusters
-- **Reconciliation Status**: Last sync time and status
-- **Resource Details**: Click any resource to view:
-  - **Error Tab**: Validation or sync errors (if any)
-  - **Live Tab**: Current state in Omni
-  - **Diff Tab**: Changes to be applied (clusters only)
-- **Logs**: Real-time reconciliation logs with collapsible view
-- **Manual Actions**: Refresh, Sync, Force Sync, Export
+| Area | What you see |
+|---|---|
+| **Omni Instance** | Endpoint URL, Omni version, omnictl version |
+| **Git Status** | Repo, branch, latest commit, last sync time, health badge |
+| **Last Reconciliation** | Type, status, start/finish time |
+| **MachineClasses** | List with sync status; click to view live state and errors |
+| **Clusters** | List with sync status; auto-sync toggle; force sync and export actions |
+| **Logs** | Real-time reconciliation logs, collapsible |
 
 ## API Endpoints
 
-- `GET /` - Web UI
-- `GET /api/state` - Current application state (JSON)
-- `POST /api/reconcile` - Trigger immediate reconciliation
-- `POST /api/check-git` - Pull latest Git changes
-- `POST /api/export-cluster?id=<cluster-id>` - Export cluster template
-- `POST /api/force-sync?id=<cluster-id>` - Force sync specific cluster
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Web UI |
+| `GET` | `/api/state` | Current application state (JSON) |
+| `POST` | `/api/reconcile` | Trigger a full sync |
+| `POST` | `/api/check` | Trigger a git refresh |
+| `POST` | `/api/clusters-toggle` | Toggle automatic cluster sync on/off |
+| `POST` | `/api/force-cluster` | Force sync a specific cluster `{"id": "cluster-name"}` |
+| `POST` | `/api/export-cluster` | Export an unmanaged cluster as YAML `{"id": "cluster-name"}` |
+| `GET` | `/ws` | WebSocket — real-time state updates |
 
 ## Development
 
-### Building from Source
+### Prerequisites
+
+- Go 1.23+
+- [Task](https://taskfile.dev) (`brew install go-task` / `go install github.com/go-task/task/v3/cmd/task@latest`)
+- Docker (for container builds)
+- `omnictl` in your `$PATH`
+
+### Common Tasks
 
 ```bash
-go build -o omni-cd ./cmd/omni-cd
+task           # List all available tasks
+task dev       # Run locally with live reload (requires env vars)
+task build     # Build binary for current platform
+task build:linux   # Build linux/amd64 binary
+task check     # Run fmt + vet
+task docker:build  # Build Docker image locally
+task compose:up    # Start via Docker Compose
+task compose:logs  # Follow Docker Compose logs
 ```
 
 ### Running Locally
@@ -175,70 +186,56 @@ go build -o omni-cd ./cmd/omni-cd
 export OMNI_ENDPOINT=https://your-instance.omni.siderolabs.io
 export OMNI_SERVICE_ACCOUNT_KEY=your-key
 export GIT_REPO=https://github.com/your-org/your-repo.git
-export LOG_LEVEL=DEBUG  # Optional: for verbose output
+export LOG_LEVEL=DEBUG
 
-./omni-cd
+task dev
 ```
 
 ### Project Structure
 
 ```
 .
-├── cmd/
-│   └── omni-cd/          # Main application entry point
+├── cmd/omni-cd/          # Application entry point
 ├── internal/
-│   ├── config/           # Configuration management
+│   ├── config/           # Configuration loading
 │   ├── git/              # Git operations
-│   ├── omni/             # Omni API wrapper (omnictl)
+│   ├── omni/             # omnictl wrapper
 │   ├── reconciler/       # Reconciliation logic
 │   ├── state/            # State management and persistence
 │   └── web/              # Web UI and API server
-├── deploy/
-│   └── compose/          # Docker Compose deployment
-│       └── docker-compose.yaml
-├── data/                 # Persistent state storage
-└── Dockerfile            # Container image definition
+├── deploy/compose/       # Docker Compose deployment
+├── docs/                 # Documentation assets
+├── Dockerfile
+└── Taskfile.yaml
 ```
 
-## Architecture
+## Releases
 
-1. **Git Sync**: Periodically pulls from Git repository
-2. **Reconciler**: Compares desired state (Git) with live state (Omni)
-3. **Omni Client**: Wraps `omnictl` CLI for all Omni operations
-4. **State Manager**: Tracks resource status and persists to JSON
-5. **Web Server**: Serves UI and API endpoints
-6. **Event Loop**: Runs reconciliation on configured intervals
+Releases are published automatically to [GitHub Releases](https://github.com/ktijssen/sidero-omni-cd/releases) and GHCR when:
+
+- Code is pushed to `main`
+- A new `omnictl` version is detected (checked daily at 02:00 UTC)
+
+Each release includes a `linux/amd64` binary and a container image tagged with the version (e.g. `v1.0.0`) and `latest`.
+
+## Troubleshooting
+
+**Version mismatch warning** — Ensure your Omni instance and the `omnictl` bundled in the container are on the same version. Pulling the latest image usually resolves this.
+
+**MachineClass not applying** — Check the Error tab in the UI for validation errors. Verify your YAML syntax and that `matchlabels` uses the format `- key = value`.
+
+**Cluster stuck in "Out of Sync"** — Use the Force Sync button in the UI, then review the logs for the specific error.
 
 ## Version Compatibility
 
 - Go 1.23+
 - omnictl v1.5.0+
-- Omni SaaS platform
-- Omni Self Hosted
-
-## Troubleshooting
-
-### Version Mismatch Warning
-
-If you see a version mismatch warning, ensure your omnictl version is compatible with your Omni instance version. The tool will disable sync operations if there's a mismatch.
-
-### Machine Class Not Applying
-
-- Check the Error tab for validation errors
-- Ensure YAML syntax is correct
-- Verify `matchlabels` format: `- key = value`
-
-### Cluster Stuck in "Out of Sync"
-
-- Check cluster template for errors
-- Use Force Sync to retry
-- Review logs for detailed error messages
+- Omni SaaS or Self-Hosted
 
 ## License
 
-This project is licensed under the Mozilla Public License Version 2.0 - see the [LICENSE](LICENSE) file for details.
+Mozilla Public License Version 2.0 — see [LICENSE](LICENSE) for details.
 
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request.
-
