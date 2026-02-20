@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -237,6 +238,66 @@ func GetClusterIDs() ([]string, error) {
 	return getResourceIDs("omnictl", "get", "clusters", "-o", "yaml")
 }
 
+// ClusterStatus holds relevant status fields from omnictl get clusterstatus.
+type ClusterStatus struct {
+	Ready              bool
+	KubernetesAPIReady bool
+}
+
+// GetAllClusterReadyStatuses fetches status fields for every cluster in one call.
+// Returns a map of cluster ID -> ClusterStatus.
+func GetAllClusterReadyStatuses() (map[string]ClusterStatus, error) {
+	cmd := exec.Command("omnictl", "get", "clusterstatus", "-o", "yaml")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return parseClusterStatuses(string(out)), nil
+}
+
+// parseClusterStatuses parses multi-doc YAML from omnictl get clusterstatus.
+func parseClusterStatuses(yamlContent string) map[string]ClusterStatus {
+	result := make(map[string]ClusterStatus)
+	docs := strings.Split(yamlContent, "\n---\n")
+	for _, doc := range docs {
+		doc = strings.TrimSpace(doc)
+		if doc == "" || doc == "---" {
+			continue
+		}
+		var id string
+		var st ClusterStatus
+		inSpec := false
+		for _, line := range strings.Split(doc, "\n") {
+			trimmed := strings.TrimSpace(line)
+			switch {
+			case trimmed == "metadata:":
+				inSpec = false
+			case trimmed == "spec:":
+				inSpec = true
+			case !inSpec && strings.HasPrefix(trimmed, "id:"):
+				parts := strings.Fields(trimmed)
+				if len(parts) >= 2 {
+					id = parts[1]
+				}
+			case inSpec && strings.HasPrefix(trimmed, "ready:"):
+				parts := strings.Fields(trimmed)
+				if len(parts) >= 2 {
+					st.Ready = parts[1] == "true"
+				}
+			case inSpec && strings.HasPrefix(trimmed, "kubernetesapiready:"):
+				parts := strings.Fields(trimmed)
+				if len(parts) >= 2 {
+					st.KubernetesAPIReady = parts[1] == "true"
+				}
+			}
+		}
+		if id != "" {
+			result[id] = st
+		}
+	}
+	return result
+}
+
 // DeleteCluster deletes a cluster from Omni by id.
 func DeleteCluster(id string) error {
 	return run("omnictl", "cluster", "delete", id)
@@ -307,6 +368,145 @@ func IsClusterTemplateManaged(id string) bool {
 		return false
 	}
 	return strings.Contains(string(out), "omni.sidero.dev/managed-by-cluster-templates")
+}
+
+// ============================================================
+// Cluster Template Parsing
+// ============================================================
+
+// WorkerGroup holds information about a single Workers pool from a cluster template.
+type WorkerGroup struct {
+	Name         string
+	Count        int
+	MachineClass string
+}
+
+// ClusterTemplateInfo holds parsed information from an exported cluster template.
+type ClusterTemplateInfo struct {
+	TalosVersion             string
+	KubernetesVersion        string
+	ControlPlaneCount        int
+	ControlPlaneMachineClass string
+	WorkerGroups             []WorkerGroup
+}
+
+// ParseClusterTemplate parses the YAML output of `omnictl cluster template export`
+// and extracts version and node group information.
+func ParseClusterTemplate(yamlContent string) ClusterTemplateInfo {
+	var info ClusterTemplateInfo
+
+	// Scan the full content for version fields — they are unique across all docs.
+	// Handles both flat (talosVersion: v1.x) and nested (talos:\n  version: v1.x) formats.
+	var inTalos, inKubernetes bool
+	for _, line := range strings.Split(yamlContent, "\n") {
+		trimmed := strings.TrimSpace(line)
+		// Flat format
+		if info.TalosVersion == "" && strings.HasPrefix(trimmed, "talosVersion:") {
+			info.TalosVersion = strings.TrimSpace(strings.TrimPrefix(trimmed, "talosVersion:"))
+		}
+		if info.KubernetesVersion == "" && strings.HasPrefix(trimmed, "kubernetesVersion:") {
+			info.KubernetesVersion = strings.TrimSpace(strings.TrimPrefix(trimmed, "kubernetesVersion:"))
+		}
+		// Nested format: talos: / kubernetes: followed by version:
+		if trimmed == "talos:" {
+			inTalos = true
+			inKubernetes = false
+			continue
+		}
+		if trimmed == "kubernetes:" {
+			inKubernetes = true
+			inTalos = false
+			continue
+		}
+		if strings.HasPrefix(trimmed, "version:") {
+			v := strings.TrimSpace(strings.TrimPrefix(trimmed, "version:"))
+			if inTalos && info.TalosVersion == "" {
+				info.TalosVersion = v
+			}
+			if inKubernetes && info.KubernetesVersion == "" {
+				info.KubernetesVersion = v
+			}
+			inTalos = false
+			inKubernetes = false
+			continue
+		}
+		// Any other non-empty, non-comment line resets nested state
+		if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+			inTalos = false
+			inKubernetes = false
+		}
+	}
+
+	// Parse per-document for node group information.
+	docs := strings.Split(yamlContent, "\n---")
+	for _, doc := range docs {
+		doc = strings.TrimSpace(doc)
+		if doc == "" {
+			continue
+		}
+
+		var kind, docName string
+		var inMachines, inMachineClass bool
+		var machineCount, machineClassSize int
+		var machineClassName string
+
+		for _, line := range strings.Split(doc, "\n") {
+			trimmed := strings.TrimSpace(line)
+
+			if strings.HasPrefix(trimmed, "kind:") {
+				kind = strings.TrimSpace(strings.TrimPrefix(trimmed, "kind:"))
+				inMachines, inMachineClass = false, false
+				continue
+			}
+
+			// Capture top-level name (not indented, not inside machineClass block)
+			if !inMachineClass && len(line) > 0 && line[0] != ' ' && line[0] != '\t' && strings.HasPrefix(trimmed, "name:") {
+				docName = strings.TrimSpace(strings.TrimPrefix(trimmed, "name:"))
+				continue
+			}
+
+			switch kind {
+			case "ControlPlane", "Workers":
+				if strings.HasPrefix(trimmed, "machines:") {
+					inMachines = true
+					inMachineClass = false
+				} else if strings.HasPrefix(trimmed, "machineClass:") {
+					inMachineClass = true
+					inMachines = false
+				} else if inMachines && strings.HasPrefix(trimmed, "- ") {
+					machineCount++
+				} else if inMachineClass && strings.HasPrefix(trimmed, "name:") {
+					machineClassName = strings.TrimSpace(strings.TrimPrefix(trimmed, "name:"))
+				} else if strings.HasPrefix(trimmed, "size:") {
+					parts := strings.Fields(trimmed)
+					if len(parts) >= 2 {
+						machineClassSize, _ = strconv.Atoi(parts[1])
+					}
+				}
+			}
+		}
+
+		switch kind {
+		case "ControlPlane":
+			if machineClassName != "" {
+				info.ControlPlaneMachineClass = machineClassName
+				info.ControlPlaneCount = machineClassSize
+			} else {
+				info.ControlPlaneCount = machineCount
+			}
+		case "Workers":
+			wg := WorkerGroup{Name: docName}
+			if machineClassName != "" {
+				wg.MachineClass = machineClassName
+				wg.Count = machineClassSize
+			} else {
+				wg.Count = machineCount
+			}
+			info.WorkerGroups = append(info.WorkerGroups, wg)
+		}
+	}
+
+	return info
 }
 
 // ============================================================
