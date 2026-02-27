@@ -56,9 +56,11 @@ type ReconcileInfo struct {
 // ResourceInfo holds information about a managed resource.
 // NodeGroup holds information about a group of nodes (control plane or a workers pool).
 type NodeGroup struct {
-	Name         string `json:"name,omitempty"`
-	Count        int    `json:"count"`
-	MachineClass string `json:"machineClass,omitempty"`
+	Name         string   `json:"name,omitempty"`
+	Count        int      `json:"count"`
+	MachineClass string   `json:"machineClass,omitempty"`
+	Machines     []string `json:"machines,omitempty"`
+	Extensions   []string `json:"extensions,omitempty"`
 }
 
 type ResourceInfo struct {
@@ -71,12 +73,15 @@ type ResourceInfo struct {
 	LiveContent   string `json:"liveContent,omitempty"`
 	Error         string `json:"error,omitempty"`
 	// Cluster-specific detail (populated from live template export)
-	TalosVersion       string      `json:"talosVersion,omitempty"`
-	KubernetesVersion  string      `json:"kubernetesVersion,omitempty"`
-	ControlPlane       NodeGroup   `json:"controlPlane,omitempty"`
-	Workers            []NodeGroup `json:"workers,omitempty"`
-	ClusterReady       string      `json:"clusterReady,omitempty"`
-	KubernetesAPIReady string      `json:"kubernetesApiReady,omitempty"`
+	TalosVersion       string              `json:"talosVersion,omitempty"`
+	KubernetesVersion  string              `json:"kubernetesVersion,omitempty"`
+	ControlPlane       NodeGroup           `json:"controlPlane,omitempty"`
+	Workers            []NodeGroup         `json:"workers,omitempty"`
+	ClusterReady       string              `json:"clusterReady,omitempty"`
+	KubernetesAPIReady string              `json:"kubernetesApiReady,omitempty"`
+	// Extensions parsed from the cluster template
+	ClusterExtensions  []string            `json:"clusterExtensions,omitempty"`
+	MachineExtensions  map[string][]string `json:"machineExtensions,omitempty"`
 }
 
 // LogEntry holds a single log entry.

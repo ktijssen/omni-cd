@@ -151,6 +151,14 @@ tasks:
       - docker compose down
       - docker compose up --build -d
 
+  compose:rebuild:nocache:
+    desc: Rebuild (no cache) and restart services with docker compose
+    dir: '{{.COMPOSE_PATH}}'
+    cmds:
+      - docker compose down
+      - docker compose build --no-cache
+      - docker compose up -d
+
   compose:logs:
     desc: View docker compose logs
     dir: '{{.COMPOSE_PATH}}'

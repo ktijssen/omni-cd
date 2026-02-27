@@ -407,7 +407,7 @@ func (r *Reconciler) ApplyClusters(dir string) {
 				if liveContent == "" {
 					liveContent, _ = omni.GetLiveCluster(clusterName)
 				}
-				talos, k8s, cp, wk := clusterDetailFromLive(liveContent)
+				talos, k8s, cp, wk, clusterExts, machExts := clusterDetailFromLive(liveContent)
 				mu.Lock()
 				resources = append(resources, state.ResourceInfo{
 					ID:                clusterName,
@@ -419,6 +419,8 @@ func (r *Reconciler) ApplyClusters(dir string) {
 					KubernetesVersion: k8s,
 					ControlPlane:      cp,
 					Workers:           wk,
+					ClusterExtensions: clusterExts,
+					MachineExtensions: machExts,
 				})
 				mu.Unlock()
 				return
@@ -441,7 +443,7 @@ func (r *Reconciler) ApplyClusters(dir string) {
 				if liveContent == "" {
 					liveContent, _ = omni.GetLiveCluster(clusterName)
 				}
-				talos, k8s, cp, wk := clusterDetailFromLive(liveContent)
+				talos, k8s, cp, wk, clusterExts, machExts := clusterDetailFromLive(liveContent)
 				mu.Lock()
 				resources = append(resources, state.ResourceInfo{
 					ID:                clusterName,
@@ -455,6 +457,8 @@ func (r *Reconciler) ApplyClusters(dir string) {
 					KubernetesVersion: k8s,
 					ControlPlane:      cp,
 					Workers:           wk,
+					ClusterExtensions: clusterExts,
+					MachineExtensions: machExts,
 				})
 				failed++
 				mu.Unlock()
@@ -463,7 +467,7 @@ func (r *Reconciler) ApplyClusters(dir string) {
 				r.state.UpsertClusterStatus(clusterName, "success")
 				// Always fetch fresh after sync — the pre-fetched cache is stale
 				liveContent, _ := omni.GetLiveCluster(clusterName)
-				talos, k8s, cp, wk := clusterDetailFromLive(liveContent)
+				talos, k8s, cp, wk, clusterExts, machExts := clusterDetailFromLive(liveContent)
 				mu.Lock()
 				resources = append(resources, state.ResourceInfo{
 					ID:                clusterName,
@@ -475,6 +479,8 @@ func (r *Reconciler) ApplyClusters(dir string) {
 					KubernetesVersion: k8s,
 					ControlPlane:      cp,
 					Workers:           wk,
+					ClusterExtensions: clusterExts,
+					MachineExtensions: machExts,
 				})
 				synced++
 				mu.Unlock()
@@ -583,7 +589,7 @@ func (r *Reconciler) DiffClusters(dir string) {
 			if liveContent == "" {
 				liveContent, _ = omni.GetLiveCluster(name)
 			}
-			talos, k8s, cp, wk := clusterDetailFromLive(liveContent)
+			talos, k8s, cp, wk, clusterExts, machExts := clusterDetailFromLive(liveContent)
 			resources = append(resources, state.ResourceInfo{
 				ID:                name,
 				Type:              "Cluster",
@@ -594,6 +600,8 @@ func (r *Reconciler) DiffClusters(dir string) {
 				KubernetesVersion: k8s,
 				ControlPlane:      cp,
 				Workers:           wk,
+				ClusterExtensions: clusterExts,
+				MachineExtensions: machExts,
 			})
 			errCount++
 			continue
@@ -605,7 +613,7 @@ func (r *Reconciler) DiffClusters(dir string) {
 		if liveContent == "" {
 			liveContent, _ = omni.GetLiveCluster(name)
 		}
-		talos, k8s, cp, wk := clusterDetailFromLive(liveContent)
+		talos, k8s, cp, wk, clusterExts, machExts := clusterDetailFromLive(liveContent)
 		if diffOutput == "" || strings.Contains(diffOutput, "no changes") {
 			r.logDebug("Cluster in sync", "component", "Clusters", "cluster", name)
 			resources = append(resources, state.ResourceInfo{
@@ -618,6 +626,8 @@ func (r *Reconciler) DiffClusters(dir string) {
 				KubernetesVersion: k8s,
 				ControlPlane:      cp,
 				Workers:           wk,
+				ClusterExtensions: clusterExts,
+				MachineExtensions: machExts,
 			})
 			inSync++
 		} else {
@@ -633,6 +643,8 @@ func (r *Reconciler) DiffClusters(dir string) {
 				KubernetesVersion: k8s,
 				ControlPlane:      cp,
 				Workers:           wk,
+				ClusterExtensions: clusterExts,
+				MachineExtensions: machExts,
 			})
 			outOfSync++
 		}
@@ -915,14 +927,16 @@ func findClusterTemplates(dir string) ([]string, error) {
 
 // clusterDetailFromLive parses a live cluster template export and returns
 // the populated NodeGroup and version fields for a ResourceInfo.
-func clusterDetailFromLive(liveContent string) (talos, k8s string, cp state.NodeGroup, workers []state.NodeGroup) {
+func clusterDetailFromLive(liveContent string) (talos, k8s string, cp state.NodeGroup, workers []state.NodeGroup, clusterExts []string, machExts map[string][]string) {
 	info := omni.ParseClusterTemplate(liveContent)
 	talos = info.TalosVersion
 	k8s = info.KubernetesVersion
-	cp = state.NodeGroup{Count: info.ControlPlaneCount, MachineClass: info.ControlPlaneMachineClass}
+	cp = state.NodeGroup{Name: info.ControlPlaneName, Count: info.ControlPlaneCount, MachineClass: info.ControlPlaneMachineClass, Machines: info.ControlPlaneMachines, Extensions: info.ControlPlaneExtensions}
 	for _, wg := range info.WorkerGroups {
-		workers = append(workers, state.NodeGroup{Name: wg.Name, Count: wg.Count, MachineClass: wg.MachineClass})
+		workers = append(workers, state.NodeGroup{Name: wg.Name, Count: wg.Count, MachineClass: wg.MachineClass, Machines: wg.Machines, Extensions: wg.Extensions})
 	}
+	clusterExts = info.ClusterExtensions
+	machExts = info.MachineExtensions
 	return
 }
 

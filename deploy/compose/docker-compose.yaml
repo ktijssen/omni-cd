@@ -14,6 +14,8 @@ services:
       - CLUSTERS_PATH=${CLUSTERS_PATH:-clusters}
       - CLUSTERS_ENABLED=${CLUSTERS_ENABLED:-true}
       - WEB_PORT=${WEB_PORT:-8080}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     ports:
       - "${WEB_PORT:-8080}:8080"

@@ -75,7 +75,7 @@ func main() {
 	triggerSoft := make(chan struct{}, 1)
 
 	// Start the web UI server
-	webServer := web.New(appState, triggerHard, triggerSoft, cfg.WebPort, version)
+	webServer := web.New(appState, triggerHard, triggerSoft, cfg.WebPort, version, cfg.AdminUsername, cfg.AdminPassword)
 	webServer.Start()
 
 	// Set up graceful shutdown

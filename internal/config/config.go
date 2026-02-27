@@ -32,6 +32,10 @@ type Config struct {
 	// Web UI
 	WebPort string
 
+	// Authentication
+	AdminUsername string
+	AdminPassword string
+
 	// Logging
 	LogLevel string // DEBUG, INFO, WARN, ERROR
 }
@@ -58,6 +62,11 @@ func Load() (*Config, error) {
 	syncSec, _ := strconv.Atoi(getEnv("SYNC_INTERVAL", "3600"))
 	clustersEnabled, _ := strconv.ParseBool(getEnv("CLUSTERS_ENABLED", "true"))
 
+	adminPassword := os.Getenv("ADMIN_PASSWORD")
+	if adminPassword == "" {
+		return nil, fmt.Errorf("ADMIN_PASSWORD is required")
+	}
+
 	return &Config{
 		OmniEndpoint:          endpoint,
 		OmniServiceAccountKey: saKey,
@@ -70,6 +79,8 @@ func Load() (*Config, error) {
 		ClustersPath:          getEnv("CLUSTERS_PATH", "clusters"),
 		ClustersEnabled:       clustersEnabled,
 		WebPort:               getEnv("WEB_PORT", "8080"),
+		AdminUsername:         getEnv("ADMIN_USERNAME", "admin"),
+		AdminPassword:         adminPassword,
 		LogLevel:              getEnv("LOG_LEVEL", "INFO"),
 	}, nil
 }

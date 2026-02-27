@@ -21,26 +21,31 @@ var upgrader = websocket.Upgrader{
 
 // Server serves the web UI and API endpoints.
 type Server struct {
-	appState    *state.AppState
-	triggerHard chan struct{}
-	triggerSoft chan struct{}
-	port        string
-	version     string
-	clients     map[*websocket.Conn]bool
-	clientsMu   sync.RWMutex
-	broadcast   chan []byte
+	appState      *state.AppState
+	triggerHard   chan struct{}
+	triggerSoft   chan struct{}
+	port          string
+	version       string
+	clients       map[*websocket.Conn]bool
+	clientsMu     sync.RWMutex
+	broadcast     chan []byte
+	adminUsername string
+	adminPassword string
+	sessions      sync.Map // token (string) -> time.Time (login time)
 }
 
 // New creates a new web server.
-func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, port string, version string) *Server {
+func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, port string, version string, adminUsername string, adminPassword string) *Server {
 	s := &Server{
-		appState:    appState,
-		triggerHard: triggerHard,
-		triggerSoft: triggerSoft,
-		port:        port,
-		version:     version,
-		clients:     make(map[*websocket.Conn]bool),
-		broadcast:   make(chan []byte, 256),
+		appState:      appState,
+		triggerHard:   triggerHard,
+		triggerSoft:   triggerSoft,
+		port:          port,
+		version:       version,
+		clients:       make(map[*websocket.Conn]bool),
+		broadcast:     make(chan []byte, 256),
+		adminUsername: adminUsername,
+		adminPassword: adminPassword,
 	}
 
 	// Start broadcast handler
@@ -56,20 +61,27 @@ func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan s
 func (s *Server) Start() {
 	mux := http.NewServeMux()
 
-	// WebSocket endpoint
-	mux.HandleFunc("/ws", s.handleWebSocket)
+	// Public routes — no auth required
+	mux.HandleFunc("/login", s.handleLogin)
+	mux.HandleFunc("/logout", s.handleLogout)
+
+	// WebSocket endpoint (auth checked inside requireAuth)
+	mux.HandleFunc("/ws", s.requireAuth(s.handleWebSocket))
 
 	// API endpoints
-	mux.HandleFunc("/api/state", s.handleState)
-	mux.HandleFunc("/api/reconcile", s.handleReconcile)
-	mux.HandleFunc("/api/check", s.handleCheck)
-	mux.HandleFunc("/api/clusters-toggle", s.handleClustersToggle)
-	mux.HandleFunc("/api/force-cluster", s.handleForceCluster)
-	mux.HandleFunc("/api/export-cluster", s.handleExportCluster)
+	mux.HandleFunc("/api/state", s.requireAuth(s.handleState))
+	mux.HandleFunc("/api/reconcile", s.requireAuth(s.handleReconcile))
+	mux.HandleFunc("/api/check", s.requireAuth(s.handleCheck))
+	mux.HandleFunc("/api/clusters-toggle", s.requireAuth(s.handleClustersToggle))
+	mux.HandleFunc("/api/force-cluster", s.requireAuth(s.handleForceCluster))
+	mux.HandleFunc("/api/export-cluster", s.requireAuth(s.handleExportCluster))
 
-	// Serve the UI
-	mux.HandleFunc("/clusters", s.handleUI)
-	mux.HandleFunc("/", s.handleUI)
+	// Serve the UI (all protected)
+	mux.HandleFunc("/clusters", s.requireAuth(s.handleUI))
+	mux.HandleFunc("/machineclasses", s.requireAuth(s.handleUI))
+	mux.HandleFunc("/repos", s.requireAuth(s.handleUI))
+	mux.HandleFunc("/users", s.requireAuth(s.handleUI))
+	mux.HandleFunc("/", s.requireAuth(s.handleUI))
 
 	addr := fmt.Sprintf(":%s", s.port)
 	slog.Info("Web UI listening", "address", addr, "component", "Web")
