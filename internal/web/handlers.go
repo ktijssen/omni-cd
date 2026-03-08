@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
+	"omni-cd/internal/config"
 	"omni-cd/internal/omni"
 )
 
@@ -23,15 +25,6 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleReconcile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Block sync when version mismatch
-	snap := s.appState.Snapshot()
-	if snap.VersionMismatch {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]string{"status": "blocked", "reason": "version mismatch"})
 		return
 	}
 
@@ -78,6 +71,178 @@ func (s *Server) handleClustersToggle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleRefreshCluster triggers a git-only refresh for a single cluster.
+func (s *Server) handleRefreshCluster(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		ID string `json:"id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.ID == "" {
+		http.Error(w, "Cluster ID is required", http.StatusBadRequest)
+		return
+	}
+
+	select {
+	case s.triggerRefreshCluster <- req.ID:
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
+	default:
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"status": "already running"})
+	}
+}
+
+// handleRefreshSingleMC triggers a git pull + diff-only refresh for a single machine class.
+func (s *Server) handleRefreshSingleMC(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.ID == "" {
+		http.Error(w, "Machine class ID is required", http.StatusBadRequest)
+		return
+	}
+	select {
+	case s.triggerMCRefreshSingle <- req.ID:
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
+	default:
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"status": "already running"})
+	}
+}
+
+// handleRefreshMC triggers a diff-only refresh of machine classes (no apply).
+func (s *Server) handleRefreshMC(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	select {
+	case s.triggerMCRefresh <- struct{}{}:
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
+	default:
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"status": "already running"})
+	}
+}
+
+// handleSetClusterAutoSync sets the per-cluster AutoSync preference.
+func (s *Server) handleSetClusterAutoSync(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ID       string `json:"id"`
+		AutoSync bool   `json:"autoSync"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.ID == "" {
+		http.Error(w, "Cluster ID is required", http.StatusBadRequest)
+		return
+	}
+	s.appState.SetClusterAutoSync(req.ID, req.AutoSync)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok", "id": req.ID, "autoSync": req.AutoSync})
+}
+
+// handleDeleteCluster triggers deletion of a specific cluster without blocking the global reconcile.
+func (s *Server) handleDeleteCluster(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		ID string `json:"id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.ID == "" {
+		http.Error(w, "Cluster ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Reject duplicate delete requests — if the cluster is already being
+	// deleted there is nothing to do and we don't want to queue another
+	// operation on top of the in-flight one.
+	for _, c := range s.appState.GetClusters() {
+		if c.ID == req.ID && c.Status == "deleting" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]string{"status": "already deleting"})
+			return
+		}
+	}
+
+	select {
+	case s.triggerDeleteCluster <- req.ID:
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
+	default:
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
+	}
+}
+
+// handleDeleteMachineClass triggers deletion of a specific machine class from Omni.
+func (s *Server) handleDeleteMachineClass(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		ID string `json:"id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.ID == "" {
+		http.Error(w, "Machine class ID is required", http.StatusBadRequest)
+		return
+	}
+
+	select {
+	case s.triggerDeleteMC <- req.ID:
+	default:
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
+}
+
 // handleForceCluster sets a specific cluster to force sync.
 func (s *Server) handleForceCluster(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -99,12 +264,64 @@ func (s *Server) handleForceCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.appState.SetForceClusterID(req.ID)
+	s.appState.AddForceClusterID(req.ID)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status": "ok",
 		"id":     req.ID,
 	})
+}
+
+// handleSyncMachineClass queues a machine class ID for force-sync on the next reconcile.
+func (s *Server) handleSyncMachineClass(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		ID string `json:"id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.ID == "" {
+		http.Error(w, "Machine class ID is required", http.StatusBadRequest)
+		return
+	}
+
+	s.appState.AddForceMCID(req.ID)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "ok",
+		"id":     req.ID,
+	})
+}
+
+// handleSetMCAutoSync sets the per-machine-class AutoSync preference.
+func (s *Server) handleSetMCAutoSync(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ID       string `json:"id"`
+		AutoSync bool   `json:"autoSync"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.ID == "" {
+		http.Error(w, "Machine class ID is required", http.StatusBadRequest)
+		return
+	}
+	s.appState.SetMachineClassAutoSync(req.ID, req.AutoSync)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok", "id": req.ID, "autoSync": req.AutoSync})
 }
 
 // handleExportCluster exports an unmanaged cluster as a YAML template.
@@ -139,4 +356,175 @@ func (s *Server) handleExportCluster(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/x-yaml")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.yaml", req.ID))
 	w.Write([]byte(yamlContent))
+}
+
+// handleRepos handles CRUD operations for git repository configurations.
+//
+//	POST   /api/repos         — add a new repo
+//	PUT    /api/repos         — update an existing repo (name in body)
+//	DELETE /api/repos         — delete a repo (name in body)
+func (s *Server) handleRepos(w http.ResponseWriter, r *http.Request) {
+	type repoRequest struct {
+		// Used by all methods
+		Name string `json:"name"`
+		// Used by POST and PUT
+		URL          string `json:"url"`
+		Branch       string `json:"branch"`
+		Token        string `json:"token"`      // "" = keep existing (PUT), non-empty = set new
+		ClearToken   bool   `json:"clearToken"` // true = remove any token (PUT only)
+		ClustersPath string `json:"clustersPath"`
+		MCPath       string `json:"mcPath"`
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodPost:
+		var req repoRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		req.Name = strings.TrimSpace(req.Name)
+		req.URL = strings.TrimSpace(req.URL)
+		if req.Name == "" {
+			http.Error(w, "name is required", http.StatusBadRequest)
+			return
+		}
+		if req.URL == "" {
+			http.Error(w, "url is required", http.StatusBadRequest)
+			return
+		}
+		if req.Branch == "" {
+			req.Branch = "main"
+		}
+		if req.ClustersPath == "" {
+			req.ClustersPath = "clusters"
+		}
+		if req.MCPath == "" {
+			req.MCPath = "machine-classes"
+		}
+		rc := config.RepoConfig{
+			Name:         req.Name,
+			URL:          req.URL,
+			Branch:       req.Branch,
+			Token:        req.Token,
+			ClustersPath: req.ClustersPath,
+			MCPath:       req.MCPath,
+		}
+		if err := s.appState.AddRepoConfig(rc); err != nil {
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		if err := s.appState.SaveRepoConfigs(); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "failed to persist: " + err.Error()})
+			return
+		}
+		s.signalRepoChange()
+		json.NewEncoder(w).Encode(map[string]string{"status": "created", "name": rc.Name})
+
+	case http.MethodPut:
+		var req repoRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		req.Name = strings.TrimSpace(req.Name)
+		req.URL = strings.TrimSpace(req.URL)
+		if req.Name == "" {
+			http.Error(w, "name is required", http.StatusBadRequest)
+			return
+		}
+		if req.URL == "" {
+			http.Error(w, "url is required", http.StatusBadRequest)
+			return
+		}
+		if req.Branch == "" {
+			req.Branch = "main"
+		}
+		if req.ClustersPath == "" {
+			req.ClustersPath = "clusters"
+		}
+		if req.MCPath == "" {
+			req.MCPath = "machine-classes"
+		}
+		token := req.Token
+		if req.ClearToken {
+			token = "" // will be stored as empty — UpdateRepoConfig checks "" only when not clearing
+		}
+		rc := config.RepoConfig{
+			Name:         req.Name,
+			URL:          req.URL,
+			Branch:       req.Branch,
+			Token:        token,
+			ClustersPath: req.ClustersPath,
+			MCPath:       req.MCPath,
+		}
+		// Pass ClearToken intent via a sentinel: UpdateRepoConfig preserves empty
+		// token unless we pass a non-empty one or explicitly clear.
+		if req.ClearToken {
+			// Use a sentinel so UpdateRepoConfig knows to clear
+			rc.Token = "\x00clear\x00"
+		}
+		if err := s.appState.UpdateRepoConfig(req.Name, rc); err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		if err := s.appState.SaveRepoConfigs(); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "failed to persist: " + err.Error()})
+			return
+		}
+		s.signalRepoChange()
+		json.NewEncoder(w).Encode(map[string]string{"status": "updated", "name": rc.Name})
+
+	case http.MethodDelete:
+		var req struct {
+			Name string `json:"name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		req.Name = strings.TrimSpace(req.Name)
+		if req.Name == "" {
+			http.Error(w, "name is required", http.StatusBadRequest)
+			return
+		}
+		// Capture the repo config before deletion so we can force-delete its
+		// clusters and machine classes on the next reconcile cycle.
+		for _, rc := range s.appState.GetRepoConfigs() {
+			if rc.Name == req.Name {
+				s.appState.AddPendingRepoDelete(rc)
+				break
+			}
+		}
+		if err := s.appState.DeleteRepoConfig(req.Name); err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		if err := s.appState.SaveRepoConfigs(); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "failed to persist: " + err.Error()})
+			return
+		}
+		s.signalRepoChange()
+		json.NewEncoder(w).Encode(map[string]string{"status": "deleted", "name": req.Name})
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// signalRepoChange sends a non-blocking signal to rebuild the git client when
+// repos are added, updated, or deleted from the UI.
+func (s *Server) signalRepoChange() {
+	select {
+	case s.triggerRepoChange <- struct{}{}:
+	default:
+	}
 }

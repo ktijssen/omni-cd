@@ -1,65 +1,19 @@
 name: Build and Release
 
 on:
-  schedule:
-    # Check for new omnictl releases daily at 02:00 GMT
-    - cron: '0 2 * * *'
-  workflow_dispatch:
   push:
     branches:
       - main
-    paths-ignore:
-      # Updating this file is done by the workflow itself; ignore it to avoid loops
-      - '.omnictl-version'
-      - '.github/workflows/release.yaml'
-      - 'README.md'
+    paths:
+      - 'hack/VERSION'
+  workflow_dispatch:
 
-# Prevent concurrent releases to avoid version tag conflicts
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    outputs:
-      should_build: ${{ steps.check.outputs.should_build }}
-      omnictl_version: ${{ steps.omnictl.outputs.version }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Get latest omnictl version
-        id: omnictl
-        run: |
-          LATEST=$(curl -s https://api.github.com/repos/siderolabs/omni/releases/latest | jq -r .tag_name)
-          echo "version=$LATEST" >> $GITHUB_OUTPUT
-          echo "Latest omnictl: $LATEST"
-
-      - name: Determine if build is needed
-        id: check
-        run: |
-          # Code change pushed to main: always build
-          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "should_build=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Scheduled run: only build when omnictl has a new version
-          LAST=$(cat .omnictl-version 2>/dev/null || echo "")
-          LATEST="${{ steps.omnictl.outputs.version }}"
-
-          if [ "$LATEST" != "$LAST" ]; then
-            echo "New omnictl version detected: $LATEST (was: $LAST)"
-            echo "should_build=true" >> $GITHUB_OUTPUT
-          else
-            echo "No new omnictl version ($LATEST), skipping build"
-            echo "should_build=false" >> $GITHUB_OUTPUT
-          fi
-
-  build-and-release:
-    needs: check
-    if: needs.check.outputs.should_build == 'true'
+  release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -70,38 +24,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Calculate new version
+      - name: Read version
         id: version
         run: |
-          LATEST_TAG=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
-          if [ -z "$LATEST_TAG" ]; then
-            NEW_VERSION="v1.0.0"
-          else
-            MAJOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f1)
-            MINOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f2)
-            PATCH=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f3)
-            NEW_VERSION="v${MAJOR}.${MINOR}.$((PATCH + 1))"
-          fi
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "New release version: $NEW_VERSION"
+          VERSION=$(cat hack/VERSION | tr -d '[:space:]')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version from file: $VERSION"
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: 'go.mod'
-
-      - name: Build binary (linux/amd64)
+      - name: Check if version already released
+        id: check
         run: |
-          mkdir -p bin
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-            -ldflags "-X main.version=${{ steps.version.outputs.version }}" \
-            -o bin/omni-cd-linux-amd64 \
-            ./cmd/omni-cd
+          if git tag --list | grep -qx "${{ steps.version.outputs.version }}"; then
+            echo "Tag ${{ steps.version.outputs.version }} already exists — skipping release."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up Docker Buildx
+        if: steps.check.outputs.skip == 'false'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
+        if: steps.check.outputs.skip == 'false'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -109,75 +54,44 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image
+        if: steps.check.outputs.skip == 'false'
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
             ghcr.io/${{ github.repository }}:latest
           build-args: |
-            OMNICTL_VERSION=${{ needs.check.outputs.omnictl_version }}
             APP_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Commit updated omnictl version
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          echo "${{ needs.check.outputs.omnictl_version }}" > .omnictl-version
-          git add .omnictl-version
-          git diff --cached --quiet || git commit -m "chore: update omnictl to ${{ needs.check.outputs.omnictl_version }} [skip ci]"
-          git push
-
-      - name: Generate contributors list
-        id: contributors
-        run: |
-          CONTRIBUTORS=$(git log --format='%aN' | sort -u | grep -v 'github-actions\[bot\]' | sed 's/^/- /' | tr '\n' '\n')
-          echo "list<<EOF" >> $GITHUB_OUTPUT
-          echo "$CONTRIBUTORS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Create GitHub Release
+        if: steps.check.outputs.skip == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: Omni CD ${{ steps.version.outputs.version }}
+          generate_release_notes: true
           body: |
             ## Omni CD ${{ steps.version.outputs.version }}
 
-            ### 📦 Artifacts
-            - Linux AMD64 binary: `omni-cd-linux-amd64`
-            - Docker image: `ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}`
-
-            ### 📥 Installation
-
-            **Docker:**
+            ### Docker
             ```bash
             docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
             ```
 
-            **Binary:**
-            ```bash
-            curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/omni-cd-linux-amd64
-            chmod +x omni-cd-linux-amd64
-            sudo mv omni-cd-linux-amd64 /usr/local/bin/omni-cd
-            ```
-
-            ### 🚀 Quick Start
+            ### Docker Compose Quick Start
             ```bash
             docker run -d \
               -e OMNI_ENDPOINT=https://your-omni.example.com \
               -e OMNI_SERVICE_ACCOUNT_KEY=your-key \
-              -e GIT_REPO=https://github.com/org/repo.git \
+              -e ADMIN_PASSWORD=changeme \
               -p 8080:8080 \
               ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
             ```
 
-            ### 👥 Contributors
-            ${{ steps.contributors.outputs.list }}
-          files: bin/omni-cd-linux-amd64
           draft: false
           prerelease: false

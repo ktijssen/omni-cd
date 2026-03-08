@@ -1,20 +1,32 @@
 # Omni CD
 
-A GitOps tool for [Sidero Omni](https://www.siderolabs.com/omni/). It watches a Git repository and continuously synchronises **MachineClasses** and **Cluster templates** to your Omni instance.
+A GitOps tool for [Sidero Omni](https://www.siderolabs.com/omni/). It watches one or more Git repositories and continuously reconciles **MachineClasses** and **Cluster templates** to your Omni instance.
 
-![Omni CD Dashboard](docs/dashboard-screenshot.png)
+<p>
+  <img src="docs/clusters-view.png" width="49%" alt="Clusters" />
+  <img src="docs/machine-classes-view.png" width="49%" alt="Machine Classes" />
+</p>
+<p>
+  <img src="docs/repos-view.png" width="49%" alt="Repos" />
+  <img src="docs/cluster-detail-graph.png" width="49%" alt="Cluster Detail" />
+</p>
+
+---
 
 ## Features
 
 - **GitOps sync** — MachineClasses and Clusters are continuously reconciled from Git to Omni
+- **Multi-repo support** — Manage resources from multiple Git repositories in one instance
 - **Drift detection** — Detects out-of-sync resources without applying changes
 - **Diff view** — Colour-coded diff between desired and live state per resource
-- **Live cluster status** — `ready` and `apiserver` health badges per cluster
+- **Live cluster status** — Cluster, controlplane, Kubernetes API, etcd, and WireGuard health badges
+- **Machine graph** — Visual DAG showing Git → Omni → Cluster → MachineSets → Machines
 - **Multiple worker pools** — Cluster templates with multiple named worker groups are fully supported
-- **Force sync** — Immediately sync a specific cluster from the web UI
+- **Per-cluster auto-sync** — Enable or disable automatic sync per cluster from the web UI
 - **Unmanaged clusters** — Clusters created outside of Git are visible and can be exported as templates
-- **Version safety** — Sync is blocked when the Omni backend and bundled `omnictl` versions differ
+- **Machine class usage** — Each MachineClass card lists which clusters are currently using it
 - **Persistent state** — State is saved to disk and restored on restart
+- **Authentication** — Username/password login with session cookies (or fully disabled for internal use)
 - **Real-time web UI** — WebSocket-driven dashboard; no page refreshes needed
 
 ---
@@ -27,50 +39,42 @@ A GitOps tool for [Sidero Omni](https://www.siderolabs.com/omni/). It watches a 
 docker run -d \
   -e OMNI_ENDPOINT=https://your-omni.omni.siderolabs.io \
   -e OMNI_SERVICE_ACCOUNT_KEY=your-service-account-key \
-  -e GIT_REPO=https://github.com/your-org/your-infra-repo.git \
+  -e ADMIN_PASSWORD=changeme \
   -v omni-cd-data:/data \
   -p 8080:8080 \
-  ghcr.io/ktijssen/omni-cd:latest
+  ghcr.io/ktijssen/sidero-omni-cd:latest
 ```
+
+Repositories are added and managed at runtime from the **Repos** page in the web UI.
 
 ### Docker Compose
 
 ```bash
 cp deploy/compose/.env.example deploy/compose/.env
-# Fill in your values, then:
+# Edit .env with your values
 cd deploy/compose && docker compose up -d
 ```
 
 A full example with all variables is in [`deploy/compose/`](deploy/compose/).
 
-### Binary
-
-```bash
-curl -LO https://github.com/ktijssen/omni-cd/releases/latest/download/omni-cd-linux-amd64
-chmod +x omni-cd-linux-amd64
-sudo mv omni-cd-linux-amd64 /usr/local/bin/omni-cd
-```
-
-`omnictl` must be in your `$PATH` when running the binary directly.
-
 ---
 
 ## Configuration
+
+### Environment Variables
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `OMNI_ENDPOINT` | Yes | — | Omni instance URL |
 | `OMNI_SERVICE_ACCOUNT_KEY` | Yes | — | Omni service account key |
-| `GIT_REPO` | Yes | — | Git repository URL |
-| `GIT_BRANCH` | No | `main` | Branch to track |
-| `GIT_TOKEN` | No | — | Token for private repositories |
-| `MC_PATH` | No | `machine-classes` | Path to MachineClass YAMLs within the repo |
-| `CLUSTERS_PATH` | No | `clusters` | Path to Cluster templates within the repo |
-| `CLUSTERS_ENABLED` | No | `true` | Enable automatic cluster syncing on startup |
 | `REFRESH_INTERVAL` | No | `300` | Seconds between git pull + drift checks |
-| `SYNC_INTERVAL` | No | `3600` | Seconds between full reconciliations |
+| `ADMIN_USERNAME` | No | `admin` | Web UI login username |
+| `ADMIN_PASSWORD` | Yes* | — | Web UI login password |
+| `AUTH_DISABLED` | No | `false` | Set `true` to disable login entirely |
 | `WEB_PORT` | No | `8080` | Web UI port |
 | `LOG_LEVEL` | No | `INFO` | Log level: `DEBUG`, `INFO`, `WARN`, `ERROR` |
+
+\* Required unless `AUTH_DISABLED=true`.
 
 ---
 
@@ -83,15 +87,14 @@ your-infra-repo/
 │   └── worker-general.yaml
 └── clusters/
     ├── production/
-    │   ├── cluster.yaml       ← only this file is processed
-    │   └── patches/           ← other YAML files are ignored
+    │   └── cluster.yaml       ← only this filename is processed
     └── dev/
         └── cluster.yaml
 ```
 
-- **MachineClasses** — every `.yaml` file in `MC_PATH` is applied
-- **Clusters** — only files named `cluster.yaml` are processed (searched recursively)
-- A `cluster.yaml` may contain multiple documents (`---`) including multiple named `Workers` sections
+- **MachineClasses** — every `.yaml` file directly in `mc_path` is applied
+- **Clusters** — files named `cluster.yaml` are found recursively under `clusters_path`
+- A `cluster.yaml` may contain multiple YAML documents (`---`) including multiple named `Workers` sections
 
 ---
 
@@ -101,90 +104,166 @@ your-infra-repo/
 
 | Mode | Trigger | What it does |
 |---|---|---|
-| **Refresh** | Every `REFRESH_INTERVAL` or via the Refresh button | Git pull + drift detection, no changes applied |
-| **Sync** | Every `SYNC_INTERVAL` or via the Sync button | Full reconciliation — apply, update, and delete resources |
+| **Refresh** | Every `REFRESH_INTERVAL` seconds or the Refresh button | Git pull + drift detection, no changes applied |
+| **Sync** | Sync button or per-cluster force sync | Full reconciliation — apply, update, and delete resources |
 
 Resources are always processed in this order:
 
 - **Apply:** MachineClasses → Clusters
 - **Delete:** Clusters → MachineClasses
 
-### Version Safety
+### Safety Guards
 
-If the Omni backend version is newer than the bundled `omnictl`, all sync operations are disabled and a warning appears in the UI. Pulling the latest image resolves this — each release is built against the latest `omnictl`.
+- Resources **not owned** by this Omni CD instance (created externally or by another instance) are never deleted
+- Auto-sync can be disabled per cluster from the UI — out-of-sync clusters are shown but not applied
+- Clusters from repos that fail to pull are protected from deletion during the outage window
 
 ### State Persistence
 
-State is saved to `/data/omni-cd-state.json` after each reconcile and restored on startup, so the UI is immediately populated without waiting for the first cycle.
+State is saved to `/data/omni-cd-state.json` after each reconcile and restored on startup, so the UI shows current state immediately without waiting for the first cycle.
 
 ---
 
-## Web Dashboard
+## Web UI
 
-### Main View (`/`)
+The UI is a single-page app with a sidebar. Navigating to `/` redirects to `/clusters`.
 
-Overview cards for Omni connectivity, Git status, and last reconciliation, followed by a MachineClasses table and a Clusters table. Clicking any resource opens a modal with **Error**, **Live**, and **Diff** tabs.
+### Clusters (`/clusters`)
 
-### Clusters View (`/clusters`)
+![Clusters view](docs/clusters-view.png)
 
-A card grid showing one card per cluster with Talos/Kubernetes versions, controlplane node count, and worker pool details.
+Card grid showing one card per cluster with:
+- Talos and Kubernetes versions
+- Cluster, controlplane, API, etcd, and WireGuard health badges
+- Controlplane and worker pool configuration
+- Per-cluster Refresh, Sync, Auto-Sync toggle, and Delete actions
 
-### Header Controls
+Click a card to open the cluster detail page with a **Graph** tab (visual DAG of the full stack), a **Live** tab (current Omni YAML), and a **Diff** tab (desired vs live).
 
-| Control | Action |
-|---|---|
-| **Refresh** | Trigger a soft refresh (drift check, no changes) |
-| **Sync** | Trigger a full sync |
-| **Logs** | Open the live log viewer |
+![Cluster detail graph](docs/cluster-detail-graph.png)
+
+Clusters created outside of Git (unmanaged) are shown with an **Export** button to download them as a YAML template.
+
+### Machine Classes (`/machineclasses`)
+
+![Machine Classes view](docs/machine-classes-view.png)
+
+Card grid showing each MachineClass with its provisioning mode, resource settings, machine limit, and a live **Used by** list showing which clusters reference it. Each card has Refresh, Sync, Auto-Sync toggle, and Delete actions. Click a cluster chip to jump to that cluster.
+
+### Instances (`/instances`)
+
+Omni instance overview.
+
+### Repos (`/repos`)
+
+![Repos view](docs/repos-view.png)
+
+Add, edit, and remove Git repositories at runtime without restarting. Supports optional per-repo authentication tokens. Default paths are `clusters/` and `machine-classes/` if not specified.
+
+### Users (`/users`)
+
+User management page.
+
+### Logs (`/logs`)
+
+Reconciler log stream with a **Download Logs** button to export as JSON.
 
 ---
 
-## API Endpoints
+## API
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/` | Web UI — main dashboard |
-| `GET` | `/clusters` | Web UI — clusters card grid |
 | `GET` | `/ws` | WebSocket — real-time state updates |
 | `GET` | `/api/state` | Current state as JSON |
 | `POST` | `/api/reconcile` | Trigger a full sync |
-| `POST` | `/api/check` | Trigger a git refresh |
-| `POST` | `/api/clusters-toggle` | Toggle automatic cluster sync on/off |
-| `POST` | `/api/force-cluster` | Force sync a specific cluster `{"id": "cluster-name"}` |
-| `POST` | `/api/export-cluster` | Export an unmanaged cluster as YAML `{"id": "cluster-name"}` |
+| `POST` | `/api/check` | Trigger a git refresh (no apply) |
+| `POST` | `/api/clusters-toggle` | Toggle global cluster sync on/off |
+| `POST` | `/api/refresh-cluster` | Refresh a single cluster `{"id":"name"}` |
+| `POST` | `/api/force-cluster` | Force sync a single cluster `{"id":"name"}` |
+| `POST` | `/api/delete-cluster` | Delete a cluster `{"id":"name"}` |
+| `POST` | `/api/set-cluster-autosync` | Set per-cluster auto-sync `{"id":"name","autoSync":true}` |
+| `POST` | `/api/export-cluster` | Export an unmanaged cluster as YAML `{"id":"name"}` |
+| `POST` | `/api/refresh-mc` | Refresh all machine classes (no apply) |
+| `POST` | `/api/refresh-single-mc` | Refresh a single machine class `{"id":"name"}` |
+| `POST` | `/api/sync-machineclass` | Force sync a single machine class `{"id":"name"}` |
+| `POST` | `/api/delete-machineclass` | Delete a machine class `{"id":"name"}` |
+| `POST` | `/api/set-mc-autosync` | Set per-machine-class auto-sync `{"id":"name","autoSync":true}` |
+| `POST` | `/api/repos` | Add a git repository |
+| `PUT` | `/api/repos` | Update a git repository |
+| `DELETE` | `/api/repos` | Remove a git repository |
 
 ---
 
 ## Development
 
-Requires Go 1.23+, [Task](https://taskfile.dev), Docker, and `omnictl` in your `$PATH`.
+Requires Go 1.26+, [Task](https://taskfile.dev), and Docker.
 
 ```bash
-task dev            # Run locally with DEBUG logging
-task build          # Build binary
-task check          # Run fmt + vet
-task docker:build   # Build Docker image
-task compose:up     # Start via Docker Compose
-task                # List all available tasks
+# Development
+task dev                     # Run locally with DEBUG logging
+task build                   # Build binary (current OS/arch)
+task build:linux             # Build static linux/amd64 binary
+task install                 # go install
+
+# Code quality
+task fmt                     # go fmt
+task vet                     # go vet
+task lint                    # golangci-lint
+task check                   # Run fmt + vet
+
+# Dependencies
+task deps                    # Download modules
+task deps:tidy               # go mod tidy
+task deps:update             # go get -u + tidy
+
+# Docker
+task docker:build            # Build Docker image
+task docker:run              # Build + run container locally
+
+# Docker Compose
+task compose:up              # Start services
+task compose:down            # Stop services
+task compose:build           # Build and start services
+task compose:rebuild         # Rebuild and restart
+task compose:rebuild:nocache # Rebuild (no cache) and restart
+task compose:logs            # Follow compose logs
+task compose:restart         # Restart services
+
+# Utilities
+task clean                   # Remove build artifacts
+task clean:docker            # Remove Docker image
+task clean:all               # Clean everything
+task open                    # Open web UI in browser
+task version                 # Show Go and tool versions
+task                         # List all available tasks
 ```
 
 ---
 
 ## Releases
 
-Images and binaries are published automatically to [GitHub Releases](https://github.com/ktijssen/omni-cd/releases) and GHCR on every push to `main` and whenever a new `omnictl` version is detected.
+Docker images are published automatically to [GitHub Releases](https://github.com/ktijssen/sidero-omni-cd/releases) and GHCR when [`hack/VERSION`](hack/VERSION) is updated on `main`. Both `linux/amd64` and `linux/arm64` are supported.
+
+To cut a new release, update the version in `hack/VERSION` and push to `main`:
+
+```bash
+echo "v1.2.0" > hack/VERSION
+git add hack/VERSION && git commit -m "chore: release v1.2.0"
+git push origin main
+```
 
 ---
 
 ## Troubleshooting
 
-**Version mismatch** — Pull the latest image; it is always built against the latest `omnictl` release.
+**Cluster stuck in Out of Sync** — Click the Diff tab to see what changed, then use the Sync button or check the Logs page for the underlying error.
 
-**MachineClass not applying** — Check the **Error** tab in the resource modal for validation errors.
-
-**Cluster stuck in Out of Sync** — Use the **Force Sync** button, then check the **Logs** viewer for the error.
+**MachineClass not applying** — Open the resource modal and check the Error tab for validation output.
 
 **State lost after restart** — Ensure `/data` is backed by a persistent volume.
+
+**Login not working** — Verify `ADMIN_USERNAME` / `ADMIN_PASSWORD` are set, or set `AUTH_DISABLED=true` for passwordless access.
 
 ---
 

@@ -6,3 +6,9 @@ deploy/compose/data/
 
 # Environment files
 deploy/compose/.env
+
+# docs
+docs/*.md
+
+# backup files
+*.bak
