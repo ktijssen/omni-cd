@@ -4,56 +4,85 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"omni-cd/internal/config"
 	"omni-cd/internal/state"
 )
 
-const workDir = "/tmp/repo"
-
-// Client handles Git operations for omni-cd.
+// Client handles Git operations for a single repository.
 type Client struct {
-	cfg     *config.Config
-	state   *state.AppState
-	lastSHA string
+	repoConfig config.RepoConfig
+	workDir    string
+	state      *state.AppState
+	lastSHA    string
+	mu         sync.Mutex // serialises concurrent Sync() calls on the same working directory
 }
 
-// New creates a new Git client with shared state.
+// New creates a git.Client for the primary (first) configured repository.
+// This preserves backwards compatibility for callers that only use one repo.
 func New(cfg *config.Config, s *state.AppState) *Client {
-	return &Client{cfg: cfg, state: s}
+	rc := cfg.Repos[0]
+	return &Client{
+		repoConfig: rc,
+		workDir:    "/tmp/repo-" + rc.Name,
+		state:      s,
+	}
 }
 
 // RepoDir returns the local path to the cloned repository.
 func (c *Client) RepoDir() string {
-	return workDir
+	return c.workDir
 }
 
 // Sync performs a fresh shallow clone and returns true if the HEAD SHA
 // has changed since the last sync. A fresh clone each cycle avoids
 // issues with shallow fetch/reset on some Git versions.
+// The method serialises concurrent callers via a per-repo mutex so that a
+// single-cluster refresh goroutine and a full reconcile cannot clone/read
+// the working directory simultaneously.
 func (c *Client) Sync() (bool, error) {
-	repoURL := c.cfg.GitRepo
-
-	// Inject token for private repos
-	if c.cfg.GitToken != "" {
-		repoURL = strings.Replace(repoURL, "https://", "https://token:"+c.cfg.GitToken+"@", 1)
-	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	repoURL := c.repoConfig.URL
 
 	// Remove old clone and start fresh
-	os.RemoveAll(workDir)
+	os.RemoveAll(c.workDir)
 
 	// Shallow clone the target branch
 	cmd := exec.Command("git", "clone",
-		"--branch", c.cfg.GitBranch,
+		"--branch", c.repoConfig.Branch,
 		"--single-branch",
 		"--depth", "1",
-		repoURL, workDir,
+		repoURL, c.workDir,
 		"--quiet",
 	)
+
+	// Inject credentials via a temporary HOME so the token never appears in the
+	// URL (which leaks via git error messages and /proc process listings).
+	if c.repoConfig.Token != "" {
+		u, err := url.Parse(repoURL)
+		if err != nil {
+			return false, fmt.Errorf("invalid repo URL: %w", err)
+		}
+		tmpHome, err := os.MkdirTemp("", "git-auth-*")
+		if err != nil {
+			return false, fmt.Errorf("failed to create credentials dir: %w", err)
+		}
+		defer os.RemoveAll(tmpHome)
+		netrc := fmt.Sprintf("machine %s login token password %s\n", u.Hostname(), c.repoConfig.Token)
+		if err := os.WriteFile(filepath.Join(tmpHome, ".netrc"), []byte(netrc), 0600); err != nil {
+			return false, fmt.Errorf("failed to write git credentials: %w", err)
+		}
+		cmd.Env = append(os.Environ(), "HOME="+tmpHome, "GIT_TERMINAL_PROMPT=0")
+	}
+
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return false, fmt.Errorf("git clone failed: %w\n%s", err, string(out))
 	}
@@ -68,11 +97,12 @@ func (c *Client) Sync() (bool, error) {
 
 	// Update shared state with git info
 	c.state.UpdateGit(state.GitInfo{
+		Name:          c.repoConfig.Name,
 		SHA:           current,
 		ShortSHA:      short(current),
 		CommitMessage: msg,
-		Branch:        c.cfg.GitBranch,
-		Repo:          c.cfg.GitRepo,
+		Branch:        c.repoConfig.Branch,
+		Repo:          c.repoConfig.URL,
 		LastSync:      time.Now().UTC(),
 	})
 
@@ -81,7 +111,7 @@ func (c *Client) Sync() (bool, error) {
 
 	// First run — always treat as changed
 	if previous == "" {
-		c.logInfo("Cloned repository", "repo", c.cfg.GitRepo, "branch", c.cfg.GitBranch, "sha", short(current))
+		c.logInfo("Cloned repository", "repo", c.repoConfig.URL, "branch", c.repoConfig.Branch, "sha", short(current))
 		return true, nil
 	}
 
@@ -96,7 +126,7 @@ func (c *Client) Sync() (bool, error) {
 
 // headSHA returns the current HEAD SHA of the cloned repo.
 func (c *Client) headSHA() (string, error) {
-	out, err := exec.Command("git", "-C", workDir, "rev-parse", "HEAD").Output()
+	out, err := exec.Command("git", "-C", c.workDir, "rev-parse", "HEAD").Output()
 	if err != nil {
 		return "", err
 	}
@@ -105,12 +135,98 @@ func (c *Client) headSHA() (string, error) {
 
 // commitMessage returns the commit message of HEAD.
 func (c *Client) commitMessage() string {
-	out, err := exec.Command("git", "-C", workDir, "log", "-1", "--format=%s").Output()
+	out, err := exec.Command("git", "-C", c.workDir, "log", "-1", "--format=%s").Output()
 	if err != nil {
 		return "(unknown)"
 	}
 	return strings.TrimSpace(string(out))
 }
+
+// ── MultiClient ───────────────────────────────────────────────────────────────
+
+// RepoSyncResult holds the outcome of syncing one repository.
+type RepoSyncResult struct {
+	Name    string
+	Changed bool
+	Err     error
+	RepoDir string
+	Info    state.GitInfo
+}
+
+// MultiClient manages multiple git Clients, one per configured repository.
+type MultiClient struct {
+	clients []*Client
+}
+
+// NewMulti creates a MultiClient for all repos in cfg.
+func NewMulti(cfg *config.Config, s *state.AppState) *MultiClient {
+	clients := make([]*Client, len(cfg.Repos))
+	for i, rc := range cfg.Repos {
+		clients[i] = &Client{
+			repoConfig: rc,
+			workDir:    "/tmp/repo-" + rc.Name,
+			state:      s,
+		}
+	}
+	return &MultiClient{clients: clients}
+}
+
+// SyncAll clones/refreshes all repos sequentially and returns per-repo results.
+// State is updated for each repo immediately after it completes.
+func (m *MultiClient) SyncAll() []RepoSyncResult {
+	results := make([]RepoSyncResult, 0, len(m.clients))
+	infos := make([]state.GitInfo, 0, len(m.clients))
+
+	for _, c := range m.clients {
+		changed, err := c.Sync()
+		info := state.GitInfo{
+			Name:     c.repoConfig.Name,
+			SHA:      c.lastSHA,
+			ShortSHA: short(c.lastSHA),
+			Branch:   c.repoConfig.Branch,
+			Repo:     c.repoConfig.URL,
+			LastSync: time.Now().UTC(),
+		}
+		if err != nil {
+			info.SyncError = err.Error()
+		}
+		results = append(results, RepoSyncResult{
+			Name:    c.repoConfig.Name,
+			Changed: changed,
+			Err:     err,
+			RepoDir: c.workDir,
+			Info:    info,
+		})
+		infos = append(infos, info)
+	}
+
+	// Publish all git infos at once so the UI sees a consistent snapshot
+	if len(m.clients) > 0 {
+		m.clients[0].state.UpdateRepos(infos)
+	}
+	return results
+}
+
+// RepoDirFor returns the workDir for the named repo, or "" if not found.
+func (m *MultiClient) RepoDirFor(name string) string {
+	for _, c := range m.clients {
+		if c.repoConfig.Name == name {
+			return c.workDir
+		}
+	}
+	return ""
+}
+
+// AllRepoDirs returns a slice of workDir paths for all repos.
+func (m *MultiClient) AllRepoDirs() []string {
+	dirs := make([]string, len(m.clients))
+	for i, c := range m.clients {
+		dirs[i] = c.workDir
+	}
+	return dirs
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 // short returns the first 8 characters of a SHA.
 func short(sha string) string {

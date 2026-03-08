@@ -26,8 +26,13 @@ func generateToken() (string, error) {
 
 // requireAuth wraps a handler and redirects to /login if no valid session is present.
 // API calls (paths starting with /api/ or /ws) get a 401 instead of a redirect.
+// Auth is skipped entirely when authDisabled is true.
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if s.authDisabled {
+			next(w, r)
+			return
+		}
 		cookie, err := r.Cookie(sessionCookieName)
 		if err != nil || !s.validSession(cookie.Value) {
 			if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/ws" {
@@ -41,13 +46,20 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// validSession returns true if the token is an active session.
+// validSession returns true if the token is an active, unexpired session.
 func (s *Server) validSession(token string) bool {
 	if token == "" {
 		return false
 	}
-	_, ok := s.sessions.Load(token)
-	return ok
+	v, ok := s.sessions.Load(token)
+	if !ok {
+		return false
+	}
+	if time.Since(v.(time.Time)) >= sessionDuration {
+		s.sessions.Delete(token)
+		return false
+	}
+	return true
 }
 
 // handleLogin serves GET /login (login page) and POST /login (credential check).

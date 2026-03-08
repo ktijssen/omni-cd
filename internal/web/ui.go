@@ -1,15 +1,20 @@
 package web
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strings"
 )
 
+var omniLogoURI = "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(omniLogoSVG))
+
 // handleUI serves the embedded UI.
 func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprint(w, strings.ReplaceAll(uiHTML, "{{APP_VERSION}}", s.version))
+	html := strings.ReplaceAll(uiHTML, "{{APP_VERSION}}", s.version)
+	html = strings.ReplaceAll(html, "{{OMNI_LOGO_URI}}", omniLogoURI)
+	fmt.Fprint(w, html)
 }
 
 const uiHTML = `<!DOCTYPE html>
@@ -18,7 +23,7 @@ const uiHTML = `<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Omni CD</title>
-<link rel="icon" type="image/svg+xml" href="https://mintlify.s3.us-west-1.amazonaws.com/siderolabs-fe86397c/images/omni.svg">
+<link rel="icon" type="image/svg+xml" href="{{OMNI_LOGO_URI}}">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -121,9 +126,11 @@ const uiHTML = `<!DOCTYPE html>
   .badge-running { background: #1e3a5f; color: #60a5fa; }
   .badge-failed { background: #451a1e; color: #f87171; }
   .badge-outofsync { background: #431407; color: #fb923c; }
+  .badge-orphaned  { background: #2e1065; color: #a78bfa; }
   .badge-unmanaged { background: #27272a; color: #71717a; border: 1px solid #3f3f46; }
-  .badge-deleting { background: #4d1500; color: #fb7a37; }
+  .badge-deleting { background: #451a1e; color: #f87171; }
   .badge-syncing { background: #0d2d2a; color: #2dd4bf; }
+  .badge-connecting { background: #2d0d0d; color: #f87171; }
   .badge-idle { background: #3f3f46; color: #a1a1aa; }
   .badge-ready { background: #14532d; color: #4ade80; }
   .badge-notready { background: #451a1e; color: #f87171; }
@@ -290,26 +297,49 @@ const uiHTML = `<!DOCTYPE html>
   .btn-force-sync:hover { border-color: #fb923c; background: rgba(251, 146, 60, 0.1); }
   .btn-sort { background: none; border: 1px solid #3f3f46; color: #71717a; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: 'SF Mono', 'Fira Code', monospace; }
   .btn-sort:hover { border-color: #a1a1aa; color: #a1a1aa; }
+  .btn-sort:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-sort:disabled:hover { border-color: #3f3f46; color: #71717a; }
   .btn-sort.active { border-color: #FB326E; color: #FB326E; background: rgba(251, 50, 110, 0.1); }
-  .btn-back { display: inline-block; background: none; border: 1px solid #3f3f46; color: #a1a1aa; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; text-decoration: none; }
-  .btn-back:hover { border-color: #a1a1aa; color: #fff; }
+  .btn-sort.btn-primary:hover { border-color: #FB326E; color: #FB326E; }
+  .btn-sort.btn-primary.active:hover { border-color: #71717a; color: #71717a; background: rgba(63,63,70,0.4); }
+  .cluster-card-actions .btn-sort.btn-primary:hover { border-color: #a1a1aa; color: #a1a1aa; }
+  .cluster-card-actions .btn-sort.btn-primary.active:hover { border-color: #71717a; color: #71717a; background: rgba(63,63,70,0.4); }
+  .btn-sort.btn-primary.auto-sync:not(.active):hover { border-color: #3f3f46; color: #a1a1aa; background: transparent; }
+  .btn-sort.btn-primary.auto-sync.active:hover { border-color: #FB326E; color: #FB326E; background: rgba(251, 50, 110, 0.1); }
+  .cluster-card-actions .btn-sort.btn-primary.auto-sync:not(.active):hover { border-color: #3f3f46; color: #a1a1aa; background: transparent; }
+  .cluster-card-actions .btn-sort.btn-primary.auto-sync.active:hover { border-color: #FB326E; color: #FB326E; background: rgba(251, 50, 110, 0.1); }
+  .breadcrumb { display:flex; align-items:center; gap:6px; }
+  .breadcrumb-link { color:#a1a1aa; text-decoration:none; font-size:18px; font-weight:600; letter-spacing:-0.3px; }
+  .breadcrumb-link:hover { color:#fff; }
+  .breadcrumb-sep { color:#3f3f46; font-size:15px; font-weight:400; }
+  .breadcrumb-current { color:#fff; font-family:'SF Mono','Fira Code',monospace; font-size:16px; font-weight:600; }
   .panel-nav-link { cursor: pointer; transition: color 0.15s; }
   .panel-nav-link:hover { color: #FB326E; }
-  .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; padding: 24px; }
+  .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; padding: 16px 0; }
   .cluster-card { background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; overflow: hidden; display: flex; }
   .cluster-card.clickable { cursor: pointer; }
   .cluster-card.clickable:hover { border-color: #71717a; }
+  .cluster-card-actions { display: flex; gap: 6px; padding: 2px 0 0; margin-top: auto; }
+  .btn-sort.sync:hover    { border-color: #fb923c; color: #fb923c; background: rgba(251,146,60,0.08); }
+  .btn-sort.refresh:hover { border-color: #22d3ee; color: #22d3ee; background: rgba(34,211,238,0.08); }
+  .btn-sort.danger:hover  { border-color: #f87171; color: #f87171; background: rgba(248,113,113,0.08); }
   .cluster-card-accent { width: 4px; flex-shrink: 0; background: #3f3f46; }
   .cluster-card[data-status="success"] .cluster-card-accent,
   .cluster-card[data-status="applied"] .cluster-card-accent { background: #4ade80; }
   .cluster-card[data-status="failed"] .cluster-card-accent { background: #f87171; }
   .cluster-card[data-status="outofsync"] .cluster-card-accent { background: #fb923c; }
+  .cluster-card[data-status="orphaned"]  .cluster-card-accent { background: #a78bfa; }
   .cluster-card[data-status="syncing"] .cluster-card-accent { background: #2dd4bf; }
   .cluster-card[data-status="unmanaged"] .cluster-card-accent { background: #52525b; }
+  .cluster-card[data-status="deleting"] .cluster-card-accent { background: #f87171; }
   /* Override accent to red when synced but cluster not ready */
   .cluster-card[data-status="success"][data-health="not-ready"] .cluster-card-accent,
   .cluster-card[data-status="applied"][data-health="not-ready"] .cluster-card-accent { background: #f87171; }
-  .cluster-health-bar-wrap { padding: 0 24px 16px; display: flex; align-items: center; gap: 12px; }
+  .cluster-card[data-phase="scaling-up"] .cluster-card-accent    { background: #60a5fa; }
+  .cluster-card[data-phase="scaling-down"] .cluster-card-accent  { background: #f59e0b; }
+  .cluster-card[data-phase="destroying"] .cluster-card-accent    { background: #f43f5e; }
+  .cluster-card[data-phase="reconfiguring"] .cluster-card-accent { background: #a78bfa; }
+  .cluster-health-bar-wrap { padding: 0 0 16px; display: flex; align-items: center; gap: 12px; }
   .cluster-health-bar { flex: 1; height: 8px; border-radius: 4px; background: #3f3f46; overflow: hidden; display: flex; }
   .cluster-health-bar-seg { height: 100%; cursor: pointer; transition: width 0.3s, opacity 0.15s; opacity: 0.85; }
   .cluster-health-bar-seg:hover { opacity: 1; }
@@ -319,9 +349,14 @@ const uiHTML = `<!DOCTYPE html>
   .cluster-health-bar-seg--notready { background: #f87171; }
   .cluster-health-bar-seg--failed { background: #ef4444; }
   .cluster-health-bar-seg--outofsync { background: #fb923c; }
+  .cluster-health-bar-seg--orphaned   { background: #a78bfa; }
   .cluster-health-bar-seg--unmanaged { background: #52525b; }
+  .cluster-health-bar-seg--scalingup   { background: #60a5fa; }
+  .cluster-health-bar-seg--scalingdown { background: #f59e0b; }
+  .cluster-health-bar-seg--destroying  { background: #f43f5e; }
+  .cluster-health-bar-seg--reconfiguring { background: #a78bfa; }
   .cluster-health-summary { font-size: 12px; color: #71717a; white-space: nowrap; }
-  .cluster-card-body { flex: 1; padding: 12px 14px; min-width: 0; }
+  .cluster-card-body { flex: 1; padding: 12px 14px; min-width: 0; display: flex; flex-direction: column; }
   .cluster-card-header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
   .cluster-card-title { font-size: 15px; font-weight: 600; color: #fff; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cluster-card-title.clickable { color: inherit; }
@@ -351,20 +386,33 @@ const uiHTML = `<!DOCTYPE html>
   .diff-add { color: #4ade80; }
   .diff-del { color: #f87171; }
   .diff-hdr { color: #60a5fa; }
+  .sbs-block { margin-bottom: 16px; }
+  .sbs-table { display: grid; grid-template-columns: 1fr 1fr; column-gap: 1px; background: #3f3f46; border-radius: 4px; overflow: hidden; border: 1px solid #3f3f46; }
+  .sbs-col-hdr { padding: 4px 10px; background: #1c1c1e; color: #71717a; font-size: 11px; border-bottom: 1px solid #3f3f46; }
+  .sbs-live-hdr { border-right: none; }
+  .sbs-cell { padding: 2px 10px; font-size: 12px; white-space: pre-wrap; word-break: break-all; min-height: 20px; background: #27272a; }
+  .sbs-del { background: rgba(248,113,113,0.12); color: #f87171; }
+  .sbs-add { background: rgba(74,222,128,0.10); color: #4ade80; }
+  .sbs-ln { color: #52525b; margin-right: 8px; user-select: none; font-size: 11px; }
+  .drawer-body.mc-live-mode { padding: 0; white-space: normal; word-break: normal; }
+  .mc-live-toolbar { display:flex; align-items:center; justify-content:flex-end; padding:8px 16px; border-bottom:1px solid #3f3f46; background:#1c1c1e; position:sticky; top:0; z-index:1; }
+  .mc-live-toggle { font-size:12px; color:#a1a1aa; cursor:pointer; display:flex; align-items:center; gap:6px; }
+  .mc-live-toggle input[type=checkbox] { accent-color:#fb923c; cursor:pointer; }
+  .mc-live-table { width:100%; border-collapse:collapse; font-family:'SF Mono','Fira Code',monospace; font-size:12px; line-height:1.6; }
+  .mc-live-ln { color:#52525b; text-align:right; padding:2px 10px 2px 16px; user-select:none; min-width:36px; border-right:1px solid #27272a; white-space:nowrap; vertical-align:top; }
+  .mc-live-code { padding:2px 16px; white-space:pre-wrap; word-break:break-all; color:#e4e4e7; }
+  .mc-live-meta-row td { color:#52525b; opacity:0.55; }
+  .mc-live-ignored-row td { color:#3f3f46; font-style:italic; }
+  .sbs-table-single { background: #27272a; border-radius: 4px; overflow: hidden; border: 1px solid #3f3f46; }
+  .sbs-meta-dim { opacity: 0.45; }
+  .sbs-ignored { color: #52525b; font-style: italic; }
 
-  .btn-logs {
-    background: #FB326E;
-    color: #fff;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .btn-logs:hover { background: #e0285f; }
-  .btn-logs:active { background: #c92255; }
+  .logs-page { display:flex; flex-direction:column; height:100%; }
+  .logs-page-header { display:flex; align-items:center; justify-content:space-between; padding:0; margin-bottom:0; border-bottom:none; }
+  .logs-page-body { flex:1; overflow-y:auto; background:#1b1b1d; border-radius:8px; }
+  .logs-page-body::-webkit-scrollbar { width:6px; }
+  .logs-page-body::-webkit-scrollbar-track { background:#1b1b1d; }
+  .logs-page-body::-webkit-scrollbar-thumb { background:#3f3f46; border-radius:3px; }
   .logs-modal-header {
     padding: 20px 24px 16px;
     display: flex;
@@ -382,18 +430,6 @@ const uiHTML = `<!DOCTYPE html>
     align-items: center;
     gap: 10px;
   }
-  .btn-download {
-    background: #3f3f46;
-    color: #e4e4e7;
-    border: none;
-    padding: 6px 14px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .btn-download:hover { background: #52525b; }
   .logs-container {
     height: 400px;
     overflow-y: auto;
@@ -405,7 +441,7 @@ const uiHTML = `<!DOCTYPE html>
   .logs-container::-webkit-scrollbar { width: 6px; }
   .logs-container::-webkit-scrollbar-track { background: #1b1b1d; }
   .logs-container::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
-  .log-entry { padding: 2px 20px; }
+  .log-entry { padding: 2px 20px; font-size: 11px; font-weight: 400; }
   .log-entry:hover { background: #323235; }
   .log-ts { color: #52525b; }
   .log-info { color: #e4e4e7; }
@@ -441,6 +477,40 @@ const uiHTML = `<!DOCTYPE html>
     vertical-align: middle;
     margin-right: 8px;
     flex-shrink: 0;
+  }
+
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: #1b1b1d;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    z-index: 9999;
+    transition: opacity 0.3s ease;
+  }
+  .loading-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .loading-spinner-large {
+    width: 48px;
+    height: 48px;
+    border: 3px solid #3f3f46;
+    border-top-color: #FB326E;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  .loading-overlay-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #e4e4e7;
+  }
+  .loading-overlay-sub {
+    font-size: 13px;
+    color: #71717a;
   }
 
   /* Right slide-over drawer */
@@ -511,7 +581,10 @@ const uiHTML = `<!DOCTYPE html>
     margin-top: 16px;
     border-bottom: 1px solid #3f3f46;
     flex-shrink: 0;
+    align-items: center;
   }
+  .mc-ignored-toggle { margin-left: auto; font-size: 12px; color: #a1a1aa; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 0 0 0 16px; border-left: 1px solid #3f3f46; user-select: none; }
+  .mc-ignored-toggle input[type=checkbox] { accent-color: #fb923c; cursor: pointer; }
   .drawer-tab {
     background: none;
     border: none;
@@ -553,7 +626,7 @@ const uiHTML = `<!DOCTYPE html>
   .mc-card[data-status="failed"] .mc-card-accent { background: #f87171; }
   .mc-card[data-status="outofsync"] .mc-card-accent { background: #fb923c; }
   .mc-card[data-status="syncing"] .mc-card-accent { background: #2dd4bf; }
-  .mc-card-header { flex: 1; padding: 12px 14px; min-width: 0; }
+  .mc-card-header { flex: 1; padding: 12px 14px; min-width: 0; display: flex; flex-direction: column; }
   .mc-card-title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
   .mc-card-name {
     font-size: 13px;
@@ -568,6 +641,10 @@ const uiHTML = `<!DOCTYPE html>
   .mc-card-name.clickable { color: inherit; }
   .mc-card-status { font-size: 11px; white-space: nowrap; flex-shrink: 0; }
   .mc-card-divider { height: 1px; background: #3f3f46; margin-bottom: 8px; }
+  .mc-used-by { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+  .mc-used-by-chip { font-size: 10px; font-family: 'SF Mono','Fira Code',monospace; background: #3f3f46; color: #a1a1aa; border-radius: 4px; padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; cursor: pointer; border: none; transition: background 0.15s, color 0.15s; }
+  .mc-used-by-chip:hover { background: rgba(251, 50, 110, 0.1); color: #FB326E; }
+  .mc-used-by-none { font-size: 11px; color: #52525b; font-style: italic; }
   .page-size-bar { display: flex; align-items: center; gap: 6px; }
   .page-size-btn { background: none; border: 1px solid #3f3f46; color: #a1a1aa; padding: 3px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; transition: all 0.2s; }
   .page-size-btn:hover:not(.active) { border-color: #71717a; color: #e4e4e7; }
@@ -676,53 +753,54 @@ const uiHTML = `<!DOCTYPE html>
 
   /* Confirmation modal */
   .confirm-modal {
-    max-width: 500px;
+    max-width: 680px;
+    width: 680px;
+    height: auto;
+    min-height: unset;
   }
+  .confirm-modal .modal-header { padding: 14px 20px 0; }
   .confirm-body {
-    padding: 32px 24px;
-    text-align: center;
+    padding: 12px 20px 16px;
+    text-align: left;
     white-space: normal;
+    word-break: normal;
   }
   .confirm-icon {
-    font-size: 48px;
-    margin-bottom: 16px;
+    display: none;
   }
   .confirm-message {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 14px;
-    line-height: 1.6;
+    font-size: 13px;
+    line-height: 1.4;
     color: #e4e4e7;
-    margin-bottom: 24px;
+    margin-bottom: 14px;
     white-space: pre-line;
   }
   .confirm-actions {
     display: flex;
     gap: 12px;
-    justify-content: center;
+    justify-content: flex-end;
   }
-  .btn-cancel, .btn-confirm {
-    padding: 8px 24px;
+  .confirm-input-prompt {
+    font-size: 13px;
+    color: #a1a1aa;
+    margin-bottom: 8px;
+    text-align: left;
+  }
+  .confirm-input {
+    width: 100%;
+    background: #27272a;
+    border: 1px solid #3f3f46;
     border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    border: none;
-    transition: all 0.2s;
-  }
-  .btn-cancel {
-    background: #3f3f46;
     color: #e4e4e7;
+    font-size: 13px;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    padding: 7px 10px;
+    margin-bottom: 12px;
+    outline: none;
+    box-sizing: border-box;
   }
-  .btn-cancel:hover {
-    background: #52525b;
-  }
-  .btn-confirm {
-    background: #FB326E;
-    color: #fff;
-  }
-  .btn-confirm:hover {
-    background: #e91e63;
-  }
+  .confirm-input:focus { border-color: #f87171; }
 
   /* Cluster topology graph */
   .cluster-graph { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; white-space: normal; word-break: normal; display: flex; flex-direction: column; overflow: hidden; flex: 1; min-height: 0; }
@@ -730,6 +808,8 @@ const uiHTML = `<!DOCTYPE html>
   .cluster-graph-zoom-btn { background: #3f3f46; border: 1px solid #52525b; color: #a1a1aa; border-radius: 5px; width: 26px; height: 26px; font-size: 16px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
   .cluster-graph-zoom-btn:hover { background: #52525b; color: #e4e4e7; }
   .graph-zoom-level { font-size: 11px; color: #71717a; min-width: 34px; text-align: center; }
+  .graph-toolbar-sep { width: 1px; height: 16px; background: #3f3f46; margin: 0 2px; flex-shrink: 0; }
+  .fold-badge { display: inline-flex; align-items: center; justify-content: center; background: #52525b; color: #e4e4e7; border-radius: 4px; font-size: 10px; font-weight: 600; padding: 1px 5px; margin-right: 2px; letter-spacing: 0.02em; }
   .cluster-graph-canvas { flex: 1; overflow: auto; padding: 24px 20px; cursor: grab; user-select: none; }
   .cluster-graph-inner { display: inline-flex; transform-origin: top left; transition: transform 0.15s; }
   .graph-node { background: #1b1b1d; border: 1px solid #3f3f46; border-radius: 10px; padding: 14px 20px; overflow: hidden; }
@@ -747,6 +827,7 @@ const uiHTML = `<!DOCTYPE html>
 
   /* DAG graph - Argo CD style left-to-right layout */
   .dag-node { display:flex; align-items:stretch; background:#18181b; border:1px solid #3f3f46; border-radius:6px; overflow:hidden; height:100px; flex-shrink:0; }
+  .dag-node.clickable:hover { border-color:#71717a; }
   .dag-node-accent { width:3px; flex-shrink:0; }
   .dag-node-icon { display:flex; align-items:center; justify-content:center; width:36px; flex-shrink:0; }
   .dag-node-body { flex:1; padding:10px 10px 10px 6px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; min-width:0; }
@@ -790,13 +871,14 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   /* Dashboard */
-  .dash-fleet-card { background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; padding: 18px 20px; margin-bottom: 12px; }
+  .dash-fleet-card { background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; padding: 18px 20px; }
   .dash-fleet-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #71717a; margin-bottom: 12px; }
   .dash-fleet-bar { height: 10px; border-radius: 5px; background: #3f3f46; overflow: hidden; display: flex; margin-bottom: 12px; }
   .dash-fleet-seg { height: 100%; transition: width 0.4s; }
   .dash-fleet-seg--ready     { background: #4ade80; }
   .dash-fleet-seg--notready  { background: #f87171; }
   .dash-fleet-seg--outofsync { background: #fb923c; }
+  .dash-fleet-seg--orphaned  { background: #a78bfa; }
   .dash-fleet-seg--failed    { background: #ef4444; }
   .dash-fleet-seg--unmanaged { background: #52525b; }
   .dash-fleet-legend { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
@@ -906,9 +988,52 @@ const uiHTML = `<!DOCTYPE html>
   .placeholder-page .placeholder-icon { font-size: 40px; margin-bottom: 16px; }
   .placeholder-page .placeholder-title { font-size: 16px; font-weight: 600; color: #71717a; margin-bottom: 8px; }
   .placeholder-page .placeholder-sub { font-size: 13px; }
+
+  /* Repo CRUD */
+  .btn-tooltip { position:relative; }
+  .btn-tooltip::after { content:attr(data-tooltip); position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); background:#FB326E; color:#fff; font-size:11px; white-space:nowrap; padding:4px 8px; border-radius:4px; pointer-events:none; opacity:0; transition:opacity 0.15s; z-index:100; }
+  .btn-tooltip:hover::after { opacity:1; }
+  .info-card-actions { display:flex; gap:6px; margin-top:10px; justify-content:flex-end; }
+  .repo-modal-wrap { display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.7); align-items:center; justify-content:center; }
+  .repo-modal-wrap.show { display:flex; }
+  .repo-modal-box { background:#27272a; border:1px solid #3f3f46; border-radius:12px; width:480px; max-width:94vw; padding:28px; max-height:90vh; overflow-y:auto; }
+  .repo-modal-title { font-size:16px; font-weight:600; color:#fff; margin-bottom:20px; }
+  .repo-form-group { margin-bottom:14px; }
+  .repo-form-label { display:block; font-size:12px; color:#a1a1aa; margin-bottom:5px; }
+  .repo-form-input { width:100%; background:#18181b; border:1px solid #3f3f46; border-radius:6px; color:#e4e4e7; font-size:13px; padding:7px 10px; box-sizing:border-box; transition:border-color 0.15s; }
+  .repo-form-input:focus { outline:none; border-color:#FB326E; }
+  .repo-form-input:disabled { opacity:0.5; cursor:not-allowed; }
+  .repo-token-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .repo-form-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+  .repo-form-error { color:#f87171; font-size:12px; margin-top:8px; }
+
+  /* Cluster detail page */
+  .cluster-detail-header-wrap { padding:24px 24px 0; flex-shrink:0; }
+  .cluster-detail-header-wrap .header { margin-bottom:0; }
+  .cluster-detail-page { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
+  .cluster-detail-strip { display:flex; align-items:stretch; flex-shrink:0; border-bottom:1px solid #27272a; background:#27272a; overflow-x:auto; }
+  .detail-strip-item { display:flex; flex-direction:column; justify-content:center; align-items:flex-start; padding:10px 20px; min-width:80px; }
+  .detail-strip-sep { width:1px; background:#3f3f46; flex-shrink:0; }
+  .detail-strip-label { font-size:10px; text-transform:uppercase; letter-spacing:0.08em; color:#71717a; margin-bottom:3px; white-space:nowrap; }
+  .detail-strip-value { font-size:13px; font-weight:600; color:#e4e4e7; white-space:nowrap; }
+  .cluster-detail-tabs-bar { display:flex; gap:0; flex-shrink:0; border-bottom:1px solid #27272a; padding:0 16px; background:#1b1b1d; align-items:center; }
+  .cluster-detail-tab { background:none; border:none; color:#a1a1aa; padding:10px 14px; font-size:13px; font-weight:500; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.15s; }
+  .cluster-detail-tab:hover { color:#e4e4e7; }
+  .cluster-detail-tab.active { color:#FB326E; border-bottom-color:#FB326E; }
+  .cluster-detail-body { flex:1; min-height:0; overflow-y:auto; font-family:'SF Mono','Fira Code',monospace; font-size:13px; line-height:1.6; color:#e4e4e7; white-space:pre-wrap; word-break:break-all; }
+  .cluster-detail-body.graph-mode { padding:0; overflow:hidden; display:flex; flex-direction:column; white-space:normal; word-break:normal; }
+  .cluster-detail-body.mc-live-mode { white-space:normal; word-break:normal; }
+  .cluster-detail-body::-webkit-scrollbar { width:8px; }
+  .cluster-detail-body::-webkit-scrollbar-track { background:#1b1b1d; }
+  .cluster-detail-body::-webkit-scrollbar-thumb { background:#3f3f46; border-radius:4px; }
 </style>
 </head>
 <body>
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-spinner-large"></div>
+  <div class="loading-overlay-title"><img src="{{OMNI_LOGO_URI}}" alt="Omni" style="width:24px;height:24px;vertical-align:middle;margin-right:8px;">OmniCD is starting up...</div>
+  <div class="loading-overlay-sub">This may take a moment</div>
+</div>
 <div class="layout">
   <nav class="sidebar" id="sidebar"></nav>
   <div class="main-content">
@@ -917,6 +1042,45 @@ const uiHTML = `<!DOCTYPE html>
 </div>
 <div class="refresh-indicator" id="footer"></div>
 <div id="modals"></div>
+<div id="repo-modal" class="repo-modal-wrap">
+  <div class="repo-modal-box">
+    <div class="repo-modal-title" id="repo-modal-title">Add Repository</div>
+    <div class="repo-form-group">
+      <label class="repo-form-label" for="rm-name">Name <span style="color:#f87171">*</span></label>
+      <input class="repo-form-input" id="rm-name" type="text" placeholder="my-repo" />
+    </div>
+    <div class="repo-form-group">
+      <label class="repo-form-label" for="rm-url">URL <span style="color:#f87171">*</span></label>
+      <input class="repo-form-input" id="rm-url" type="text" placeholder="https://github.com/org/repo.git" />
+    </div>
+    <div class="repo-form-group">
+      <label class="repo-form-label" for="rm-branch">Branch</label>
+      <input class="repo-form-input" id="rm-branch" type="text" placeholder="main" />
+    </div>
+    <div class="repo-form-group">
+      <label class="repo-form-label">Access Token</label>
+      <div class="repo-token-row">
+        <input type="checkbox" id="rm-set-token" />
+        <label for="rm-set-token" style="font-size:12px;color:#a1a1aa" id="rm-set-token-label">Set access token</label>
+      </div>
+      <input class="repo-form-input" id="rm-token" type="password" placeholder="Personal access token" style="display:none" />
+      <div style="font-size:11px;color:#71717a;margin-top:4px" id="rm-token-hint"></div>
+    </div>
+    <div class="repo-form-group">
+      <label class="repo-form-label" for="rm-clusters">Clusters Path</label>
+      <input class="repo-form-input" id="rm-clusters" type="text" placeholder="clusters" />
+    </div>
+    <div class="repo-form-group">
+      <label class="repo-form-label" for="rm-mc">Machine Classes Path</label>
+      <input class="repo-form-input" id="rm-mc" type="text" placeholder="machineclasses" />
+    </div>
+    <div class="repo-form-error" id="repo-form-error" style="display:none"></div>
+    <div class="repo-form-actions">
+      <button class="btn-sort btn-primary" onclick="window.__closeRepoModal()">Cancel</button>
+      <button class="btn-sort btn-primary" id="repo-save-btn" onclick="window.__saveRepo()">Save</button>
+    </div>
+  </div>
+</div>
 <script>
 (function() {
   var app      = document.getElementById('app');
@@ -925,12 +1089,23 @@ const uiHTML = `<!DOCTYPE html>
   var appVersion = '{{APP_VERSION}}';
   if (footerEl) footerEl.textContent = 'Omni CD ' + appVersion + ' · Real-time updates';
   var state = null;
+  var loadingOverlay = document.getElementById('loading-overlay');
+  var appLoaded = false; // resolved after first state message confirms server start time
   var autoScroll = true;
   var machineClassPage = 1;
   var machineClassSortAZ = true;
+  var mcSearch = '';
+  var mcStatusFilters = {};  // { statusKey: true } — empty means "show all"
+  var mcRefreshing = false;
+  var gitRefreshing = false;
+  var reconcileRunning = false;
+  var lastHardReconcileAt = 0;  // timestamp of last Sync trigger
+  var lastSoftReconcileAt = 0;  // timestamp of last Refresh/git-check trigger
   var clusterPage = 1;
   var clusterSortAZ = true;
   var clusterStatusFilter = null;
+  var clusterSyncFilters = {};  // { statusKey: true } — empty means "show all"
+  var clusterSearch = '';
   var pageSize = 5;
   var mcPageSize = 10;
   var clusterPageSize = 10;
@@ -960,6 +1135,10 @@ const uiHTML = `<!DOCTYPE html>
 
   var currentModal = null;
   var confirmModal = null;
+  var confirmInput = '';
+  var clusterDetailId = (function() { var m = currentRoute.match(/^\/clusters\/(.+)$/); return m ? decodeURIComponent(m[1]) : null; })();
+  var clusterDetailTab = 'graph';
+  var clusterDetailTabExplicit = false;
 
   function showClusterModal(id) {
     if (!state || !state.clusters) return;
@@ -1006,19 +1185,34 @@ const uiHTML = `<!DOCTYPE html>
     var body = document.querySelector('.drawer-body');
     if (body) {
       body.classList.toggle('graph-mode', tab === 'graph');
+      var isLiveType = currentModal.type === 'machineclass' || currentModal.type === 'cluster';
+      body.classList.toggle('mc-live-mode', tab === 'live' && isLiveType);
+      var mcToggle = document.querySelector('.mc-ignored-toggle');
+      if (mcToggle) mcToggle.style.display = currentModal.type === 'machineclass' ? '' : 'none';
       if (tab === 'error') {
         body.innerHTML = '<div style="color:#f87171;white-space:pre-wrap;">' + escHtml(currentModal.error) + '</div>';
       } else if (tab === 'live') {
-        body.innerHTML = currentModal.liveContent
-          ? '<pre style="margin:0;white-space:pre-wrap;">' + escHtml(currentModal.liveContent) + '</pre>'
-          : '<div style="color:#71717a;text-align:center;padding:40px;">No live state available</div>';
+        body.innerHTML = currentModal.type === 'machineclass'
+          ? renderMcLiveContent(currentModal.liveContent)
+          : (currentModal.type === 'cluster'
+            ? renderClusterLiveContent(currentModal.liveContent)
+            : (currentModal.liveContent
+              ? '<pre style="margin:0;white-space:pre-wrap;">' + escHtml(currentModal.liveContent) + '</pre>'
+              : '<div style="color:#71717a;text-align:center;padding:40px;">No live state available</div>'));
       } else if (tab === 'diff') {
         body.innerHTML = currentModal.diff
-          ? '<pre style="margin:0;white-space:pre-wrap;">' + formatDiff(currentModal.diff) + '</pre>'
-          : '<div style="color:#71717a;text-align:center;padding:40px;">No diff available</div>';
+          ? (currentModal.type === 'machineclass' ? formatMachineClassDiff(currentModal.diff) : '<pre style="margin:0;white-space:pre-wrap;">' + formatDiff(currentModal.diff) + '</pre>')
+          : '<div style="color:#71717a;text-align:center;padding:40px;">' + (currentModal.status === 'unmanaged' ? 'No diff \u2014 this cluster has no template in Git.' : 'No diff available') + '</div>';
       } else if (tab === 'graph') {
         body.innerHTML = renderClusterGraph(currentModal);
-        requestAnimationFrame(function() { window.__graphCentre(body); });
+        var inner = body.querySelector('.cluster-graph-inner');
+        if (inner) {
+          if (window.__graphTransforms && window.__graphTransforms[inner.id]) {
+            restoreGraphTransform(inner.id);
+          } else {
+            requestAnimationFrame(function() { restoreGraphTransform(inner.id); });
+          }
+        }
       } else {
         body.innerHTML = '<div style="color:#71717a;text-align:center;padding:40px;">No content available</div>';
       }
@@ -1029,6 +1223,252 @@ const uiHTML = `<!DOCTYPE html>
   function closeModal() {
     currentModal = null;
     render();
+  }
+
+  function navToCluster(id) {
+    window.location.href = '/clusters/' + encodeURIComponent(id);
+  }
+
+  function applyDetailPageLayout() {
+    var mc = document.querySelector('.main-content');
+    var container = document.getElementById('app');
+    if (mc) { mc.style.display='flex'; mc.style.flexDirection='column'; mc.style.height='100vh'; mc.style.overflow='hidden'; mc.style.paddingBottom='0'; }
+    if (container) { container.style.flex='1'; container.style.minHeight='0'; container.style.display='flex'; container.style.flexDirection='column'; container.style.padding='0'; container.style.overflow='hidden'; }
+  }
+
+  function restoreDefaultLayout() {
+    var mc = document.querySelector('.main-content');
+    var container = document.getElementById('app');
+    if (mc) { mc.style.display=''; mc.style.flexDirection=''; mc.style.height=''; mc.style.overflow=''; mc.style.paddingBottom=''; }
+    if (container) { container.style.flex=''; container.style.minHeight=''; container.style.display=''; container.style.flexDirection=''; container.style.padding=''; container.style.overflow=''; }
+  }
+
+  function renderClusterDetailStrip(cluster, s) {
+    function cpBadge(val) {
+      if (val === 'ready') return '<span style="color:#4ade80">&#x2713; Ready</span>';
+      if (val === 'not-ready') return '<span style="color:#f87171">&#x2717; Not Ready</span>';
+      return '<span style="color:#52525b">&#x2014;</span>';
+    }
+    function statusBadge(val) {
+      if (val === 'ok' || val === 'ready') return '<span style="color:#4ade80">&#x2713; OK</span>';
+      if (val === 'not-ready') return '<span style="color:#f87171">&#x2717; Not Ready</span>';
+      return '<span style="color:#52525b">&#x2014;</span>';
+    }
+    function syncBadge(status) {
+      if (status === 'success' || status === 'applied') return '<span style="color:#4ade80">&#x25cf; Synced</span>';
+      if (status === 'outofsync') return '<span style="color:#fb923c">&#x25cf; Out of Sync</span>';
+      if (status === 'orphaned')  return '<span style="color:#a78bfa">&#x25cf; Orphaned</span>';
+      if (status === 'failed') return '<span style="color:#f87171">&#x25cf; Failed</span>';
+      if (status === 'syncing') return '<span style="color:#2dd4bf">&#x25cf; Syncing</span>';
+      if (status === 'unmanaged') return '<span style="color:#52525b">Unmanaged</span>';
+      return '<span style="color:#52525b">&#x2014;</span>';
+    }
+    function formatLastSync(t) {
+      if (!t || t === '0001-01-01T00:00:00Z' || t === '') return '<span style="color:#71717a">Never</span>';
+      var d = new Date(t);
+      if (isNaN(d.getTime())) return '<span style="color:#71717a">Never</span>';
+      var diff = Date.now() - d.getTime();
+      var mins = Math.floor(diff / 60000);
+      var hours = Math.floor(mins / 60);
+      var days = Math.floor(hours / 24);
+      if (days > 0) return '<span style="color:#e4e4e7">' + days + 'd ago</span>';
+      if (hours > 0) return '<span style="color:#e4e4e7">' + hours + 'h ago</span>';
+      if (mins > 0) return '<span style="color:#e4e4e7">' + mins + 'm ago</span>';
+      return '<span style="color:#4ade80">Just now</span>';
+    }
+    function si(label, value) {
+      return '<div class="detail-strip-item"><div class="detail-strip-label">' + label + '</div><div class="detail-strip-value">' + value + '</div></div>';
+    }
+    var sep = '<div class="detail-strip-sep"></div>';
+    var healthy = cluster.machinesHealthy || 0;
+    var total = cluster.machinesTotal || 0;
+    var machinesVal = total > 0
+      ? (healthy === total
+          ? '<span style="color:#4ade80">' + healthy + ' / ' + total + '</span>'
+          : '<span style="color:#fb923c">' + healthy + ' / ' + total + '</span>')
+      : '<span style="color:#52525b">&#x2014;</span>';
+    var clusterRepo = null;
+    if (cluster.repoName && s && s.repos) {
+      clusterRepo = s.repos.find(function(r) { return r.name === cluster.repoName; }) || null;
+    }
+    if (!clusterRepo && s && s.git) clusterRepo = s.git;
+    var repoDisconnected = !!(clusterRepo && clusterRepo.syncError);
+    var lastSyncTime = clusterRepo ? clusterRepo.lastSync : null;
+    function phaseBadge(phase) {
+      if (phase === 'scaling-up')    return '<span style="color:#60a5fa">&#x2191; Scaling Up</span>';
+      if (phase === 'scaling-down')  return '<span style="color:#f59e0b">&#x2193; Scaling Down</span>';
+      if (phase === 'destroying')    return '<span style="color:#f43f5e">&#x2715; Destroying</span>';
+      if (phase === 'reconfiguring') return '<span style="color:#a78bfa">&#x21bb; Reconfiguring</span>';
+      if (phase === 'running')       return '<span style="color:#4ade80">&#x25cf; Running</span>';
+      return '<span style="color:#52525b">&#x2014;</span>';
+    }
+    var activePhase = cluster.clusterPhase && cluster.clusterPhase !== 'running' && cluster.clusterPhase !== 'unknown';
+    var phaseRow = activePhase ? si('Phase', phaseBadge(cluster.clusterPhase)) + sep : '';
+    return phaseRow +
+      si('Cluster', cpBadge(cluster.clusterReady)) + sep +
+      si('Controlplane', cpBadge(cluster.controlplaneReady)) + sep +
+      si('Kubernetes API', cpBadge(cluster.kubernetesApiReady)) + sep +
+      si('ETCD', statusBadge(cluster.etcdStatus)) + sep +
+      si('Wireguard', statusBadge(cluster.wireGuardStatus)) + sep +
+      si('Machines', machinesVal) + sep +
+      si('Sync', cluster.status === 'unmanaged'
+        ? '<span style="color:#52525b">&#x2014;</span>'
+        : repoDisconnected
+          ? '<span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span>'
+          : syncBadge(cluster.status)) + sep +
+      si('Last Sync', cluster.status === 'unmanaged'
+        ? '<span style="color:#52525b">&#x2014;</span>'
+        : repoDisconnected
+          ? '<span style="color:#f87171">Failed</span>'
+          : formatLastSync(lastSyncTime));
+  }
+
+  function setClusterDetailTab(tab) {
+    clusterDetailTab = tab;
+    clusterDetailTabExplicit = true;
+    document.querySelectorAll('.cluster-detail-tab').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
+    });
+    var body = document.getElementById('cluster-detail-body');
+    if (!body || !state) return;
+    var cluster = state.clusters && state.clusters.find(function(c) { return c.id === clusterDetailId; });
+    if (!cluster) return;
+    var modal = { id: cluster.id, fileContent: cluster.fileContent || '', liveContent: cluster.liveContent || '', diff: cluster.diff || '', error: cluster.error || '', activeTab: tab, type: 'cluster' };
+    if (tab === 'graph') {
+      body.classList.add('graph-mode');
+      body.innerHTML = renderClusterGraph(modal);
+      var gid = 'g' + cluster.id.replace(/[^a-zA-Z0-9]/g, '_');
+      if (window.__graphTransforms && window.__graphTransforms[gid]) {
+        restoreGraphTransform(gid);
+      } else {
+        requestAnimationFrame(function() { restoreGraphTransform(gid); });
+      }
+    } else {
+      body.classList.remove('graph-mode');
+      body.classList.toggle('mc-live-mode', tab === 'live');
+      if (tab === 'error') {
+        body.innerHTML = '<div style="padding:24px;color:#f87171;white-space:pre-wrap;">' + escHtml(cluster.error || '') + '</div>';
+      } else if (tab === 'live') {
+        body.innerHTML = renderClusterLiveContent(cluster.liveContent);
+      } else if (tab === 'diff') {
+        body.innerHTML = cluster.diff
+          ? '<pre style="margin:0;padding:24px;white-space:pre-wrap;">' + formatDiff(cluster.diff) + '</pre>'
+          : '<div style="color:#71717a;text-align:center;padding:40px;">' + (cluster.status === 'unmanaged' ? 'No diff \u2014 this cluster has no template in Git.' : 'No diff available') + '</div>';
+      }
+      body.scrollTop = 0;
+    }
+  }
+
+  function updateClusterDetailInPlace() {
+    if (!state || !clusterDetailId) return;
+    var cluster = state.clusters && state.clusters.find(function(c) { return c.id === clusterDetailId; });
+    if (!cluster) return;
+    // Page structure not yet rendered — do a full render first
+    if (!document.getElementById('cluster-detail-strip')) { render(); return; }
+    var stripEl = document.getElementById('cluster-detail-strip');
+    if (stripEl) stripEl.innerHTML = renderClusterDetailStrip(cluster, state);
+    var body = document.getElementById('cluster-detail-body');
+    if (body) {
+      if (clusterDetailTab === 'graph') {
+        var modal = { id: cluster.id, fileContent: cluster.fileContent || '', liveContent: cluster.liveContent || '', diff: cluster.diff || '', error: cluster.error || '', activeTab: 'graph', type: 'cluster' };
+        var inner = body.querySelector('.cluster-graph-inner');
+        var gid = inner ? inner.id : null;
+        body.innerHTML = renderClusterGraph(modal);
+        // Restore transform synchronously if we have a saved position — avoids
+        // the one-frame jump that requestAnimationFrame would cause. Fall back
+        // to RAF only for the first render (no saved transform) which needs
+        // offsetWidth/offsetHeight for centering.
+        if (gid && window.__graphTransforms && window.__graphTransforms[gid]) {
+          restoreGraphTransform(gid);
+        } else {
+          requestAnimationFrame(function() { if (gid) restoreGraphTransform(gid); });
+        }
+      } else if (clusterDetailTab === 'live') {
+        body.classList.add('mc-live-mode');
+        body.innerHTML = renderClusterLiveContent(cluster.liveContent);
+      } else if (clusterDetailTab === 'diff') {
+        body.innerHTML = cluster.diff
+          ? '<pre style="margin:0;padding:24px;white-space:pre-wrap;">' + formatDiff(cluster.diff) + '</pre>'
+          : '<div style="color:#71717a;text-align:center;padding:40px;">' + (cluster.status === 'unmanaged' ? 'No diff \u2014 this cluster has no template in Git.' : 'No diff available') + '</div>';
+      }
+    }
+  }
+
+  function renderClusterDetailPage(s) {
+    var cluster = s.clusters && s.clusters.find(function(c) { return c.id === clusterDetailId; });
+    if (!cluster) {
+      return '<div style="padding:40px;text-align:center;color:#52525b">Cluster not found: ' + escHtml(clusterDetailId || '') + '</div>';
+    }
+    var statusText = '', statusColor = '#71717a';
+    if (cluster.status === 'unmanaged')                                    { statusText = 'unmanaged';     statusColor = '#52525b'; }
+    else if (cluster.status === 'outofsync')                               { statusText = '● out of sync'; statusColor = '#fb923c'; }
+    else if (cluster.status === 'orphaned')                                { statusText = '● orphaned';    statusColor = '#a78bfa'; }
+    else if (cluster.status === 'failed')                                  { statusText = '● failed';      statusColor = '#f87171'; }
+    else if (cluster.status === 'syncing')                                 { statusText = '● syncing';     statusColor = '#2dd4bf'; }
+    else if (cluster.status === 'success' || cluster.status === 'applied') { statusText = '● synced';      statusColor = '#4ade80'; }
+    var isRunning = s.lastReconcile && s.lastReconcile.status === 'running';
+    var hasError = cluster.error && cluster.error.length > 0;
+    var tabs = ['graph', 'live', 'diff'];
+    if (hasError) tabs.unshift('error');
+    var defaultTab = hasError ? 'error' : 'graph';
+    if (!clusterDetailTabExplicit || tabs.indexOf(clusterDetailTab) < 0) clusterDetailTab = defaultTab;
+    var modal = { id: cluster.id, fileContent: cluster.fileContent || '', liveContent: cluster.liveContent || '', diff: cluster.diff || '', error: cluster.error || '', activeTab: clusterDetailTab, type: 'cluster' };
+    var tabLabels = { error: 'Error', graph: 'Graph', live: 'Live', diff: 'Diff' };
+    var tabsHtml = tabs.map(function(t) {
+      return '<button class="cluster-detail-tab' + (clusterDetailTab === t ? ' active' : '') + '" data-tab="' + t + '" onclick="window.__setClusterDetailTab(\'' + t + '\')">' + (tabLabels[t] || t) + '</button>';
+    }).join('');
+    var bodyClass = 'cluster-detail-body' + (clusterDetailTab === 'graph' ? ' graph-mode' : '') + (clusterDetailTab === 'live' ? ' mc-live-mode' : '');
+    var bodyContent;
+    if (clusterDetailTab === 'graph') {
+      bodyContent = renderClusterGraph(modal);
+    } else if (clusterDetailTab === 'error') {
+      bodyContent = '<div style="padding:24px;color:#f87171;white-space:pre-wrap;">' + escHtml(cluster.error || '') + '</div>';
+    } else if (clusterDetailTab === 'live') {
+      bodyContent = renderClusterLiveContent(cluster.liveContent);
+    } else {
+      bodyContent = cluster.diff
+        ? '<pre style="margin:0;padding:24px;white-space:pre-wrap;">' + formatDiff(cluster.diff) + '</pre>'
+        : '<div style="color:#71717a;text-align:center;padding:40px;">' + (cluster.status === 'unmanaged' ? 'No diff — this cluster has no template in Git.' : 'No diff available') + '</div>';
+    }
+    var clusterActions = '<div class="cluster-card-actions" style="padding:10px 0 10px 24px">' +
+      '<button class="btn-sort btn-primary" onclick="window.__refreshCurrentCluster()">&#8635; Refresh</button>' +
+      (cluster.status !== 'deleting' && (cluster.status === 'unmanaged' || cluster.status === 'orphaned')
+        ? '<button class="btn-sort btn-primary" onclick="window.__exportCluster(\'' + cluster.id + '\', event)">&#8595; Export</button>'
+        : '') +
+      (cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'
+        ? '<button class="btn-sort btn-primary" onclick="window.__syncCluster(\'' + cluster.id + '\', event)">&#8645; Sync</button>'
+        : '') +
+      (cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'
+        ? '<button class="btn-sort btn-primary auto-sync ' + (cluster.autoSync === false ? '' : 'active') + '" onclick="window.__setClusterAutoSync(\'' + cluster.id + '\', ' + (cluster.autoSync === false ? 'true' : 'false') + ', event)">' + (cluster.autoSync === false ? '○ Auto-Sync' : '○ Auto-Sync') + '</button>'
+        : '') +
+      (cluster.status !== 'deleting' && cluster.status !== 'unmanaged'
+        ? '<button class="btn-sort btn-primary" onclick="window.__deleteCluster(\'' + cluster.id + '\', event)">&#10005; Delete</button>'
+        : '') +
+    '</div>';
+    return '<div style="display:flex;flex-direction:column;height:100%;overflow:hidden;">' +
+      '<div class="cluster-detail-header-wrap">' + renderHeader(s, cluster) + '</div>' +
+      '<div class="cluster-detail-page">' +
+        clusterActions +
+        '<div class="cluster-detail-strip" id="cluster-detail-strip">' + renderClusterDetailStrip(cluster, s) + '</div>' +
+        '<div class="cluster-detail-tabs-bar">' + tabsHtml + '</div>' +
+        '<div class="' + bodyClass + '" id="cluster-detail-body">' + bodyContent + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  async function refreshCurrentCluster() {
+    if (!clusterDetailId) return;
+    try {
+      var r = await fetch('/api/refresh-cluster', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: clusterDetailId })
+      });
+      var d = await r.json();
+      if (d.status === 'already running') alert('Refresh already in progress');
+    } catch(e) {
+      alert('Failed to refresh cluster');
+    }
   }
 
   function formatDiff(raw) {
@@ -1042,19 +1482,214 @@ const uiHTML = `<!DOCTYPE html>
     }).join('\n');
   }
 
+  function formatMachineClassDiff(raw) {
+    if (!raw) return '';
+    var text = raw.replace(/\\n/g, '\n');
+    var lines = text.split('\n');
+    var blocks = [];
+    var cur = null;
+    var inLive = false, inDesired = false;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line.startsWith('~ changed:') || line.startsWith('+ new:')) {
+        if (cur) blocks.push(cur);
+        cur = { header: line, isNew: line.startsWith('+ new:'), live: [], desired: [] };
+        inLive = false; inDesired = false;
+      } else if (cur && line === '--- live') {
+        inLive = true; inDesired = false;
+      } else if (cur && line === '+++ desired') {
+        inLive = false; inDesired = true;
+      } else if (cur && inLive) {
+        cur.live.push(line);
+      } else if (cur && inDesired) {
+        cur.desired.push(line);
+      }
+    }
+    if (cur) blocks.push(cur);
+    if (blocks.length === 0) return '<pre style="margin:0;white-space:pre-wrap;">' + formatDiff(raw) + '</pre>';
+    var CONTEXT = 2;
+    var html = '';
+    blocks.forEach(function(block) {
+      var cells = '';
+      if (block.isNew) {
+        if (block.desired.length > 0) {
+          // Two-column layout: left empty, right shows desired content with a + marker per line
+          // Runtime-only metadata fields are hidden when "Show Ignored Fields" is unchecked
+          var runtimeField = /^\s*(version|owner|phase|created|updated):/;
+          var lineNum = 0;
+          for (var i = 0; i < block.desired.length; i++) {
+            var isIgnored = runtimeField.test(block.desired[i]);
+            if (isIgnored && !mcLiveShowMeta) continue;
+            lineNum++;
+            var ln = lineNum + '.';
+            var rCls = 'sbs-cell' + (isIgnored ? ' sbs-ignored' : '');
+            cells += '<div class="sbs-cell"><span class="sbs-ln">' + ln + '</span></div>';
+            cells += '<div class="' + rCls + '"><span class="sbs-ln">' + ln + '</span><span style="color:#4ade80;margin-right:6px;">+</span>' + escHtml(block.desired[i]) + '</div>';
+          }
+        }
+      } else if (block.live.length > 0 || block.desired.length > 0) {
+        var maxLen = Math.max(block.live.length, block.desired.length);
+        // Collect changed line indices
+        var changedIdx = [];
+        for (var i = 0; i < maxLen; i++) {
+          var l = block.live[i] !== undefined ? block.live[i] : '';
+          var d = block.desired[i] !== undefined ? block.desired[i] : '';
+          if (l !== d) changedIdx.push(i);
+        }
+        // Build set of lines to show (changed ± CONTEXT)
+        var toShow = {};
+        for (var k = 0; k < changedIdx.length; k++) {
+          for (var j = Math.max(0, changedIdx[k] - CONTEXT); j <= Math.min(maxLen - 1, changedIdx[k] + CONTEXT); j++) {
+            toShow[j] = true;
+          }
+        }
+        var shown = Object.keys(toShow).map(Number).sort(function(a, b) { return a - b; });
+        var prev = -1;
+        for (var s = 0; s < shown.length; s++) {
+          var i = shown[s];
+          if (prev >= 0 && i > prev + 1) {
+            cells += '<div class="sbs-cell sbs-ignored" style="grid-column:1/-1;border-right:none;text-align:center;">...</div>';
+          }
+          var lLine = block.live[i] !== undefined ? block.live[i] : '';
+          var dLine = block.desired[i] !== undefined ? block.desired[i] : '';
+          var isChanged = lLine !== dLine;
+          var ln = (i + 1) + '.';
+          cells += '<div class="sbs-cell' + (isChanged ? ' sbs-del' : '') + '"><span class="sbs-ln">' + ln + '</span>' + escHtml(lLine) + '</div>';
+          cells += '<div class="sbs-cell' + (isChanged ? ' sbs-add' : '') + '"><span class="sbs-ln">' + ln + '</span>' + escHtml(dLine) + '</div>';
+          prev = i;
+        }
+      }
+      if (cells) {
+        html += '<div class="sbs-block"><div class="sbs-table" style="border-radius:4px;">' + cells + '</div></div>';
+      }
+    });
+    return html;
+  }
+
   function escHtml(s) {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
+  var mcLiveShowMeta = false;
+
+  function toggleMcLiveMeta() {
+    mcLiveShowMeta = !mcLiveShowMeta;
+    // Sync all visible checkboxes (drawer + cluster detail page)
+    document.querySelectorAll('.mc-ignored-cb').forEach(function(cb) { cb.checked = mcLiveShowMeta; });
+    // Drawer re-render (machineclass only)
+    if (currentModal && currentModal.type === 'machineclass') {
+      var drawerBody = document.querySelector('.drawer-body');
+      if (drawerBody) {
+        if (currentModal.activeTab === 'live') {
+          drawerBody.innerHTML = renderMcLiveContent(currentModal.liveContent);
+        } else if (currentModal.activeTab === 'diff' && currentModal.diff) {
+          drawerBody.innerHTML = formatMachineClassDiff(currentModal.diff);
+        }
+      }
+    }
+  }
+
+  // buildMcRows returns an array of row objects from a YAML content string,
+  // applying metadata hiding. Each row: {lineNum, content, isPlaceholder, isDim}
+  function buildMcRows(content) {
+    var text = (content || '').replace(/\\n/g, '\n');
+    var lines = text.split('\n');
+    var metaStart = -1, metaEnd = lines.length;
+    for (var i = 0; i < lines.length; i++) {
+      if (/^metadata:/.test(lines[i])) { metaStart = i; break; }
+    }
+    if (metaStart >= 0) {
+      for (var j = metaStart + 1; j < lines.length; j++) {
+        if (lines[j].length > 0 && !/^\s/.test(lines[j])) { metaEnd = j; break; }
+      }
+    }
+    var ALWAYS_SHOW_META = /^\s+(namespace|id|type):/;
+    var rows = [];
+    var hiddenCount = 0;
+    for (var i = 0; i < lines.length; i++) {
+      var isMeta = metaStart >= 0 && i >= metaStart && i < metaEnd;
+      var isAlwaysShown = i === metaStart || ALWAYS_SHOW_META.test(lines[i]);
+      if (isMeta && !isAlwaysShown && !mcLiveShowMeta) {
+        hiddenCount++;
+        continue;
+      }
+      if (hiddenCount > 0) {
+        rows.push({ lineNum: null, content: '(' + hiddenCount + ' fields hidden)', isPlaceholder: true, isDim: false });
+        hiddenCount = 0;
+      }
+      rows.push({ lineNum: i + 1, content: lines[i], isPlaceholder: false, isDim: isMeta && !isAlwaysShown });
+    }
+    if (hiddenCount > 0) {
+      rows.push({ lineNum: null, content: '(' + hiddenCount + ' fields hidden)', isPlaceholder: true, isDim: false });
+    }
+    return rows;
+  }
+
+  function renderMcLiveContent(content) {
+    if (!content) return '<div style="color:#71717a;text-align:center;padding:40px;">No live state available</div>';
+    var rows = buildMcRows(content);
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var cls = 'sbs-cell' + (r.isPlaceholder ? ' sbs-ignored' : r.isDim ? ' sbs-meta-dim' : '');
+      html += '<div class="' + cls + '"><span class="sbs-ln">' + (r.lineNum ? r.lineNum + '.' : '') + '</span>' + escHtml(r.content) + '</div>';
+    }
+    return '<div style="padding:24px;"><div class="sbs-table-single">' + html + '</div></div>';
+  }
+
+  function renderClusterLiveContent(content) {
+    if (!content) return '<div style="color:#71717a;text-align:center;padding:40px;">No live state available</div>';
+    var lines = (content || '').replace(/\\n/g, '\n').split('\n');
+    var html = '';
+    for (var i = 0; i < lines.length; i++) {
+      html += '<div class="sbs-cell"><span class="sbs-ln">' + (i+1) + '.</span>' + escHtml(lines[i]) + '</div>';
+    }
+    return '<div style="padding:24px;"><div class="sbs-table-single">' + html + '</div></div>';
+  }
+
+  function renderMcDiffFull(liveContent, fileContent) {
+    var lRows = buildMcRows(liveContent);
+    var rRows = buildMcRows(fileContent);
+    // Align: when one side has a placeholder, pair it with an empty slot on the other
+    var lAligned = [], rAligned = [];
+    var li = 0, ri = 0;
+    while (li < lRows.length || ri < rRows.length) {
+      var l = lRows[li], r = rRows[ri];
+      if (l && l.isPlaceholder) {
+        lAligned.push(l); rAligned.push(null); li++;
+      } else if (r && r.isPlaceholder) {
+        lAligned.push(null); rAligned.push(r); ri++;
+      } else {
+        lAligned.push(l || null); rAligned.push(r || null);
+        if (l) li++; if (r) ri++;
+      }
+    }
+    var cells = '';
+    for (var i = 0; i < lAligned.length; i++) {
+      var l = lAligned[i], r = rAligned[i];
+      var lc = l ? l.content : '', rc = r ? r.content : '';
+      var changed = l && r && !l.isPlaceholder && !r.isPlaceholder && lc !== rc;
+      var lCls = 'sbs-cell' + (l && l.isPlaceholder ? ' sbs-ignored' : l && l.isDim ? ' sbs-meta-dim' : '') + (changed ? ' sbs-del' : '');
+      var rCls = 'sbs-cell' + (r && r.isPlaceholder ? ' sbs-ignored' : r && r.isDim ? ' sbs-meta-dim' : '') + (changed ? ' sbs-add' : '');
+      cells += '<div class="' + lCls + '"><span class="sbs-ln">' + (l && l.lineNum ? l.lineNum + '.' : '') + '</span>' + escHtml(lc) + '</div>';
+      cells += '<div class="' + rCls + '"><span class="sbs-ln">' + (r && r.lineNum ? r.lineNum + '.' : '') + '</span>' + escHtml(rc) + '</div>';
+    }
+    return '<div style="padding:16px;"><div class="sbs-table" style="border-radius:4px;">' + cells + '</div></div>';
+  }
+
   window.__showClusterModal = showClusterModal;
   window.__setModalTab = setModalTab;
+  window.__toggleMcLiveMeta = toggleMcLiveMeta;
   window.__closeModal = closeModal;
 
   // Pan + zoom via CSS transform: translate(tx,ty) scale(z). No scroll involved.
+  // Also persists position to __graphTransforms so it survives DOM replacement.
+  if (!window.__graphTransforms) window.__graphTransforms = {};
   function applyGraphTransform(inner, tx, ty, z) {
     inner.dataset.tx   = tx;
     inner.dataset.ty   = ty;
     inner.dataset.zoom = z;
+    if (inner.id) window.__graphTransforms[inner.id] = {tx: tx, ty: ty, z: z};
     inner.style.transform = 'translate(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px) scale(' + z + ')';
     var lvl = inner.closest('.cluster-graph').querySelector('.graph-zoom-level');
     if (lvl) lvl.textContent = Math.round(z * 100) + '%';
@@ -1122,6 +1757,67 @@ const uiHTML = `<!DOCTYPE html>
     canvasEl._drag = null;
     canvasEl.style.cursor = 'grab';
   };
+  // Persisted graph transforms keyed by graphId — survive DOM replacement.
+  function restoreGraphTransform(graphId) {
+    var el = document.getElementById(graphId);
+    if (!el) return;
+    var t = window.__graphTransforms[graphId];
+    if (t) {
+      applyGraphTransform(el, t.tx, t.ty, t.z);
+    } else {
+      var canvas = el.closest('.cluster-graph-canvas');
+      if (canvas) window.__graphCentre(canvas);
+    }
+  }
+  // Toggle column-level fold (collapses everything to the right of an edge).
+  if (!window.__graphColFolded) window.__graphColFolded = {};
+  function reRenderGraph() {
+    if (clusterDetailId && currentRoute.startsWith('/clusters/')) {
+      var body = document.getElementById('cluster-detail-body');
+      if (!body || !body.classList.contains('graph-mode')) return;
+      var cluster = state && state.clusters && state.clusters.find(function(c) { return c.id === clusterDetailId; });
+      if (!cluster) return;
+      var modal = { id: cluster.id, fileContent: cluster.fileContent || '', liveContent: cluster.liveContent || '', diff: cluster.diff || '', error: cluster.error || '', activeTab: 'graph', type: 'cluster' };
+      var inner = body.querySelector('.cluster-graph-inner');
+      var gid = inner ? inner.id : null;
+      body.innerHTML = renderClusterGraph(modal);
+      if (gid && window.__graphTransforms && window.__graphTransforms[gid]) {
+        restoreGraphTransform(gid);
+      } else {
+        requestAnimationFrame(function() { if (gid) restoreGraphTransform(gid); });
+      }
+      return;
+    }
+    var body = document.querySelector('.drawer-body');
+    if (!body || !body.classList.contains('graph-mode')) return;
+    var inner = body.querySelector('.cluster-graph-inner');
+    var gid = inner ? inner.id : null;
+    body.innerHTML = renderClusterGraph(currentModal);
+    if (gid && window.__graphTransforms && window.__graphTransforms[gid]) {
+      restoreGraphTransform(gid);
+    } else {
+      requestAnimationFrame(function() { if (gid) restoreGraphTransform(gid); });
+    }
+  }
+  window.__graphToggleColFold = function(key) {
+    window.__graphColFolded[key] = !window.__graphColFolded[key];
+    reRenderGraph();
+  };
+  window.__graphCollapseAll = function(graphId) {
+    var inner = document.getElementById(graphId);
+    if (!inner) return;
+    inner.querySelectorAll('.dag-node.clickable').forEach(function(el) {
+      var m = (el.getAttribute('onclick') || '').match(/__graphToggleColFold\('([^']+)'\)/);
+      if (m) window.__graphColFolded[m[1]] = true;
+    });
+    reRenderGraph();
+  };
+  window.__graphExpandAll = function(graphId) {
+    Object.keys(window.__graphColFolded).forEach(function(k) {
+      if (k.indexOf(graphId + ':') === 0) window.__graphColFolded[k] = false;
+    });
+    reRenderGraph();
+  };
 
   function badgeClass(st) {
     if (!st) return 'badge-idle';
@@ -1129,6 +1825,7 @@ const uiHTML = `<!DOCTYPE html>
     if (st === 'running') return 'badge-running';
     if (st === 'failed') return 'badge-failed';
     if (st === 'outofsync' || st === 'out of sync') return 'badge-outofsync';
+    if (st === 'orphaned') return 'badge-orphaned';
     if (st === 'unmanaged') return 'badge-unmanaged';
     if (st === 'syncing') return 'badge-syncing';
     if (st === 'deleting') return 'badge-deleting';
@@ -1142,30 +1839,29 @@ const uiHTML = `<!DOCTYPE html>
     return { status: 'unknown', label: 'Unknown' };
   }
 
-  function getGitHealth(s) {
-    if (!s || !s.git) return { status: 'unknown', label: 'Unknown' };
-
-    // Check if we have valid git data
-    if (!s.git.sha || !s.git.lastSync) {
-      return { status: 'disconnected', label: 'Disconnected' };
-    }
-
-    // Check if last sync was recent (within 10 minutes)
-    var lastSync = new Date(s.git.lastSync);
-    var now = Date.now();
-    var minutesSinceSync = Math.floor((now - lastSync.getTime()) / 1000 / 60);
-
-    // If sync is very old, something might be wrong
-    if (minutesSinceSync > 10) {
-      return { status: 'stale', label: 'Stale' };
-    }
-
-    // Check if last reconcile failed
-    if (s.lastReconcile && s.lastReconcile.status === 'failed') {
-      return { status: 'degraded', label: 'Degraded' };
-    }
-
+  function getRepoHealth(gitInfo, s) {
+    if (!gitInfo) return { status: 'unknown', label: 'Unknown' };
+    if (gitInfo.syncError) return { status: 'connecting', label: 'Failed' };
+    if (!gitInfo.sha || !gitInfo.lastSync) return { status: 'disconnected', label: 'Disconnected' };
+    var lastSync = new Date(gitInfo.lastSync);
+    var minutesSinceSync = Math.floor((Date.now() - lastSync.getTime()) / 1000 / 60);
+    if (minutesSinceSync > 10) return { status: 'stale', label: 'Stale' };
     return { status: 'healthy', label: 'Healthy' };
+  }
+
+  function getGitHealth(s) {
+    var repos = (s && s.repos && s.repos.length > 0) ? s.repos : (s && s.git ? [s.git] : []);
+    if (repos.length === 0) return { status: 'unknown', label: 'Unknown' };
+
+    var priority = { 'unknown': 4, 'disconnected': 3, 'connecting': 3, 'stale': 2, 'degraded': 2, 'healthy': 0 };
+    var worst = { status: 'healthy', label: 'Healthy' };
+    for (var i = 0; i < repos.length; i++) {
+      var h = getRepoHealth(repos[i], s);
+      if ((priority[h.status] || 0) > (priority[worst.status] || 0)) {
+        worst = h;
+      }
+    }
+    return worst;
   }
 
   function gitHealthBadgeClass(status) {
@@ -1173,6 +1869,7 @@ const uiHTML = `<!DOCTYPE html>
     if (status === 'degraded') return 'badge-outofsync';
     if (status === 'stale') return 'badge-outofsync';
     if (status === 'disconnected') return 'badge-failed';
+    if (status === 'connecting') return 'badge-connecting';
     return 'badge-idle';
   }
 
@@ -1182,10 +1879,41 @@ const uiHTML = `<!DOCTYPE html>
     return 'log-info';
   }
 
+  function hideOverlay(animate) {
+    if (loadingOverlay) {
+      if (animate) {
+        loadingOverlay.classList.add('hidden');
+        setTimeout(function() { loadingOverlay.style.display = 'none'; }, 350);
+      } else {
+        loadingOverlay.style.display = 'none';
+      }
+    }
+  }
+
+  function markAppLoaded() {
+    if (appLoaded) return;
+    if (!state) return;
+    // If the server restarted (new serverStartedAt), require reconcile to finish.
+    var serverStart = state.serverStartedAt || '';
+    var knownStart  = localStorage.getItem('omniCdServerStart');
+    if (serverStart !== knownStart) {
+      // New server session — wait for reconcile to complete.
+      var status = state.lastReconcile && state.lastReconcile.status;
+      if (status !== 'success' && status !== 'failed') return;
+      localStorage.setItem('omniCdServerStart', serverStart);
+      hideOverlay(true);
+    } else {
+      // Same server session as last page load — skip overlay immediately.
+      hideOverlay(false);
+    }
+    appLoaded = true;
+  }
+
   async function fetchState() {
     try {
       var r = await fetch('/api/state');
       state = await r.json();
+      markAppLoaded();
       // Don't re-render if modal is open to prevent flashing
       if (!currentModal && !confirmModal) {
         render();
@@ -1194,34 +1922,112 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   async function checkGit() {
+    gitRefreshing = true;
+    lastSoftReconcileAt = Date.now();
+    renderMainOnly();
     try {
       var r = await fetch('/api/check', { method: 'POST' });
       var d = await r.json();
       if (d.status === 'already running') alert('Reconcile already in progress');
-      fetchState();
+      await fetchState();
     } catch(e) {
       alert('Failed to trigger git check');
+    } finally {
+      gitRefreshing = false;
+      renderMainOnly();
+    }
+  }
+
+  async function refreshMC() {
+    mcRefreshing = true;
+    lastSoftReconcileAt = Date.now();
+    renderMainOnly();
+    try {
+      var r = await fetch('/api/refresh-mc', { method: 'POST' });
+      var d = await r.json();
+      if (d.status === 'already running') alert('Refresh already in progress');
+      await fetchState();
+    } catch(e) {
+      alert('Failed to trigger machine class refresh');
+    } finally {
+      mcRefreshing = false;
+      renderMainOnly();
     }
   }
 
   async function triggerReconcile() {
+    reconcileRunning = true;
+    lastHardReconcileAt = Date.now();
+    renderMainOnly();
     try {
       var r = await fetch('/api/reconcile', { method: 'POST' });
       var d = await r.json();
       if (d.status === 'already running') alert('Reconcile already in progress');
-      fetchState();
+      await fetchState();
     } catch(e) {
       alert('Failed to trigger reconcile');
+    } finally {
+      reconcileRunning = false;
+      renderMainOnly();
     }
   }
 
-  async function toggleClusters() {
+  async function setClusterAutoSync(clusterId, enabled, event) {
+    if (event) event.stopPropagation();
     try {
-      var r = await fetch('/api/clusters-toggle', { method: 'POST' });
-      var d = await r.json();
+      await fetch('/api/set-cluster-autosync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: clusterId, autoSync: enabled })
+      });
       fetchState();
     } catch(e) {
-      alert('Failed to toggle clusters');
+      alert('Failed to update auto sync setting');
+    }
+  }
+
+  async function refreshSingleMC(mcId, event) {
+    if (event) event.stopPropagation();
+    try {
+      var r = await fetch('/api/refresh-single-mc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: mcId })
+      });
+      var d = await r.json();
+      if (d.status === 'already running') alert('Refresh already in progress');
+      fetchState();
+    } catch(e) {
+      console.error('refresh single MC failed', e);
+    }
+  }
+
+  async function syncMachineClass(mcId, event) {
+    if (event) event.stopPropagation();
+    try {
+      await fetch('/api/sync-machineclass', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: mcId })
+      });
+      // Trigger a reconcile so the force-sync is picked up immediately.
+      await fetch('/api/reconcile', { method: 'POST' });
+    } catch(e) {
+      console.error('sync machineclass failed', e);
+    }
+  }
+
+  async function setMCAutoSync(mcId, enabled, event) {
+    if (event) event.stopPropagation();
+    try {
+      await fetch('/api/set-mc-autosync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: mcId, autoSync: enabled })
+      });
+      fetchState();
+    } catch(e) {
+      alert('Failed to update auto sync setting');
     }
   }
 
@@ -1267,9 +2073,110 @@ const uiHTML = `<!DOCTYPE html>
     }
   }
 
+  async function refreshCluster(clusterId, event) {
+    event.stopPropagation();
+    try {
+      var r = await fetch('/api/refresh-cluster', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: clusterId })
+      });
+      var d = await r.json();
+      if (d.status === 'already running') {
+        alert('Refresh already in progress');
+      }
+    } catch(e) {
+      alert('Failed to refresh cluster');
+    }
+  }
+
+  async function syncCluster(clusterId, event) {
+    event.stopPropagation();
+    doForceSync(clusterId);
+  }
+
+  function deleteCluster(clusterId, event) {
+    event.stopPropagation();
+    confirmInput = '';
+    confirmModal = {
+      title: 'Delete Cluster',
+      message: 'Are you sure you want to delete the Cluster <b>' + escHtml(clusterId) + '</b>?\n\nDeleting the Cluster will delete all the cluster\'s managed resources, which can be dangerous.\nBe sure you understand the effects of deleting this resource before continuing.',
+      requireInput: clusterId,
+      inputPrompt: 'Please type \u2018' + clusterId + '\u2019 to confirm the deletion of the cluster',
+      onConfirm: function() {
+        confirmModal = null;
+        confirmInput = '';
+        render();
+        doDeleteCluster(clusterId);
+      }
+    };
+    render();
+  }
+
+  async function doDeleteCluster(clusterId) {
+    try {
+      await fetch('/api/delete-cluster', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: clusterId })
+      });
+      fetchState();
+    } catch(e) {
+      alert('Failed to trigger delete: ' + e.message);
+    }
+  }
+
   function closeConfirmModal() {
     confirmModal = null;
+    confirmInput = '';
     render();
+  }
+
+  function deleteMachineClass(mcId, event) {
+    if (event) event.stopPropagation();
+    confirmInput = '';
+    confirmModal = {
+      title: 'Delete Machine Class',
+      message: 'Are you sure you want to delete the Machine Class <b>' + escHtml(mcId) + '</b>?\n\nThis will permanently remove it from Omni.',
+      requireInput: mcId,
+      inputPrompt: 'Please type \u2018' + mcId + '\u2019 to confirm the deletion',
+      onConfirm: function() {
+        confirmModal = null;
+        confirmInput = '';
+        render();
+        doDeleteMachineClass(mcId);
+      }
+    };
+    render();
+  }
+
+  async function doDeleteMachineClass(mcId) {
+    try {
+      await fetch('/api/delete-machineclass', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: mcId })
+      });
+      fetchState();
+    } catch(e) {
+      alert('Failed to trigger delete: ' + e.message);
+    }
+  }
+
+  function exportMachineClass(mcId, event) {
+    if (event) event.stopPropagation();
+    var mc = state && state.machineClasses && state.machineClasses.find(function(m) { return m.id === mcId; });
+    var content = mc && (mc.liveContent || mc.fileContent);
+    if (!content) { alert('No content available to export'); return; }
+    var blob = new Blob([content], { type: 'application/x-yaml' });
+    var url = window.URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = mcId + '.yaml';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   }
 
   async function exportCluster(clusterId, event) {
@@ -1307,6 +2214,7 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   function confirmAction() {
+    if (confirmModal && confirmModal.requireInput && confirmInput !== confirmModal.requireInput) return;
     if (confirmModal && confirmModal.onConfirm) {
       confirmModal.onConfirm();
     }
@@ -1328,6 +2236,32 @@ const uiHTML = `<!DOCTYPE html>
     render();
   }
 
+  function setMcSearch(val) {
+    mcSearch = val.toLowerCase();
+    machineClassPage = 1;
+    render();
+  }
+
+  function toggleMcStatusFilter(key) {
+    if (mcStatusFilters[key]) {
+      delete mcStatusFilters[key];
+    } else {
+      mcStatusFilters[key] = true;
+    }
+    machineClassPage = 1;
+    render();
+  }
+
+  function toggleClusterSyncFilter(key) {
+    if (clusterSyncFilters[key]) {
+      delete clusterSyncFilters[key];
+    } else {
+      clusterSyncFilters[key] = true;
+    }
+    clusterPage = 1;
+    render();
+  }
+
   function toggleClusterSort() {
     clusterSortAZ = !clusterSortAZ;
     clusterPage = 1;
@@ -1346,25 +2280,32 @@ const uiHTML = `<!DOCTYPE html>
     render();
   }
 
+  function setClusterSearch(val) {
+    clusterSearch = val.toLowerCase();
+    clusterPage = 1;
+    render();
+  }
+
   function showClustersView() {
     window.location.href = '/clusters';
   }
 
   function hideClustersView() {
-    window.location.href = '/';
+    window.location.href = '/clusters';
   }
 
   function renderSidebar() {
     var navItems = [
-      { label: 'Dashboard',      icon: '⊟', href: '/' },
       { label: 'Clusters',       icon: '◈', href: '/clusters' },
       { label: 'Machine Classes', icon: '▦', href: '/machineclasses' },
       null,
+      { label: 'Instances',      icon: '⬡', href: '/instances' },
       { label: 'Repos',          icon: '⎇', href: '/repos' },
       { label: 'Users',          icon: '◉', href: '/users' },
+      { label: 'Logs',           icon: '≡', href: '/logs' },
     ];
     var html = '<div class="sidebar-logo">' +
-      '<img class="logo sidebar-logo-img" src="https://mintlify.s3.us-west-1.amazonaws.com/siderolabs-fe86397c/images/omni.svg" alt="Omni">' +
+      '<img class="logo sidebar-logo-img" src="{{OMNI_LOGO_URI}}" alt="Omni">' +
       '<div class="sidebar-logo-text">Omni <span>CD</span></div>' +
       '<button class="sidebar-toggle" id="sidebar-toggle" onclick="window.__toggleSidebar()" title="Toggle sidebar">‹</button>' +
     '</div>' +
@@ -1387,13 +2328,90 @@ const uiHTML = `<!DOCTYPE html>
     return html;
   }
 
+  function renderLogsView(s) {
+    var logsHtml = (s.logs && s.logs.length > 0)
+      ? s.logs.map(function(l) {
+          return '<div class="log-entry"><span class="log-msg">' + l.message + '</span></div>';
+        }).join('')
+      : '<div class="log-entry" style="color:#52525b">No logs yet</div>';
+    var logsHeader = '<div class="header">' +
+      '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Logs</h1>' +
+      '<button class="btn-sort btn-primary" onclick="window.__downloadLogs()" style="margin-left:auto">Download Logs</button>' +
+    '</div>';
+    return logsHeader +
+      '<div class="logs-page" style="height:calc(100vh - 120px);padding:0 0 12px">' +
+        '<div class="logs-page-body" id="logs-page-container">' +
+          logsHtml +
+        '</div>' +
+      '</div>';
+  }
+
   function renderReposView(s) {
-    return renderHeader(s) +
-      '<div class="placeholder-page">' +
+    var repos = (s.repos && s.repos.length > 0) ? s.repos : (s.git ? [s.git] : []);
+    // repoConfigs is the single source of truth for which repos exist.
+    // repos (live git data) is only used to enrich display info.
+    var repoConfigs = (s.repoConfigs || []).slice().sort(function(a, b) { return (a.name || '').localeCompare(b.name || ''); });
+    var cardsHtml = '';
+    if (repoConfigs.length === 0) {
+      cardsHtml = '<div class="placeholder-page">' +
         '<div class="placeholder-icon">⎇</div>' +
         '<div class="placeholder-title">Git Repositories</div>' +
-        '<div class="placeholder-sub">Multi-repo support coming soon</div>' +
+        '<div class="placeholder-sub">No repositories configured — add one using the button above</div>' +
       '</div>';
+    } else {
+      var cards = repoConfigs.map(function(rc) {
+        var name = rc.name || '';
+        var r = repos.find(function(x) { return x.name === name; }) || {};
+        var repoHealth = r.name ? getRepoHealth(r, s) : { status: 'idle', label: 'Not synced' };
+        var url = r.repo || rc.url || '';
+        var safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return '<div class="info-card">' +
+          '<div class="info-card-header">' +
+            '<span class="info-card-title">' + escHtml(name) + '</span>' +
+            '<span class="badge ' + gitHealthBadgeClass(repoHealth.status) + '">' + repoHealth.label + '</span>' +
+          '</div>' +
+          '<div class="info-card-value">' +
+            (url ? '<a href="' + escHtml(url) + '" target="_blank" style="color:#FB326E;text-decoration:none">' + escHtml(url) + '</a>' : '—') +
+          '</div>' +
+          '<div class="info-card-sub">' +
+            'Branch: <b style="color:#a1a1aa">' + escHtml(r.branch || rc.branch || '—') + '</b>' +
+            (r.shortSha ? ' &nbsp;&middot;&nbsp; SHA <b style="color:#a1a1aa">' + r.shortSha + '</b>' : '') +
+            (rc.hasToken ? ' &nbsp;&middot;&nbsp; <span style="color:#4ade80;font-size:11px">&#128273; token set</span>' : '') + '<br>' +
+            (r.commitMessage ? escHtml(r.commitMessage) + '<br>' : '') +
+            (r.lastSync ? 'Last sync: ' + ago(r.lastSync) : '<span style="color:#52525b">Never synced</span>') +
+          '</div>' +
+          '<div class="info-card-actions">' +
+            '<button class="btn-sort btn-primary" onclick="window.__openRepoModal(\'' + safeName + '\')">Edit</button>' +
+            '<button class="btn-sort btn-primary" onclick="window.__deleteRepo(\'' + safeName + '\')">Delete</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+      cardsHtml = '<div class="info-row">' + cards + '</div>';
+    }
+    var repoHeader = '<div class="header">' +
+      '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Repositories</h1>' +
+      '<button class="btn-sort btn-primary" onclick="window.__openRepoModal(null)" style="margin-left:auto">Add Repository</button>' +
+    '</div>';
+    return repoHeader + cardsHtml;
+  }
+
+  function renderInstancesView(s) {
+    var omniHealth = getOmniHealth(s);
+    var omniCard =
+      '<div class="info-card">' +
+        '<div class="info-card-header">' +
+          '<span class="info-card-title">Omni Instance</span>' +
+          '<span class="badge ' + gitHealthBadgeClass(omniHealth.status) + '">' + omniHealth.label + '</span>' +
+        '</div>' +
+        '<div class="info-card-value">' + (s.omniEndpoint ? '<a href="' + s.omniEndpoint + '" target="_blank" style="color:#FB326E;text-decoration:none">' + s.omniEndpoint + '</a>' : '—') + '</div>' +
+        '<div class="info-card-sub">' +
+          'Omni <b style="color:#a1a1aa">' + (s.omniVersion || '?') + '</b><br>' +
+          'Last check: ' + ago(s.omniHealth && s.omniHealth.lastCheck) +
+          (s.omniHealth && s.omniHealth.error ? '<br><span style="color:#f87171">' + escHtml(s.omniHealth.error) + '</span>' : '') +
+        '</div>' +
+      '</div>';
+    return renderHeader(s) +
+      '<div class="info-row">' + omniCard + '</div>';
   }
 
   function renderUsersView(s) {
@@ -1405,29 +2423,19 @@ const uiHTML = `<!DOCTYPE html>
       '</div>';
   }
 
-  function renderHeader(s) {
-    var isRunning = s.lastReconcile && s.lastReconcile.status === 'running';
-    var mismatch = s.versionMismatch;
-    var syncDisabled = isRunning || mismatch;
-    var titles = { '/': 'Dashboard', '/clusters': 'Clusters', '/machineclasses': 'Machine Classes', '/repos': 'Repositories', '/users': 'Users' };
-    var pageTitle = titles[currentRoute] || 'Dashboard';
+  function renderHeader(s, clusterOverride) {
+    var titles = { '/clusters': 'Clusters', '/machineclasses': 'Machine Classes', '/instances': 'Instances', '/repos': 'Repositories', '/users': 'Users', '/logs': 'Logs' };
+    var pageTitle = titles[currentRoute] || 'Clusters';
+    var titleHtml;
+    if (clusterOverride) {
+      titleHtml = '<span class="breadcrumb"><a class="breadcrumb-link" href="/clusters">Clusters</a>' +
+        '<span class="breadcrumb-sep">/</span>' +
+        '<span class="breadcrumb-current">' + escHtml(clusterOverride.id) + '</span></span>';
+    } else {
+      titleHtml = pageTitle;
+    }
     return '<div class="header">' +
-      '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">' + pageTitle + '</h1>' +
-      '<div class="header-buttons">' +
-        (mismatch ?
-          '<div class="version-warning">' +
-            '<span class="warn-icon">&#9888;</span>' +
-            'Omni ' + s.omniVersion + ' &gt; omnictl ' + s.omnictlVersion +
-          '</div>' : '') +
-        (isRunning ? '<span class="spinner"></span>' : '') +
-        '<button class="btn-check" onclick="window.__checkGit()" ' +
-          (isRunning ? 'disabled' : '') + '>Refresh</button>' +
-        '<button class="btn-reconcile" onclick="window.__triggerReconcile()" ' +
-          (syncDisabled ? 'disabled' : '') + '>' +
-          (isRunning ? 'Syncing...' : 'Sync') +
-        '</button>' +
-        '<button class="btn-logs" onclick="window.__showLogsModal()">Logs</button>' +
-      '</div>' +
+      '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">' + titleHtml + '</h1>' +
     '</div>';
   }
 
@@ -1435,16 +2443,36 @@ const uiHTML = `<!DOCTYPE html>
     var mcs = (s.machineClasses || []).slice().sort(function(a, b) {
       return machineClassSortAZ ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id);
     });
-    var pageMcs = mcPageSize === 0 ? mcs : paginateWithSize(mcs, machineClassPage, mcPageSize);
+    var serverRunning = !!(s.lastReconcile && s.lastReconcile.status === 'running');
+    var syncRunning = reconcileRunning || (lastHardReconcileAt >= lastSoftReconcileAt && serverRunning);
+    var mcRunning = mcRefreshing || (lastSoftReconcileAt > lastHardReconcileAt && serverRunning);
+    var isRunning = mcRunning || syncRunning;
+    var activeFilters = Object.keys(mcStatusFilters);
+    var filteredMcs = mcs.filter(function(m) {
+      if (mcSearch && m.id.toLowerCase().indexOf(mcSearch) < 0) return false;
+      if (activeFilters.length === 0) return true;
+      var key = (m.status === 'success' || m.status === 'applied') ? 'synced' : (m.status || 'unknown');
+      return !!mcStatusFilters[key];
+    });
+    var pageMcs = mcPageSize === 0 ? filteredMcs : paginateWithSize(filteredMcs, machineClassPage, mcPageSize);
+    var mcRepoSyncErrors = {};
+    (s.repos || []).forEach(function(r) { if (r.syncError) mcRepoSyncErrors[r.name] = true; });
     var cardsHtml = pageMcs.length > 0
       ? pageMcs.map(function(m) {
-          var spec = parseMachineClassSpec(m.fileContent, m.id);
+          var mcContent = m.fileContent || m.liveContent || '';
+          var spec = parseMachineClassSpec(mcContent, m.id);
           var displayStatus = m.status === 'success' ? 'synced' : m.status;
           var hasDiff = m.diff && m.diff.length > 0;
           var hasFile = m.fileContent && m.fileContent.length > 0;
-          var hasDetails = hasDiff || hasFile;
-          var provisionLabel = m.provisionType === 'auto' ? 'Auto-Provision' : m.provisionType === 'manual' ? 'Manual' : 'Unknown';
-          var provisionColor = m.provisionType === 'auto' ? '#60a5fa' : '#a1a1aa';
+          var hasLive = m.liveContent && m.liveContent.length > 0;
+          var hasDetails = hasDiff || hasFile || hasLive;
+          // Detect provisionType from content when not set by server (e.g. unmanaged)
+          var provisionType = m.provisionType;
+          if (!provisionType && mcContent) {
+            provisionType = mcContent.toLowerCase().indexOf('providerid:') >= 0 ? 'auto' : 'manual';
+          }
+          var provisionLabel = provisionType === 'auto' ? 'Auto-Provision' : provisionType === 'manual' ? 'Manual' : 'Unknown';
+          var provisionColor = provisionType === 'auto' ? '#60a5fa' : '#a1a1aa';
           var statusDot = '';
           if (m.status === 'success' || m.status === 'applied') statusDot = '#4ade80';
           else if (m.status === 'failed') statusDot = '#f87171';
@@ -1452,7 +2480,7 @@ const uiHTML = `<!DOCTYPE html>
           else if (m.status === 'syncing') statusDot = '#2dd4bf';
           else statusDot = '#52525b';
 
-          var isAuto = m.provisionType === 'auto';
+          var isAuto = provisionType === 'auto';
           var pd = (isAuto && spec) ? spec.providerData : {};
           var pdCores    = pd.cores    || pd.vcpu || pd.cpu   || '';
           var pdSockets  = pd.sockets  || '';
@@ -1468,6 +2496,33 @@ const uiHTML = `<!DOCTYPE html>
             (pdMemory   ? '<div class="mc-info-row"><span class="mc-info-label">Memory</span><span class="mc-info-value">' + escHtml(String(pdMemory)) + '</span></div>' : '') +
             (pdDisk     ? '<div class="mc-info-row"><span class="mc-info-label">Disk Size</span><span class="mc-info-value">' + escHtml(String(pdDisk)) + '</span></div>' : '');
 
+          // Compute which clusters reference this machine class.
+          var usedByClusters = [];
+          if (state && state.clusters) {
+            state.clusters.forEach(function(cl) {
+              var cp = cl.controlPlane || {};
+              var wks = Array.isArray(cl.workers) ? cl.workers : (cl.workers ? [cl.workers] : []);
+              var refs = [cp].concat(wks);
+              for (var ri = 0; ri < refs.length; ri++) {
+                if (refs[ri].machineClass === m.id) {
+                  usedByClusters.push(cl.id);
+                  break;
+                }
+              }
+            });
+          }
+          usedByClusters.sort();
+          var usedByHtml = '<div class="mc-info-row" style="align-items:flex-start;margin-top:4px">' +
+            '<span class="mc-info-label">Used by</span>' +
+            '<span class="mc-info-value">' +
+              (usedByClusters.length > 0
+                ? '<div class="mc-used-by">' +
+                    usedByClusters.map(function(id) { return '<span class="mc-used-by-chip" title="' + escHtml(id) + '" onclick="event.stopPropagation();window.__navToCluster(\'' + escHtml(id) + '\')">' + escHtml(id) + '</span>'; }).join('') +
+                  '</div>'
+                : '<span class="mc-used-by-none">none</span>') +
+            '</span>' +
+          '</div>';
+
           var mlKeys = spec ? Object.keys(spec.matchLabels) : [];
           var mlHtml = mlKeys.length > 0
             ? '<div class="mc-info-row" style="align-items:flex-start;margin-top:4px">' +
@@ -1481,10 +2536,15 @@ const uiHTML = `<!DOCTYPE html>
             : '';
 
           var mcStatusText = '', mcStatusColor = '#71717a';
-          if (m.status === 'success' || m.status === 'applied') { mcStatusText = '● synced';       mcStatusColor = '#4ade80'; }
+          if (m.status === 'success' || m.status === 'applied') { mcStatusText = '● synced';        mcStatusColor = '#4ade80'; }
           else if (m.status === 'failed')                        { mcStatusText = '● failed';       mcStatusColor = '#f87171'; }
           else if (m.status === 'outofsync')                     { mcStatusText = '● out of sync';  mcStatusColor = '#fb923c'; }
           else if (m.status === 'syncing')                       { mcStatusText = '● syncing';      mcStatusColor = '#2dd4bf'; }
+          else if (m.status === 'unmanaged')                     { mcStatusText = '● unmanaged';    mcStatusColor = '#52525b'; }
+          if (m.repoName && mcRepoSyncErrors[m.repoName] && m.status !== 'unmanaged') {
+            mcStatusText = '<span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span>';
+            mcStatusColor = '#2dd4bf';
+          }
           return '<div class="mc-card' + (hasDetails ? ' clickable' : '') + '" data-status="' + (m.status || 'idle') + '"' + (hasDetails ? ' onclick="window.__showMachineClassModal(\'' + m.id + '\')"' : '') + '>' +
             '<div class="mc-card-accent"></div>' +
             '<div class="mc-card-header">' +
@@ -1497,20 +2557,70 @@ const uiHTML = `<!DOCTYPE html>
               '<div class="mc-card-divider"></div>' +
               infoRows +
               mlHtml +
+              '<div class="mc-card-divider" style="margin-top:4px"></div>' +
+              usedByHtml +
+              (m.status === 'unmanaged' ?
+                '<div style="margin-top:auto">' +
+                  '<div class="mc-card-divider" style="margin-top:8px"></div>' +
+                  '<div class="cluster-card-actions">' +
+                    '<button class="btn-sort btn-primary" onclick="window.__exportMachineClass(\'' + m.id + '\', event);event.stopPropagation()" title="Export machine class as YAML">\u2193 Export</button>' +
+                    (usedByClusters.length > 0
+                      ? '<button class="btn-sort btn-primary" disabled title="Cannot delete \u2014 in use by: ' + usedByClusters.join(', ') + '">\u2715 Delete</button>'
+                      : '<button class="btn-sort btn-primary" onclick="window.__deleteMachineClass(\'' + m.id + '\', event);event.stopPropagation()" title="Delete this machine class from Omni">\u2715 Delete</button>') +
+                  '</div>' +
+                '</div>'
+              : '<div style="margin-top:auto">' +
+                  '<div class="mc-card-divider" style="margin-top:8px"></div>' +
+                  '<div class="cluster-card-actions">' +
+                    '<button class="btn-sort" onclick="window.__refreshSingleMC(\'' + m.id + '\', event);event.stopPropagation()" title="Refresh this machine class from Git">\u21bb Refresh</button>' +
+                    '<button class="btn-sort" onclick="window.__syncMachineClass(\'' + m.id + '\', event);event.stopPropagation()" title="Force sync this machine class from Git">\u21c5 Sync</button>' +
+                    '<button class="btn-sort btn-primary auto-sync ' + (m.autoSync === true ? 'active' : '') + '" onclick="window.__setMCAutoSync(\'' + m.id + '\', ' + (m.autoSync === true ? 'false' : 'true') + ', event);event.stopPropagation()" title="Toggle per-machine-class auto sync">\u25cb Auto-Sync</button>' +
+                  '</div>' +
+                '</div>') +
             '</div>' +
           '</div>';
         }).join('')
       : '<div style="padding:40px;text-align:center;color:#52525b">No machine classes</div>';
 
-    return renderHeader(s) +
-      '<div style="display:flex;align-items:center;gap:12px;padding:0 0 16px">' +
-        '<div style="margin-left:auto;display:flex;align-items:center;gap:8px">' +
-          '<button class="btn-sort active" onclick="window.__toggleMachineClassSort()">' + (machineClassSortAZ ? 'A→Z' : 'Z→A') + '</button>' +
-          '<div class="page-size-bar">' + renderPageSizeBar([10, 25, 50, 0], mcPageSize, 'window.__setMcPageSize') + '</div>' +
-        '</div>' +
+    var mcActionBar = '<div style="display:flex;align-items:center;gap:8px">' +
+      (isRunning ? '<span class="spinner"></span>' : '') +
+      '<button class="btn-sort btn-primary" onclick="window.__refreshMC()" ' + (isRunning ? 'disabled' : '') + '>' + (mcRunning ? 'Refreshing...' : 'Refresh') + '</button>' +
+      '<button class="btn-sort btn-primary" onclick="window.__triggerReconcile()" ' + (isRunning ? 'disabled' : '') + '>' + (syncRunning ? 'Syncing...' : 'Sync') + '</button>' +
+      '<input type="text" placeholder="Search machine classes..." value="' + mcSearch + '" oninput="window.__setMcSearch(this.value)" style="background:#18181b;border:1px solid #3f3f46;border-radius:4px;color:#e4e4e7;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;margin-left:8px;" />' +
+    '</div>';
+    var mcHeader = '<div class="header">' +
+      '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Machine Classes</h1>' +
+      mcActionBar +
+    '</div>';
+    // Status filter checkboxes — only show statuses present in data
+    var mcPresentKeys = {};
+    mcs.forEach(function(m) {
+      var key = (m.status === 'success' || m.status === 'applied') ? 'synced' : (m.status || null);
+      if (key) mcPresentKeys[key] = true;
+    });
+    var statusDefs = [
+      { key: 'synced',    label: 'Synced'      },
+      { key: 'outofsync', label: 'Out of sync' },
+      { key: 'failed',    label: 'Failed'      },
+      { key: 'unmanaged', label: 'Unmanaged'   },
+    ];
+    var filterCheckboxes = statusDefs.filter(function(d) { return mcPresentKeys[d.key]; }).map(function(d) {
+      var checked = !!mcStatusFilters[d.key];
+      return '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:#a1a1aa;user-select:none">' +
+        '<input type="checkbox"' + (checked ? ' checked' : '') + ' onchange="window.__toggleMcStatusFilter(\'' + d.key + '\')" style="accent-color:#fb923c;cursor:pointer">' +
+        d.label +
+      '</label>';
+    }).join('');
+    var mcToolbar = '<div style="display:flex;align-items:center;gap:16px;padding:0 0 16px">' +
+      '<div style="display:flex;align-items:center;gap:12px">' + filterCheckboxes + '</div>' +
+      '<div style="margin-left:auto;display:flex;align-items:center;gap:8px">' +
+        '<button class="btn-sort ' + (machineClassSortAZ ? 'active' : '') + '" onclick="window.__toggleMachineClassSort()">' + (machineClassSortAZ ? 'A→Z' : 'Z→A') + '</button>' +
+        '<div class="page-size-bar">' + renderPageSizeBar([10, 25, 50, 0], mcPageSize, 'window.__setMcPageSize') + '</div>' +
       '</div>' +
+    '</div>';
+    return mcHeader + mcToolbar +
       '<div class="mc-grid">' + cardsHtml + '</div>' +
-      (mcPageSize > 0 && mcs.length > mcPageSize ? renderPaginationSized(mcs, machineClassPage, 'window.__changeMachineClassPage', mcPageSize) : '');
+      (mcPageSize > 0 && filteredMcs.length > mcPageSize ? renderPaginationSized(filteredMcs, machineClassPage, 'window.__changeMachineClassPage', mcPageSize) : '');
   }
 
   function renderClustersView(s) {
@@ -1518,53 +2628,75 @@ const uiHTML = `<!DOCTYPE html>
       return clusterSortAZ ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id);
     });
     var total = clusters.length;
-    var countReady = 0, countNotReady = 0, countFailed = 0, countOutofsync = 0, countUnmanaged = 0;
+    var countReady = 0, countNotReady = 0;
+    var countScalingUp = 0, countScalingDown = 0, countDestroying = 0, countReconfiguring = 0;
     clusters.forEach(function(c) {
       var st = c.status || '';
-      if (st === 'unmanaged') { countUnmanaged++; return; }
-      if (st === 'failed') { countFailed++; return; }
-      if (st === 'outofsync') { countOutofsync++; return; }
-      if (c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready') { countNotReady++; return; }
-      if (st === 'success' || st === 'applied' || st === 'synced' || st === 'syncing') countReady++;
+      if (st === 'unmanaged') return;  // excluded from health bar
+      var phase = c.clusterPhase || '';
+      if (phase === 'scaling-up')    { countScalingUp++;     return; }
+      if (phase === 'scaling-down')  { countScalingDown++;   return; }
+      if (phase === 'destroying')    { countDestroying++;    return; }
+      if (phase === 'reconfiguring') { countReconfiguring++; return; }
+      if (!c.clusterReady || c.clusterReady === 'unknown') return;  // no Omni health data
+      if (c.clusterReady === 'ready' && c.kubernetesApiReady === 'ready') { countReady++; }
+      else { countNotReady++; }
     });
+    var healthTotal = countReady + countNotReady + countScalingUp + countScalingDown + countDestroying + countReconfiguring;
     var healthBar = '';
-    if (total > 0) {
-      var pReady      = (countReady      / total * 100).toFixed(1);
-      var pNotReady   = (countNotReady   / total * 100).toFixed(1);
-      var pFailed     = (countFailed     / total * 100).toFixed(1);
-      var pOutofsync  = (countOutofsync  / total * 100).toFixed(1);
-      var pUnmanaged  = (countUnmanaged  / total * 100).toFixed(1);
+    {
       var hasFilter   = clusterStatusFilter !== null;
       var summaryParts = [];
-      if (countReady)    summaryParts.push('<span style="color:#4ade80;cursor:pointer' + (hasFilter && clusterStatusFilter === 'ready'     ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'ready\')">'      + countReady    + ' ready</span>');
-      if (countNotReady) summaryParts.push('<span style="color:#f87171;cursor:pointer' + (hasFilter && clusterStatusFilter === 'not-ready' ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'not-ready\')">'  + countNotReady + ' not ready</span>');
-      if (countFailed)   summaryParts.push('<span style="color:#ef4444;cursor:pointer' + (hasFilter && clusterStatusFilter === 'failed'    ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'failed\')">'     + countFailed   + ' failed</span>');
-      if (countOutofsync) summaryParts.push('<span style="color:#fb923c;cursor:pointer' + (hasFilter && clusterStatusFilter === 'outofsync' ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'outofsync\')">' + countOutofsync + ' out of sync</span>');
-      if (countUnmanaged) summaryParts.push('<span style="color:#52525b;cursor:pointer' + (hasFilter && clusterStatusFilter === 'unmanaged' ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'unmanaged\')">' + countUnmanaged + ' unmanaged</span>');
+      if (countReady)         summaryParts.push('<span style="color:#4ade80;cursor:pointer' + (hasFilter && clusterStatusFilter === 'ready'         ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'ready\')">'         + countReady        + ' ready</span>');
+      if (countNotReady)      summaryParts.push('<span style="color:#f87171;cursor:pointer' + (hasFilter && clusterStatusFilter === 'not-ready'     ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'not-ready\')">'     + countNotReady     + ' not ready</span>');
+      if (countScalingUp)     summaryParts.push('<span style="color:#60a5fa;cursor:pointer' + (hasFilter && clusterStatusFilter === 'scaling-up'    ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'scaling-up\')">'    + countScalingUp    + ' scaling up</span>');
+      if (countScalingDown)   summaryParts.push('<span style="color:#f59e0b;cursor:pointer' + (hasFilter && clusterStatusFilter === 'scaling-down'  ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'scaling-down\')">'  + countScalingDown  + ' scaling down</span>');
+      if (countDestroying)    summaryParts.push('<span style="color:#f43f5e;cursor:pointer' + (hasFilter && clusterStatusFilter === 'destroying'    ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'destroying\')">'    + countDestroying   + ' destroying</span>');
+      if (countReconfiguring) summaryParts.push('<span style="color:#a78bfa;cursor:pointer' + (hasFilter && clusterStatusFilter === 'reconfiguring' ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'reconfiguring\')">' + countReconfiguring + ' reconfiguring</span>');
       var clearBtn = hasFilter ? ' &nbsp;<span style="cursor:pointer;color:#a1a1aa;text-decoration:underline;font-size:11px" onclick="window.__clearClusterFilter()">clear</span>' : '';
       healthBar = '<div class="cluster-health-bar-wrap">' +
         '<div class="cluster-health-bar' + (hasFilter ? ' has-filter' : '') + '">' +
-          (countReady     ? '<div class="cluster-health-bar-seg cluster-health-bar-seg--ready'     + (hasFilter && clusterStatusFilter === 'ready'     ? ' active' : '') + '" style="width:' + pReady     + '%" onclick="window.__setClusterFilter(\'ready\')"     title="' + countReady     + ' ready"></div>'         : '') +
-          (countNotReady  ? '<div class="cluster-health-bar-seg cluster-health-bar-seg--notready'  + (hasFilter && clusterStatusFilter === 'not-ready'  ? ' active' : '') + '" style="width:' + pNotReady  + '%" onclick="window.__setClusterFilter(\'not-ready\')"  title="' + countNotReady  + ' not ready"></div>'    : '') +
-          (countFailed    ? '<div class="cluster-health-bar-seg cluster-health-bar-seg--failed'    + (hasFilter && clusterStatusFilter === 'failed'    ? ' active' : '') + '" style="width:' + pFailed    + '%" onclick="window.__setClusterFilter(\'failed\')"    title="' + countFailed    + ' failed"></div>'        : '') +
-          (countOutofsync ? '<div class="cluster-health-bar-seg cluster-health-bar-seg--outofsync' + (hasFilter && clusterStatusFilter === 'outofsync' ? ' active' : '') + '" style="width:' + pOutofsync + '%" onclick="window.__setClusterFilter(\'outofsync\')" title="' + countOutofsync + ' out of sync"></div>'   : '') +
-          (countUnmanaged ? '<div class="cluster-health-bar-seg cluster-health-bar-seg--unmanaged' + (hasFilter && clusterStatusFilter === 'unmanaged' ? ' active' : '') + '" style="width:' + pUnmanaged + '%" onclick="window.__setClusterFilter(\'unmanaged\')" title="' + countUnmanaged + ' unmanaged"></div>'    : '') +
+          (countReady        ? '<div class="cluster-health-bar-seg cluster-health-bar-seg--ready'         + (hasFilter && clusterStatusFilter === 'ready'         ? ' active' : '') + '" style="width:' + (countReady        / healthTotal * 100).toFixed(1) + '%" onclick="window.__setClusterFilter(\'ready\')"         title="' + countReady        + ' ready"></div>'         : '') +
+          (countNotReady     ? '<div class="cluster-health-bar-seg cluster-health-bar-seg--notready'      + (hasFilter && clusterStatusFilter === 'not-ready'     ? ' active' : '') + '" style="width:' + (countNotReady     / healthTotal * 100).toFixed(1) + '%" onclick="window.__setClusterFilter(\'not-ready\')"     title="' + countNotReady     + ' not ready"></div>'    : '') +
+          (countScalingUp    ? '<div class="cluster-health-bar-seg cluster-health-bar-seg--scalingup'     + (hasFilter && clusterStatusFilter === 'scaling-up'    ? ' active' : '') + '" style="width:' + (countScalingUp    / healthTotal * 100).toFixed(1) + '%" onclick="window.__setClusterFilter(\'scaling-up\')"    title="' + countScalingUp    + ' scaling up"></div>'    : '') +
+          (countScalingDown  ? '<div class="cluster-health-bar-seg cluster-health-bar-seg--scalingdown'   + (hasFilter && clusterStatusFilter === 'scaling-down'  ? ' active' : '') + '" style="width:' + (countScalingDown  / healthTotal * 100).toFixed(1) + '%" onclick="window.__setClusterFilter(\'scaling-down\')"  title="' + countScalingDown  + ' scaling down"></div>'  : '') +
+          (countDestroying   ? '<div class="cluster-health-bar-seg cluster-health-bar-seg--destroying'    + (hasFilter && clusterStatusFilter === 'destroying'    ? ' active' : '') + '" style="width:' + (countDestroying   / healthTotal * 100).toFixed(1) + '%" onclick="window.__setClusterFilter(\'destroying\')"    title="' + countDestroying   + ' destroying"></div>'    : '') +
+          (countReconfiguring? '<div class="cluster-health-bar-seg cluster-health-bar-seg--reconfiguring' + (hasFilter && clusterStatusFilter === 'reconfiguring' ? ' active' : '') + '" style="width:' + (countReconfiguring/ healthTotal * 100).toFixed(1) + '%" onclick="window.__setClusterFilter(\'reconfiguring\')" title="' + countReconfiguring+ ' reconfiguring"></div>': '') +
         '</div>' +
         '<div class="cluster-health-summary">' + total + ' clusters &nbsp;·&nbsp; ' + summaryParts.join(' &nbsp;·&nbsp; ') + clearBtn + '</div>' +
       '</div>';
     }
-    var displayClusters = clusterStatusFilter
-      ? clusters.filter(function(c) {
-          var st = c.status || '';
-          if (clusterStatusFilter === 'ready')     return (st === 'success' || st === 'applied' || st === 'synced') && c.clusterReady !== 'not-ready' && c.kubernetesApiReady !== 'not-ready';
-          if (clusterStatusFilter === 'not-ready') return st !== 'unmanaged' && (c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready');
-          if (clusterStatusFilter === 'failed')    return st === 'failed';
-          if (clusterStatusFilter === 'outofsync') return st === 'outofsync';
-          if (clusterStatusFilter === 'unmanaged') return st === 'unmanaged';
-          return true;
-        })
-      : clusters;
+    var activeSyncKeys = Object.keys(clusterSyncFilters);
+    var displayClusters = clusters.filter(function(c) {
+      var st = c.status || '';
+      var phase = c.clusterPhase || '';
+      // Phase/health filter (from health bar click — single select)
+      if (clusterStatusFilter) {
+        if (clusterStatusFilter === 'ready')         { if (!(c.clusterReady === 'ready' && c.kubernetesApiReady === 'ready') || (phase && phase !== 'running')) return false; }
+        else if (clusterStatusFilter === 'not-ready'){ if (!((c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready') && (!phase || phase === 'running'))) return false; }
+        else if (clusterStatusFilter === 'scaling-up')    { if (phase !== 'scaling-up')    return false; }
+        else if (clusterStatusFilter === 'scaling-down')  { if (phase !== 'scaling-down')  return false; }
+        else if (clusterStatusFilter === 'destroying')    { if (phase !== 'destroying')    return false; }
+        else if (clusterStatusFilter === 'reconfiguring') { if (phase !== 'reconfiguring') return false; }
+      }
+      // Sync status filter (from checkboxes — multi select)
+      if (activeSyncKeys.length > 0) {
+        var syncKey = (st === 'success' || st === 'applied' || st === 'synced') ? 'synced'
+          : (st === 'outofsync' ? 'outofsync' : (st === 'failed' ? 'failed' : (st === 'unmanaged' ? 'unmanaged' : (st === 'orphaned' ? 'orphaned' : null))));
+        if (!syncKey || !clusterSyncFilters[syncKey]) return false;
+      }
+      return true;
+    });
+    if (clusterSearch) {
+      displayClusters = displayClusters.filter(function(c) {
+        return c.id.toLowerCase().indexOf(clusterSearch) >= 0;
+      });
+    }
     var pageDisplayClusters = clusterPageSize === 0 ? displayClusters : paginateWithSize(displayClusters, clusterPage, clusterPageSize);
+    // Build a lookup of repo names that are currently failing to sync so each
+    // cluster card can show a 'refreshing' indicator instead of a stale status.
+    var repoSyncErrors = {};
+    (s.repos || []).forEach(function(r) { if (r.syncError) repoSyncErrors[r.name] = true; });
     var cards = pageDisplayClusters.map(function(c) {
       var cp = c.controlPlane || {};
       var cpCount = cp.count || 0;
@@ -1573,7 +2705,7 @@ const uiHTML = `<!DOCTYPE html>
       var hasFile = c.fileContent && c.fileContent.length > 0;
       var isFailed = c.status === 'failed';
       var hasError = c.error && c.error.length > 0;
-      var hasDetails = c.status !== 'unmanaged'; // Graph tab available for all managed clusters
+      var hasDetails = true; // All clusters get a detail page
       var workers = Array.isArray(c.workers) ? c.workers : (c.workers ? [c.workers] : []);
       // Controlplane is the first column; worker pools follow — all rendered in 2-column rows
       var sections = [{ label: 'Controlplane', count: cpCount, mc: cpMC }];
@@ -1591,22 +2723,32 @@ const uiHTML = `<!DOCTYPE html>
         '</div>';
       }).join('');
       var statusText = '', statusColor = '#71717a';
-      if (c.status === 'unmanaged')                              { statusText = 'unmanaged';     statusColor = '#52525b'; }
-      else if (c.status === 'outofsync')                         { statusText = '● out of sync'; statusColor = '#fb923c'; }
+      if (c.status === 'unmanaged')                              { statusText = 'unmanaged';      statusColor = '#52525b'; }
+      else if (c.status === 'outofsync')                         { statusText = '● out of sync';  statusColor = '#fb923c'; }
+      else if (c.status === 'orphaned')                          { statusText = '● orphaned';     statusColor = '#a78bfa'; }
       else if (c.status === 'failed')                            { statusText = '● failed';       statusColor = '#f87171'; }
       else if (c.status === 'syncing')                           { statusText = '● syncing';      statusColor = '#2dd4bf'; }
       else if (c.status === 'success' || c.status === 'applied') { statusText = '● synced';       statusColor = '#4ade80'; }
-      else if (c.status === 'deleting')                          { statusText = '● deleting';     statusColor = '#71717a'; }
-      var healthText = '', healthColor = '';
-      if (c.status !== 'unmanaged') {
-        if (c.clusterReady === 'ready' && c.kubernetesApiReady === 'ready') {
-          healthText = '✓ ready'; healthColor = '#4ade80';
-        } else if (c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready') {
-          healthText = '✗ not ready'; healthColor = '#f87171';
-        }
+      // Override: if the cluster's repo is failing to sync, show refreshing
+      if (c.repoName && repoSyncErrors[c.repoName] && c.status !== 'unmanaged') {
+        statusText = '<span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span>';
+        statusColor = '#2dd4bf';
       }
-      var cardHealth = (c.status !== 'unmanaged' && (c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready')) ? ' data-health="not-ready"' : '';
-      return '<div class="cluster-card' + (hasDetails ? ' clickable' : '') + '" data-status="' + (c.status || 'idle') + '"' + cardHealth + (hasDetails ? ' onclick="window.__showClusterModal(\'' + c.id + '\')"' : '') + '>' +
+      var healthText = '', healthColor = '';
+      var phase = c.clusterPhase || '';
+      if (phase === 'scaling-up')        { healthText = '↑ scaling up';    healthColor = '#60a5fa'; }
+      else if (phase === 'scaling-down')  { healthText = '↓ scaling down';  healthColor = '#f59e0b'; }
+      else if (phase === 'destroying')    { healthText = '✕ destroying';    healthColor = '#f43f5e'; }
+      else if (phase === 'reconfiguring') { healthText = '↻ reconfiguring'; healthColor = '#a78bfa'; }
+      else if (c.clusterReady === 'ready' && c.kubernetesApiReady === 'ready') {
+        healthText = '✓ ready'; healthColor = '#4ade80';
+      } else if (c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready') {
+        healthText = '✗ not ready'; healthColor = '#f87171';
+      }
+      var cardHealth = ((c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready')) ? ' data-health="not-ready"' : '';
+      var activePhases = ['scaling-up','scaling-down','destroying','reconfiguring'];
+      var cardPhase = (c.clusterPhase && activePhases.indexOf(c.clusterPhase) >= 0) ? ' data-phase="' + c.clusterPhase + '"' : '';
+      return '<div class="cluster-card clickable" data-status="' + (c.status || 'idle') + '"' + cardHealth + cardPhase + ' onclick="window.__navToCluster(\'' + c.id + '\')">' +
         '<div class="cluster-card-accent"></div>' +
         '<div class="cluster-card-body">' +
           '<div class="cluster-card-header">' +
@@ -1614,8 +2756,6 @@ const uiHTML = `<!DOCTYPE html>
               c.id +
             '</span>' +
             '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
-              (c.status === 'unmanaged' ? '<button class="btn-export" onclick="window.__exportCluster(\'' + c.id + '\', event);event.stopPropagation()">export</button>' : '') +
-              (c.status === 'outofsync' || c.status === 'failed' ? '<button class="btn-force-sync" onclick="window.__forceSync(\'' + c.id + '\', event)">↻ force sync</button>' : '') +
               (statusText ? '<span class="cluster-card-status" style="color:' + statusColor + ';">' + statusText + '</span>' : '') +
             '</div>' +
           '</div>' +
@@ -1625,21 +2765,73 @@ const uiHTML = `<!DOCTYPE html>
           '</div>' +
           '<div class="cluster-card-divider"></div>' +
           sectionsHtml +
+          '<div class="cluster-card-divider" style="margin-top:8px"></div>' +
+          '<div class="cluster-card-actions">' +
+            '<button class="btn-sort btn-primary" onclick="window.__refreshCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Re-read live state from Omni">↺ Refresh</button>' +
+            (c.status !== 'deleting' && (c.status === 'unmanaged' || c.status === 'orphaned') ? '<button class="btn-sort btn-primary" onclick="window.__exportCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Export cluster as YAML template">↓ Export</button>' : '') +
+            (c.status !== 'deleting' && c.status !== 'unmanaged' && c.status !== 'orphaned' ? '<button class="btn-sort btn-primary" onclick="window.__syncCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Force sync this cluster from Git">⇅ Sync</button>' : '') +
+            (c.status !== 'deleting' && c.status !== 'unmanaged' && c.status !== 'orphaned' ? '<button class="btn-sort btn-primary auto-sync ' + (c.autoSync === false ? '' : 'active') + '" onclick="window.__setClusterAutoSync(\'' + c.id + '\', ' + (c.autoSync === false ? 'true' : 'false') + ', event);event.stopPropagation()" title="Toggle per-cluster auto sync">' + (c.autoSync === false ? '○ Auto-Sync' : '○ Auto-Sync') + '</button>' : '') +
+            (c.status !== 'deleting' && c.status !== 'unmanaged' ? '<button class="btn-sort btn-primary" onclick="window.__deleteCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Delete this cluster from Omni">\u2715 Delete</button>' : '') +
+          '</div>' +
         '</div>' +
       '</div>';
     }).join('');
 
+    var serverRunningC = !!(s.lastReconcile && s.lastReconcile.status === 'running');
+    var syncRunningC = reconcileRunning || (lastHardReconcileAt >= lastSoftReconcileAt && serverRunningC);
+    var gitRunningC = gitRefreshing || (lastSoftReconcileAt > lastHardReconcileAt && serverRunningC);
+    var isRunningC = gitRunningC || syncRunningC;
+    // Sync status filter checkboxes — only show statuses present in data
+    var clusterPresentKeys = {};
+    clusters.forEach(function(c) {
+      var st = c.status || '';
+      var key = (st === 'success' || st === 'applied' || st === 'synced') ? 'synced'
+        : (st === 'outofsync' ? 'outofsync' : (st === 'failed' ? 'failed' : (st === 'unmanaged' ? 'unmanaged' : (st === 'orphaned' ? 'orphaned' : null))));
+      if (key) clusterPresentKeys[key] = true;
+    });
+    var clusterSyncDefs = [
+      { key: 'synced',    label: 'Synced'      },
+      { key: 'outofsync', label: 'Out of sync' },
+      { key: 'failed',    label: 'Failed'      },
+      { key: 'unmanaged', label: 'Unmanaged'   },
+      { key: 'orphaned',  label: 'Orphaned'    },
+    ];
+    var clusterSyncCheckboxes = clusterSyncDefs.filter(function(d) { return clusterPresentKeys[d.key]; }).map(function(d) {
+      var checked = !!clusterSyncFilters[d.key];
+      return '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:#a1a1aa;user-select:none">' +
+        '<input type="checkbox"' + (checked ? ' checked' : '') + ' onchange="window.__toggleClusterSyncFilter(\'' + d.key + '\')" style="accent-color:#fb923c;cursor:pointer">' +
+        d.label +
+      '</label>';
+    }).join('');
     var clusterToolbar = '<div style="display:flex;align-items:center;gap:12px;padding:0 0 12px">' +
+      '<div style="display:flex;align-items:center;gap:12px">' + clusterSyncCheckboxes + '</div>' +
       '<div style="margin-left:auto;display:flex;align-items:center;gap:8px">' +
         '<button class="btn-sort active" onclick="window.__toggleClusterSort()">' + (clusterSortAZ ? 'A→Z' : 'Z→A') + '</button>' +
-        '<div class="page-size-bar">' + renderPageSizeBar([10, 25, 50, 0], clusterPageSize, 'window.__setClusterPageSize') + '</div>' +
+        '<div class="page-size-bar">' + renderPageSizeBar([5, 10, 15, 20, 0], clusterPageSize, 'window.__setClusterPageSize') + '</div>' +
       '</div>' +
     '</div>';
-    return renderHeader(s) +
+    var bottomBar = '<div style="display:flex;align-items:center;gap:12px;padding:12px 0 0">' +
+      '<div style="margin-left:auto;display:flex;align-items:center;gap:8px">' +
+        '<button class="btn-sort active" onclick="window.__toggleClusterSort()">' + (clusterSortAZ ? 'A→Z' : 'Z→A') + '</button>' +
+        '<div class="page-size-bar">' + renderPageSizeBar([5, 10, 15, 20, 0], clusterPageSize, 'window.__setClusterPageSize') + '</div>' +
+      '</div>' +
+    '</div>';
+    var actionBar = '<div style="display:flex;align-items:center;gap:8px">' +
+      (isRunningC ? '<span class="spinner"></span>' : '') +
+      '<button class="btn-sort btn-primary" onclick="window.__checkGit()" ' + (isRunningC ? 'disabled' : '') + '>' + (gitRunningC ? 'Refreshing...' : 'Refresh') + '</button>' +
+      '<button class="btn-sort btn-primary" onclick="window.__triggerReconcile()" ' + (isRunningC ? 'disabled' : '') + '>' + (syncRunningC ? 'Syncing...' : 'Sync') + '</button>' +
+      '<input type="text" placeholder="Search clusters..." value="' + clusterSearch + '" oninput="window.__setClusterSearch(this.value)" style="background:#18181b;border:1px solid #3f3f46;border-radius:4px;color:#e4e4e7;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;margin-left:8px;" />' +
+    '</div>';
+    var clusterHeader = '<div class="header">' +
+      '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Clusters</h1>' +
+      actionBar +
+    '</div>';
+    return clusterHeader + healthBar + clusterToolbar +
       (clusters.length > 0
-        ? healthBar + clusterToolbar + '<div class="cluster-grid">' + cards + '</div>' +
-          (clusterPageSize > 0 && displayClusters.length > clusterPageSize ? renderPaginationSized(displayClusters, clusterPage, 'window.__changeClusterPage', clusterPageSize) : '')
-        : '<div style="padding:24px;color:#52525b">No clusters</div>');
+        ? '<div class="cluster-grid">' + cards + '</div>' +
+          (clusterPageSize > 0 && displayClusters.length > clusterPageSize ? renderPaginationSized(displayClusters, clusterPage, 'window.__changeClusterPage', clusterPageSize) : '') +
+          healthBar + bottomBar
+        : '<div style="padding:24px;color:#52525b">No clusters found</div>');
   }
 
   function renderClusterGraph(modal) {
@@ -1647,10 +2839,24 @@ const uiHTML = `<!DOCTYPE html>
     if (!cluster) return '<div style="color:#71717a;text-align:center;padding:40px;">No cluster data available</div>';
 
     var git = (state && state.git) || {};
-    var gitRepo = git.repo || '';
-    var gitBranch = git.branch || '';
-    var gitSha = git.shortSha || (git.sha || '').slice(0, 7);
-    var gitLastSync = ago(git.lastSync);
+    // Use the repo that owns this cluster for accurate branch/sha/sync info.
+    // Conflicted clusters have no single owner — show a neutral placeholder.
+    var isConflict = !cluster.repoName && cluster.status === 'failed' && cluster.error;
+    var clusterRepo = git;
+    if (cluster.repoName && state && state.repos) {
+      clusterRepo = state.repos.find(function(r) { return r.name === cluster.repoName; }) || git;
+    }
+    var gitRepoName = isConflict ? 'Multiple repositories' : (cluster.repoName || clusterRepo.name || 'Repository');
+    var gitBranch = isConflict ? '' : (clusterRepo.branch || '');
+    var gitSha = isConflict ? '' : (clusterRepo.shortSha || (clusterRepo.sha || '').slice(0, 7));
+    var gitLastSync = isConflict ? '' : ago(clusterRepo.lastSync);
+
+    var omniEndpoint = (state && state.omniEndpoint) || '';
+    var omniVersion  = (state && state.omniVersion)  || '';
+    var omniHealth   = (state && state.omniHealth)   || {};
+    var omniStatus   = omniHealth.status || 'unknown';
+    var omniColor    = omniStatus === 'healthy' ? '#fb923c' : (omniStatus === 'failed' ? '#f87171' : '#71717a');
+    var omniEndpointDisplay = omniEndpoint.replace(/^https?:\/\//, '');
 
     var cp = cluster.controlPlane || {};
     var workers = Array.isArray(cluster.workers) ? cluster.workers : (cluster.workers ? [cluster.workers] : []);
@@ -1694,15 +2900,30 @@ const uiHTML = `<!DOCTYPE html>
 
     var hasIndividualMachines = nodeGroups.some(function(g) { return g.machines.length > 0; });
 
-    // Layout constants
-    var NH = 100, NG = 12, NW = 220, NW_MACH = 330, EW = 60;
-    function colH(n) { return n * NH + Math.max(0, n - 1) * NG; }
+    // Stable graph ID — used for fold-key namespacing and zoom buttons
+    var graphId = 'g' + modal.id.replace(/[^a-zA-Z0-9]/g, '_');
 
-    // DAG node builder — optional width and nameStyle params
-    function dagNode(kind, name, metaHtml, badgesHtml, accentColor, iconSvg, width, nameStyle) {
+    // Layout constants
+    var NH = 100, NW = 220, NW_MACH = 330, EW = 60;
+    // Column-fold state — keyed by graphId+':col3' / graphId+':col4'
+    var colFoldedMap = window.__graphColFolded || {};
+    function colH(n) { return n * NH + Math.max(0, n - 1) * 12; }
+
+    // spreadMidY: vertical centre of node[idx] in a column of n nodes,
+    // spread evenly across the full maxH instead of their compact block.
+    // n==1 → centred; n>1 → first node near top, last near bottom.
+    function spreadMidY(n, idx) {
+      if (n <= 1) return maxH / 2;
+      return idx * (maxH - NH) / (n - 1) + NH / 2;
+    }
+
+    // DAG node builder — optional width, nameStyle, onclickExpr params
+    // onclickExpr: raw JS expression string placed in an onclick attribute
+    function dagNode(kind, name, metaHtml, badgesHtml, accentColor, iconSvg, width, nameStyle, onclickExpr) {
       var w = width || NW;
-      return '<div class="dag-node" style="border-color:' + accentColor + ';width:' + w + 'px;">' +
-        '<div class="dag-node-accent" style="background:' + accentColor + ';"></div>' +
+      var cls = 'dag-node' + (onclickExpr ? ' clickable' : '');
+      var clickAttr = onclickExpr ? ' onclick="' + onclickExpr + '"' : '';
+      return '<div class="' + cls + '" style="border-color:' + accentColor + ';width:' + w + 'px;"' + clickAttr + '>' +
         '<div class="dag-node-icon">' + iconSvg + '</div>' +
         '<div class="dag-node-body">' +
           '<div class="dag-node-kind">' + escHtml(kind) + '</div>' +
@@ -1715,6 +2936,7 @@ const uiHTML = `<!DOCTYPE html>
 
     // Icons
     var gitIcon = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="4.5" cy="4.5" r="2" stroke="#3b82f6" stroke-width="1.5"/><circle cx="11.5" cy="4.5" r="2" stroke="#3b82f6" stroke-width="1.5"/><circle cx="4.5" cy="11.5" r="2" stroke="#3b82f6" stroke-width="1.5"/><line x1="4.5" y1="6.5" x2="4.5" y2="9.5" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/><line x1="4.5" y1="6.5" x2="11.5" y2="6.5" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    var omniIcon = '<svg width="16" height="16" viewBox="0 0 1000 1008" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="og0" x1="499" y1="1171" x2="499" y2="-27" gradientUnits="userSpaceOnUse"><stop stop-color="#E8312C"/><stop offset="0.615" stop-color="#E2335A"/><stop offset="1" stop-color="#F77216"/></linearGradient><linearGradient id="og1" x1="1016" y1="1017" x2="93" y2="94" gradientUnits="userSpaceOnUse"><stop stop-color="#E8312C"/><stop offset="0.615" stop-color="#E2335A"/><stop offset="1" stop-color="#F77216"/></linearGradient></defs><path d="M388 84.8C449.6 23.3 549.4 23.3 610.9 84.8L915.8 389.8C977.4 451.3 977.4 551.1 915.8 612.6L610.9 917.6C549.4 979.1 449.6 979.1 388 917.6L83.1 612.6C21.6 551.1 21.6 451.3 83.1 389.8Z" stroke="url(#og0)" stroke-width="72"/><path d="M132 251.9C132 186.5 185 133.4 250.5 133.4H749.1C814.5 133.4 867.6 186.5 867.6 251.9V750.5C867.6 815.9 814.5 869 749.1 869H250.5C185 869 132 815.9 132 750.5Z" stroke="url(#og1)" stroke-width="78"/></svg>';
     // Kubernetes logo (blue hexagon + 6-spoke helm wheel, 100x100 viewBox for crisp rendering)
     var k8sIcon = '<svg width="16" height="16" viewBox="0 0 100 100"><polygon points="50,4 91,27 91,73 50,96 9,73 9,27" fill="#326CE5"/><g transform="translate(50,50)"><circle r="24" stroke="#fff" stroke-width="5.5" fill="none"/><circle r="9" fill="#fff"/><line x1="0" y1="-9" x2="0" y2="-21.2" stroke="#fff" stroke-width="5" stroke-linecap="round"/><line x1="7.79" y1="-4.5" x2="18.36" y2="-10.6" stroke="#fff" stroke-width="5" stroke-linecap="round"/><line x1="7.79" y1="4.5" x2="18.36" y2="10.6" stroke="#fff" stroke-width="5" stroke-linecap="round"/><line x1="0" y1="9" x2="0" y2="21.2" stroke="#fff" stroke-width="5" stroke-linecap="round"/><line x1="-7.79" y1="4.5" x2="-18.36" y2="10.6" stroke="#fff" stroke-width="5" stroke-linecap="round"/><line x1="-7.79" y1="-4.5" x2="-18.36" y2="-10.6" stroke="#fff" stroke-width="5" stroke-linecap="round"/></g></svg>';
     var cpIcon  = k8sIcon;
@@ -1734,84 +2956,159 @@ const uiHTML = `<!DOCTYPE html>
       return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="9" rx="1.5" stroke="' + c + '" stroke-width="1.5"/><path d="M4 4V3M8 4V2M12 4V3" stroke="' + c + '" stroke-width="1.5" stroke-linecap="round"/></svg>';
     }
 
-    // Col 1: Git
+    // Col 1: Git + Omni
     var gitMeta = (gitBranch ? escHtml(gitBranch) : '') +
       (gitSha ? (gitBranch ? ' &middot; ' : '') + gitSha : '') +
       (gitLastSync ? ' &middot; ' + escHtml(gitLastSync) : '');
-    var col1Nodes = [dagNode('Git', gitRepo || 'Repository', gitMeta, '', '#3b82f6', gitIcon)];
-
-    // Col 2: Cluster — no status/health badges, just version meta
-    var clusterMeta = 'Talos ' + escHtml(cluster.talosVersion || '\u2014') + ' &middot; K8s ' + escHtml(cluster.kubernetesVersion || '\u2014');
-    var col2Nodes = [dagNode('Cluster', cluster.id, clusterMeta, '', borderColor, talosIcon)];
+    var omniMeta = (omniVersion ? escHtml(omniVersion) : '') +
+      (omniStatus ? (omniVersion ? ' &middot; ' : '') + '<span style="color:' + omniColor + '">' + escHtml(omniStatus) + '</span>' : '');
+    var col1Nodes = [
+      dagNode('Git', gitRepoName, gitMeta, '', '#3b82f6', gitIcon),
+      dagNode('Omni', omniEndpointDisplay || 'Omni Instance', omniMeta, '', omniColor, omniIcon)
+    ];
 
     // Col 3: Node groups (ControlPlane + Workers) + cluster-level extensions (same visual level)
+    // Each MachineSet card is independently clickable to collapse/expand its own machines.
+    // Built before col2 so we can show the fold-badge count on the Cluster card.
     var clusterExtsList = cluster.clusterExtensions || [];
-    var col3Nodes = nodeGroups.map(function(g) {
+    var col3Nodes = nodeGroups.map(function(g, gi) {
       var mcLabel = g.machineClass ? escHtml(g.machineClass) : 'Manual';
       var meta = g.isPool
         ? (g.count + ' node' + (g.count !== 1 ? 's' : '') + ' - ' + mcLabel)
         : (g.machines.length + ' machine' + (g.machines.length !== 1 ? 's' : '') + ' - ' + mcLabel);
-      return dagNode(g.kind, g.label, meta, '', g.color, cpIcon);
+      var msonclick = g.machines.length > 0 ? 'window.__graphToggleColFold(\'' + graphId + ':col4:' + gi + '\')' : '';
+      var giFolded = g.machines.length > 0 && !!colFoldedMap[graphId + ':col4:' + gi];
+      var foldBadge = giFolded ? '<span class="fold-badge">+' + g.machines.length + '</span>' : '';
+      return dagNode(g.kind, g.label, meta, foldBadge, g.color, cpIcon, undefined, undefined, msonclick);
     }).concat(clusterExtsList.map(function(ext) {
       return dagNode('Extension', ext, '', '', '#6366f1', extIcon);
     }));
 
-    // Col 4 (optional): Individual machines — full UUID, monospace name, wider card
+    // Col 2: Cluster — clicking collapses/expands the MachineSet column
+    var clusterMeta = 'Talos ' + escHtml(cluster.talosVersion || '\u2014') + ' &middot; K8s ' + escHtml(cluster.kubernetesVersion || '\u2014');
+    var col2onclick = 'window.__graphToggleColFold(\'' + graphId + ':col3\')';
+    var col3foldedEarly = !!(col3Nodes.length > 0 && colFoldedMap[graphId + ':col3']);
+    var clusterFoldBadge = col3foldedEarly ? '<span class="fold-badge">+' + col3Nodes.length + '</span>' : '';
+    var col2Nodes = [dagNode('Cluster', cluster.id, clusterMeta, clusterFoldBadge, borderColor, talosIcon, undefined, undefined, col2onclick)];
+
+    // Col 4 (optional): Individual machines — per-MachineSet fold, full UUID, monospace name, wider card
     var col4Nodes = [], machineConnections = [], col4Uuids = [];
+    var col4GiOf = [], col4GroupSizes = {}, groupStartYMap = {};
+    var INTRA_GAP = 8, INTER_GAP = 32;
+    var machY = [], groupOrder = [], col4TotalH = 0;
+    var hostnames = cluster.machineHostnames || {};
     if (hasIndividualMachines) {
+      var yOff = 0;
       nodeGroups.forEach(function(g, gi) {
+        var giFolded = !!colFoldedMap[graphId + ':col4:' + gi];
+        if (giFolded) return;
+        if (groupOrder.length > 0) yOff += INTER_GAP;
+        groupOrder.push(gi);
+        groupStartYMap[gi] = yOff;
+        var localIdx = 0;
         g.machines.forEach(function(mid) {
-          machineConnections.push([gi, col4Nodes.length]);
+          var flatIdx = col4Nodes.length;
+          col4GroupSizes[gi] = (col4GroupSizes[gi] || 0) + 1;
+          col4GiOf.push(gi);
+          machY.push(yOff + localIdx * (NH + INTRA_GAP) + NH / 2);
+          machineConnections.push([gi, flatIdx]);
           col4Uuids.push(mid);
-          col4Nodes.push(dagNode('Machine', mid, '', '', g.color, machIcon(g.color), NW_MACH,
+          var hn = hostnames[mid] ? escHtml(hostnames[mid]) : '';
+          col4Nodes.push(dagNode('Machine', mid, hn, '', g.color, machIcon(g.color), NW_MACH,
             'font-family:\'SF Mono\',\'Fira Code\',monospace;font-size:11px;'));
+          localIdx++;
         });
+        var gs = g.machines.length;
+        yOff += gs * NH + Math.max(0, gs - 1) * INTRA_GAP;
       });
+      col4TotalH = yOff;
     }
 
     // Extensions: collect unique names from nodeGroup and machine sources.
     // Cluster-level extensions are placed directly in col3 (alongside nodeGroups).
-    // Each connection stores [srcColCount, srcIdx, tgtIdx] so the SVG can compute
-    // the correct Y position regardless of which column is the source.
+    // extConns stores {srcKeys, srcIdx, tgtIdx} for variable-height SVG routing.
     var extNodes = [], extNameToIdx = {}, extConns = [];
     function addExt(name) {
       if (!(name in extNameToIdx)) {
-        extNameToIdx[name] = extNodes.length;
+        var eidx = extNodes.length;
+        extNameToIdx[name] = eidx;
         extNodes.push(dagNode('Extension', name, '', '', '#6366f1', extIcon));
       }
       return extNameToIdx[name];
     }
-    // nodeGroup-level (kind: ControlPlane/Workers → systemExtensions) → connect from that nodeGroup in col3
-    nodeGroups.forEach(function(g, gi) {
-      g.exts.forEach(function(ext) {
-        extConns.push([col3Nodes.length, gi, addExt(ext)]);
+    // NodeGroup-level extensions → connect from each visible machine in that group.
+    // If the MachineSet is collapsed its machines aren't in machineConnections, so
+    // no extension links are drawn for it.
+    machineConnections.forEach(function(mc) {
+      var gi = mc[0], mi = mc[1];
+      nodeGroups[gi].exts.forEach(function(ext) {
+        extConns.push({srcCol: 4, srcIdx: mi, tgtIdx: addExt(ext)});
       });
     });
-    // Source 3: machine-level (kind: Machine → systemExtensions) → connect from that machine card
-    if (hasIndividualMachines) {
-      var machExtMap = cluster.machineExtensions || {};
-      col4Uuids.forEach(function(uuid, mi) {
-        (machExtMap[uuid] || []).forEach(function(ext) {
-          extConns.push([col4Nodes.length, mi, addExt(ext)]);
-        });
+    // Machine-level extensions → connect from that specific machine card.
+    var machExtMap = cluster.machineExtensions || {};
+    col4Uuids.forEach(function(uuid, mi) {
+      (machExtMap[uuid] || []).forEach(function(ext) {
+        extConns.push({srcCol: 4, srcIdx: mi, tgtIdx: addExt(ext)});
       });
-    }
+    });
     var hasExtensions = extNodes.length > 0;
 
-    // Max height across all active columns
-    var colCounts = [1, 1, col3Nodes.length];
-    if (hasIndividualMachines) colCounts.push(col4Nodes.length);
-    if (hasExtensions) colCounts.push(extNodes.length);
-    var maxH = Math.max.apply(null, colCounts.map(colH).concat([NH]));
+    // Column-fold flags — computed after all node arrays are built
+    var col3folded = !!(col3Nodes.length > 0 && colFoldedMap[graphId + ':col3']);
+    // col4 is visible as long as at least one MachineSet has machines AND isn't folded
+    var anyMachinesVisible = col4Nodes.length > 0;
 
-    // Standard SVG edge connector: all connections share the same left column count
+    // Max height across visible columns only
+    var visCounts = [2, 1];
+    if (!col3folded) {
+      visCounts.push(col3Nodes.length);
+      if (hasExtensions) visCounts.push(extNodes.length);
+    }
+    var maxH = Math.max.apply(null, visCounts.map(colH).concat([NH]));
+    if (!col3folded && anyMachinesVisible) {
+      maxH = Math.max(maxH, col4TotalH);
+    }
+
+    // col3NodeY[i]: absolute vertical centre of col3 node i.
+    // For MachineSet nodes that have visible machines, align to the centre of their group in col4.
+    // Everything else (pool-based, folded, cluster exts) falls back to even spread.
+    var col3NodeY = (function() {
+      var col4Off = Math.max(0, (maxH - col4TotalH) / 2);
+      return col3Nodes.map(function(_, i) {
+        if (i < nodeGroups.length) {
+          var gi = i;
+          if (!colFoldedMap[graphId + ':col4:' + gi] && nodeGroups[gi].machines && nodeGroups[gi].machines.length > 0 && (gi in groupStartYMap)) {
+            var gs = nodeGroups[gi].machines.length;
+            var blockH = gs * NH + Math.max(0, gs - 1) * INTRA_GAP;
+            return col4Off + groupStartYMap[gi] + blockH / 2;
+          }
+        }
+        return spreadMidY(col3Nodes.length, i);
+      });
+    })();
+
+    // Enforce minimum card separation in col3: when some MachineSets are col4-folded their
+    // Y falls back to spreadMidY, which can collide with col4-anchored neighbours.
+    (function() {
+      var MIN_GAP = 8;
+      for (var ii = 1; ii < col3NodeY.length; ii++) {
+        var minCenter = col3NodeY[ii - 1] + NH + MIN_GAP;
+        if (col3NodeY[ii] < minCenter) col3NodeY[ii] = minCenter;
+      }
+      // Expand maxH so the container is tall enough to contain all adjusted cards
+      if (col3NodeY.length > 0) {
+        var lastBottom = col3NodeY[col3NodeY.length - 1] + NH / 2;
+        if (lastBottom > maxH) maxH = lastBottom;
+      }
+    })();
+
+    // Standard SVG edge — uses spreadMidY so connection points match wrapCol positions
     function edgeSvg(leftCount, rightCount, connections) {
-      var lH = colH(leftCount), rH = colH(rightCount);
-      var mt_l = (maxH - lH) / 2, mt_r = (maxH - rH) / 2;
       var paths = '';
       connections.forEach(function(conn) {
-        var ly = mt_l + conn[0] * (NH + NG) + NH / 2;
-        var ry = mt_r + conn[1] * (NH + NG) + NH / 2;
+        var ly = spreadMidY(leftCount, conn[0]);
+        var ry = spreadMidY(rightCount, conn[1]);
         var bx = EW * 0.5;
         paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#3f3f46" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
         paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#52525b"/>';
@@ -1819,17 +3116,15 @@ const uiHTML = `<!DOCTYPE html>
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
     }
 
-    // Mixed-source SVG edge connector: conn = [srcColCount, srcIdx, tgtIdx]
-    // Computes the left Y from the source column's own height and centering offset.
+    // Mixed-source SVG edge: conn = {srcCol, srcIdx, tgtIdx}
     function edgeSvgMixed(connections, rightCount) {
-      var rH = colH(rightCount);
-      var mt_r = (maxH - rH) / 2;
+      var col4Off = Math.max(0, (maxH - col4TotalH) / 2);
       var paths = '';
       connections.forEach(function(conn) {
-        var srcCount = conn[0], srcIdx = conn[1], tgtIdx = conn[2];
-        var mt_l = (maxH - colH(srcCount)) / 2;
-        var ly = mt_l + srcIdx * (NH + NG) + NH / 2;
-        var ry = mt_r + tgtIdx * (NH + NG) + NH / 2;
+        var ly = conn.srcCol === 4
+          ? machY[conn.srcIdx] + col4Off
+          : spreadMidY(col3Nodes.length, conn.srcIdx);
+        var ry = spreadMidY(rightCount, conn.tgtIdx);
         var bx = EW * 0.5;
         paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#3f3f46" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
         paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#52525b"/>';
@@ -1837,39 +3132,107 @@ const uiHTML = `<!DOCTYPE html>
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
     }
 
-    // Center each column vertically within maxH
+    // Spread each column evenly across maxH
     function wrapCol(nodes) {
-      var ch = colH(nodes.length);
-      var mt = Math.max(0, (maxH - ch) / 2);
-      return '<div style="display:flex;flex-direction:column;gap:' + NG + 'px;margin-top:' + mt.toFixed(0) + 'px;">' + nodes.join('') + '</div>';
+      var n = nodes.length;
+      if (n === 1) {
+        var mt = Math.round((maxH - NH) / 2);
+        return '<div style="display:flex;flex-direction:column;margin-top:' + mt + 'px;">' + nodes.join('') + '</div>';
+      }
+      var gap = Math.max(4, Math.round((maxH - n * NH) / (n - 1)));
+      return '<div style="display:flex;flex-direction:column;gap:' + gap + 'px;">' + nodes.join('') + '</div>';
     }
 
-    // Cluster → col3: gray lines to nodeGroups, indigo lines to cluster-level extensions
+    // Compact column: fixed gap, centered in maxH
+    function wrapColCompact(nodes, gapPx) {
+      var n = nodes.length;
+      var totalH = n * NH + (n - 1) * gapPx;
+      var mt = Math.round(Math.max(0, (maxH - totalH) / 2));
+      if (n === 1) return '<div style="display:flex;flex-direction:column;margin-top:' + mt + 'px;">' + nodes.join('') + '</div>';
+      return '<div style="display:flex;flex-direction:column;gap:' + gapPx + 'px;margin-top:' + mt + 'px;">' + nodes.join('') + '</div>';
+    }
+
+    // Cluster → col3 (uses col3NodeY so arrows land at the MachineSet's true centre)
     function edgeSvgCol2ToCol3() {
-      var mt_l = (maxH - colH(1)) / 2, mt_r = (maxH - colH(col3Nodes.length)) / 2;
       var paths = '';
-      nodeGroups.forEach(function(_, gi) {
-        var ly = mt_l + NH / 2, ry = mt_r + gi * (NH + NG) + NH / 2, bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx + ',' + ly.toFixed(1) + ' ' + bx + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#3f3f46" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
-        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#52525b"/>';
-      });
-      clusterExtsList.forEach(function(_, ei) {
-        var rIdx = nodeGroups.length + ei;
-        var ly = mt_l + NH / 2, ry = mt_r + rIdx * (NH + NG) + NH / 2, bx = EW * 0.5;
+      col3Nodes.forEach(function(_, i) {
+        var ly = spreadMidY(1, 0), ry = col3NodeY[i], bx = EW * 0.5;
         paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx + ',' + ly.toFixed(1) + ' ' + bx + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#3f3f46" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
         paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#52525b"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
     }
 
-    var edge1 = edgeSvg(1, 1, [[0, 0]]);
-    var edge2 = edgeSvgCol2ToCol3();
-    var edge3 = hasIndividualMachines ? edgeSvg(col3Nodes.length, col4Nodes.length, machineConnections) : '';
-    var edge4 = hasExtensions ? edgeSvgMixed(extConns, extNodes.length) : '';
+    // Col4: render each MachineSet's machines as a grouped block, centered vertically
+    function wrapCol4Grouped() {
+      var col4Off = Math.round(Math.max(0, (maxH - col4TotalH) / 2));
+      var html = '<div style="display:flex;flex-direction:column;margin-top:' + col4Off + 'px;">';
+      groupOrder.forEach(function(gi, idx) {
+        if (idx > 0) html += '<div style="height:' + INTER_GAP + 'px;flex-shrink:0;"></div>';
+        var groupNodes = [];
+        col4Nodes.forEach(function(node, fi) { if (col4GiOf[fi] === gi) groupNodes.push(node); });
+        html += '<div style="display:flex;flex-direction:column;gap:' + INTRA_GAP + 'px;">' + groupNodes.join('') + '</div>';
+      });
+      html += '</div>';
+      return html;
+    }
 
-    var graphId = 'g' + modal.id.replace(/[^a-zA-Z0-9]/g, '_');
+    // Edge col3 → col4: source from col3NodeY (MachineSet centred on its group), target from machY
+    function edgeSvgGrouped() {
+      var col4Off = Math.max(0, (maxH - col4TotalH) / 2);
+      var paths = '';
+      machineConnections.forEach(function(mc) {
+        var gi = mc[0], fi = mc[1];
+        var ly = col3NodeY[gi];
+        var ry = machY[fi] + col4Off;
+        var bx = EW * 0.5;
+        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#3f3f46" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#52525b"/>';
+      });
+      return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
+    }
+
+    var COL1_GAP = 16;
+    var col1TotalH = col1Nodes.length * NH + (col1Nodes.length - 1) * COL1_GAP;
+    var col1Off = Math.max(0, (maxH - col1TotalH) / 2);
+    var col1Y = col1Nodes.map(function(_, i) { return col1Off + i * (NH + COL1_GAP) + NH / 2; });
+    var edge1 = (function() {
+      var paths = '';
+      var ry = spreadMidY(1, 0);
+      col1Y.forEach(function(ly) {
+        var bx = EW * 0.5;
+        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#3f3f46" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#52525b"/>';
+      });
+      return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
+    })();
+    var edge2 = col3folded ? '' : edgeSvgCol2ToCol3();
+    var edge3 = (!col3folded && anyMachinesVisible) ? edgeSvgGrouped() : '';
+    var edge4 = (!col3folded && hasExtensions) ? edgeSvgMixed(extConns, extNodes.length) : '';
+
+    // col3: absolutely positioned so each MachineSet sits at its computed Y centre
+    function wrapCol3Positioned() {
+      var html = '<div style="position:relative;width:' + NW + 'px;height:' + maxH + 'px;flex-shrink:0;">';
+      col3Nodes.forEach(function(node, i) {
+        var top = Math.round(col3NodeY[i] - NH / 2);
+        html += '<div style="position:absolute;top:' + top + 'px;left:0;">' + node + '</div>';
+      });
+      html += '</div>';
+      return html;
+    }
+
+    // col3 segment — hidden when col3folded
+    var col3segment = col3folded ? '' : (
+      wrapCol3Positioned() +
+      (anyMachinesVisible ? edge3 + wrapCol4Grouped() : '') +
+      (hasExtensions ? edge4 + wrapCol(extNodes) : '')
+    );
+
     return '<div class="cluster-graph">' +
       '<div class="cluster-graph-toolbar">' +
+        '<button class="cluster-graph-zoom-btn" title="Collapse all" onclick="window.__graphCollapseAll(\'' + graphId + '\')">&#8991;</button>' +
+        '<button class="cluster-graph-zoom-btn" title="Expand all" onclick="window.__graphExpandAll(\'' + graphId + '\')">&#8990;</button>' +
+        '<span class="graph-toolbar-sep"></span>' +
         '<button class="cluster-graph-zoom-btn" onclick="window.__graphZoom(\'out\',\'' + graphId + '\')">&#8722;</button>' +
         '<span class="graph-zoom-level">100%</span>' +
         '<button class="cluster-graph-zoom-btn" onclick="window.__graphZoom(\'reset\',\'' + graphId + '\')">&#8635;</button>' +
@@ -1877,11 +3240,9 @@ const uiHTML = `<!DOCTYPE html>
       '</div>' +
       '<div class="cluster-graph-canvas" onwheel="window.__graphZoomWheel(event,this)" onmousedown="window.__graphDragStart(event,this)" onmousemove="window.__graphDragMove(event,this)" onmouseup="window.__graphDragEnd(this)" onmouseleave="window.__graphDragEnd(this)">' +
         '<div id="' + graphId + '" class="cluster-graph-inner" style="align-items:flex-start;gap:0;">' +
-          wrapCol(col1Nodes) + edge1 +
+          wrapColCompact(col1Nodes, COL1_GAP) + edge1 +
           wrapCol(col2Nodes) + edge2 +
-          wrapCol(col3Nodes) +
-          (hasIndividualMachines ? edge3 + wrapCol(col4Nodes) : '') +
-          (hasExtensions ? edge4 + wrapCol(extNodes) : '') +
+          col3segment +
         '</div>' +
       '</div>' +
     '</div>';
@@ -1898,14 +3259,15 @@ const uiHTML = `<!DOCTYPE html>
         '<div class="drawer-tabs">' +
           (currentModal.error ? '<button class="drawer-tab ' + (currentModal.activeTab === 'error' ? 'active' : '') + '" onclick="window.__setModalTab(\'error\')">Error</button>' : '') +
           '<button class="drawer-tab ' + (currentModal.activeTab === 'live' ? 'active' : '') + '" onclick="window.__setModalTab(\'live\')">Live</button>' +
-          (currentModal.type === 'cluster' ? '<button class="drawer-tab ' + (currentModal.activeTab === 'diff' ? 'active' : '') + '" onclick="window.__setModalTab(\'diff\')">Diff</button>' : '') +
+          (currentModal.diff ? '<button class="drawer-tab ' + (currentModal.activeTab === 'diff' ? 'active' : '') + '" onclick="window.__setModalTab(\'diff\')">Diff</button>' : '') +
           (currentModal.type === 'cluster' ? '<button class="drawer-tab ' + (currentModal.activeTab === 'graph' ? 'active' : '') + '" onclick="window.__setModalTab(\'graph\')">Graph</button>' : '') +
+          (currentModal.type === 'machineclass' ? '<label class="mc-ignored-toggle"><input type="checkbox" class="mc-ignored-cb"' + (mcLiveShowMeta ? ' checked' : '') + ' onchange="window.__toggleMcLiveMeta()"> Show Ignored Fields</label>' : '') +
         '</div>' : '') +
-      '<div class="drawer-body' + (currentModal && currentModal.activeTab === 'graph' ? ' graph-mode' : '') + '">' +
+      '<div class="drawer-body' + (currentModal && currentModal.activeTab === 'graph' ? ' graph-mode' : '') + (currentModal && currentModal.activeTab === 'live' && (currentModal.type === 'machineclass' || currentModal.type === 'cluster') ? ' mc-live-mode' : '') + '">' +
         (currentModal ?
           (currentModal.activeTab === 'error' ? '<div style="color:#f87171;white-space:pre-wrap;">' + escHtml(currentModal.error) + '</div>' :
-           currentModal.activeTab === 'live' ? (currentModal.liveContent ? '<pre style="margin:0;white-space:pre-wrap;">' + escHtml(currentModal.liveContent) + '</pre>' : '<div style="color:#71717a;text-align:center;padding:40px;">No live state available</div>') :
-           currentModal.activeTab === 'diff' ? (currentModal.diff ? '<pre style="margin:0;white-space:pre-wrap;">' + formatDiff(currentModal.diff) + '</pre>' : '<div style="color:#71717a;text-align:center;padding:40px;">No diff available</div>') :
+           currentModal.activeTab === 'live' ? (currentModal.type === 'machineclass' ? renderMcLiveContent(currentModal.liveContent) : (currentModal.type === 'cluster' ? renderClusterLiveContent(currentModal.liveContent) : (currentModal.liveContent ? '<pre style="margin:0;white-space:pre-wrap;">' + escHtml(currentModal.liveContent) + '</pre>' : '<div style="color:#71717a;text-align:center;padding:40px;">No live state available</div>'))) :
+           currentModal.activeTab === 'diff' ? (currentModal.diff ? (currentModal.type === 'machineclass' ? formatMachineClassDiff(currentModal.diff) : '<pre style="margin:0;white-space:pre-wrap;">' + formatDiff(currentModal.diff) + '</pre>') : '<div style="color:#71717a;text-align:center;padding:40px;">' + (currentModal.status === 'unmanaged' ? 'No diff \u2014 this cluster has no template in Git.' : 'No diff available') + '</div>') :
            currentModal.activeTab === 'graph' ? renderClusterGraph(currentModal) :
            '<div style="color:#71717a;text-align:center;padding:40px;">No content available</div>')
         : '') +
@@ -1920,9 +3282,12 @@ const uiHTML = `<!DOCTYPE html>
         '<div class="modal-body confirm-body">' +
           '<div class="confirm-icon">⚠️</div>' +
           '<div class="confirm-message">' + (confirmModal ? confirmModal.message : '') + '</div>' +
+          (confirmModal && confirmModal.requireInput
+            ? '<input class="confirm-input" type="text" value="' + escHtml(confirmInput) + '" oninput="window.__setConfirmInput(this.value)" placeholder="' + escHtml(confirmModal.inputPrompt || confirmModal.requireInput) + '" />'
+            : '') +
           '<div class="confirm-actions">' +
-            '<button class="btn-cancel" onclick="window.__closeConfirmModal()">Cancel</button>' +
-            '<button class="btn-confirm" onclick="window.__confirmAction()">Confirm</button>' +
+            '<button class="btn-sort btn-primary" onclick="window.__closeConfirmModal()">Cancel</button>' +
+            '<button id="confirm-ok-btn" class="btn-sort btn-primary" ' + (confirmModal && confirmModal.requireInput && confirmInput !== confirmModal.requireInput ? 'disabled' : '') + ' onclick="window.__confirmAction()">OK</button>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -1932,7 +3297,7 @@ const uiHTML = `<!DOCTYPE html>
         '<div class="logs-modal-header">' +
           '<div class="logs-modal-title">Logs</div>' +
           '<div class="logs-modal-actions">' +
-            '<button class="btn-download" onclick="window.__downloadLogs()">Download Logs</button>' +
+            '<button class="btn-sort btn-primary" onclick="window.__downloadLogs()">Download Logs</button>' +
             '<button class="modal-close" onclick="window.__closeLogsModal()">&times;</button>' +
           '</div>' +
         '</div>' +
@@ -1959,31 +3324,63 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   function updateLogsInPlace() {
-    var el = document.getElementById('logs-modal-container');
-    if (!el) return;
-    var atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-    el.innerHTML = state && state.logs && state.logs.length > 0
-      ? state.logs.map(function(l) {
-          return '<div class="log-entry"><span class="log-msg">' + l.message + '</span></div>';
-        }).join('')
-      : '<div class="log-entry" style="color:#52525b">No logs yet</div>';
-    if (atBottom) el.scrollTop = el.scrollHeight;
+    var ids = ['logs-modal-container', 'logs-page-container'];
+    ids.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      var atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+      el.innerHTML = state && state.logs && state.logs.length > 0
+        ? state.logs.map(function(l) {
+            return '<div class="log-entry"><span class="log-msg">' + l.message + '</span></div>';
+          }).join('')
+        : '<div class="log-entry" style="color:#52525b">No logs yet</div>';
+      if (atBottom) el.scrollTop = el.scrollHeight;
+    });
   }
 
   function renderMainOnly() {
     // Re-render only the main app content, leaving the modals container untouched
     if (!state) return;
     var s = state;
-    if (currentRoute === '/clusters') {
+    if (clusterDetailId && currentRoute.startsWith('/clusters/')) {
+      // Use surgical in-place update to avoid replacing the whole page DOM
+      // (which causes the graph to jump before the transform can be restored).
+      updateClusterDetailInPlace();
+      return;
+    } else if (currentRoute === '/clusters') {
+      restoreDefaultLayout();
+      var activeIsSearch2 = document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.placeholder === 'Search clusters...';
+      var ss2 = activeIsSearch2 ? document.activeElement.selectionStart : null;
+      var se2 = activeIsSearch2 ? document.activeElement.selectionEnd   : null;
       app.innerHTML = renderClustersView(s);
+      if (activeIsSearch2) {
+        var inp2 = app.querySelector('input[placeholder="Search clusters..."]');
+        if (inp2) { inp2.focus(); inp2.setSelectionRange(ss2, se2); }
+      }
     } else if (currentRoute === '/machineclasses') {
+      restoreDefaultLayout();
+      var activeIsMcSearch = document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.placeholder === 'Search machine classes...';
+      var mss = activeIsMcSearch ? document.activeElement.selectionStart : null;
+      var mse = activeIsMcSearch ? document.activeElement.selectionEnd   : null;
       app.innerHTML = renderMachineClassesView(s);
+      if (activeIsMcSearch) {
+        var mci = app.querySelector('input[placeholder="Search machine classes..."]');
+        if (mci) { mci.focus(); mci.setSelectionRange(mss, mse); }
+      }
+    } else if (currentRoute === '/instances') {
+      restoreDefaultLayout();
+      app.innerHTML = renderInstancesView(s);
     } else if (currentRoute === '/repos') {
+      restoreDefaultLayout();
       app.innerHTML = renderReposView(s);
     } else if (currentRoute === '/users') {
+      restoreDefaultLayout();
       app.innerHTML = renderUsersView(s);
+    } else if (currentRoute === '/logs') {
+      restoreDefaultLayout();
+      app.innerHTML = renderLogsView(s);
     } else {
-      app.innerHTML = renderDashboardView(s);
+      window.location.replace('/clusters');
     }
   }
 
@@ -2031,6 +3428,61 @@ const uiHTML = `<!DOCTYPE html>
       var isActive = n === current;
       return '<button class="page-size-btn' + (isActive ? ' active' : '') + '" onclick="' + onChangeFn + '(' + n + ')">' + label + '</button>';
     }).join('');
+  }
+
+  // diffMatchLabels extracts added/removed matchLabel entries from a unified
+  // diff string. Returns { removed: {key: val}, added: {key: val} } or null.
+  // parseMatchLabelsFromBlock extracts matchLabel key=value pairs from a plain
+  // YAML text block (no unified-diff prefixes).
+  function parseMatchLabelsFromBlock(text) {
+    var labels = {};
+    var lines = text.split('\n');
+    var inML = false;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var trimmed = line.trim();
+      if (!trimmed) continue;
+      if (/^matchlabels:/i.test(trimmed)) { inML = true; continue; }
+      if (inML) {
+        var indent = line.search(/\S/);
+        // Exit section when we reach a key at the same or lower indentation
+        if (indent === 0 && trimmed && !/^-/.test(trimmed)) { inML = false; continue; }
+        var li = trimmed.match(/^-\s+(.+)$/);
+        if (li) {
+          var item = li[1].trim();
+          var eq = item.match(/^([^=]+?)\s*=\s*(.*)$/);
+          if (eq) labels[eq[1].trim()] = eq[2].trim();
+        }
+      }
+    }
+    return labels;
+  }
+
+  // diffMatchLabels parses the Omni diff format which contains two full YAML
+  // blocks separated by "--- live" and "+++ desired" section headers.
+  // Returns { removed: {k:v}, added: {k:v} } for matchLabel changes, or null.
+  function diffMatchLabels(diff) {
+    if (!diff) return null;
+    var text = diff.replace(/\\n/g, '\n');
+    // Split into live and desired blocks
+    var liveStart   = text.search(/^---\s+live\s*$/m);
+    var desiredStart = text.search(/^\+\+\+\s+desired\s*$/m);
+    if (liveStart < 0 || desiredStart < 0) return null;
+    var liveBlock    = text.slice(liveStart, desiredStart);
+    var desiredBlock = text.slice(desiredStart);
+    var liveLabels    = parseMatchLabelsFromBlock(liveBlock);
+    var desiredLabels = parseMatchLabelsFromBlock(desiredBlock);
+    var removed = {}, added = {};
+    // Labels in live but missing or changed in desired
+    Object.keys(liveLabels).forEach(function(k) {
+      if (liveLabels[k] !== desiredLabels[k]) removed[k] = liveLabels[k];
+    });
+    // Labels in desired but missing or changed in live
+    Object.keys(desiredLabels).forEach(function(k) {
+      if (desiredLabels[k] !== liveLabels[k]) added[k] = desiredLabels[k];
+    });
+    var hasChanges = Object.keys(removed).length > 0 || Object.keys(added).length > 0;
+    return hasChanges ? { removed: removed, added: added } : null;
   }
 
   function parseMachineClassSpec(yaml, id) {
@@ -2121,220 +3573,63 @@ const uiHTML = `<!DOCTYPE html>
     '</div>';
   }
 
-  function renderDashboardView(s) {
-    var clusters = s.clusters || [];
-    var mcs = s.machineClasses || [];
-    var totalClusters = clusters.length;
-    var managedClusters = clusters.filter(function(c) { return c.status !== 'unmanaged'; });
-    var countReady = 0, countNotReady = 0, countFailed = 0, countOutofsync = 0, countUnmanaged = 0;
-    clusters.forEach(function(c) {
-      var st = c.status || '';
-      if (st === 'unmanaged') { countUnmanaged++; return; }
-      if (st === 'failed') { countFailed++; return; }
-      if (st === 'outofsync') { countOutofsync++; return; }
-      if (c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready') { countNotReady++; return; }
-      if (st === 'success' || st === 'applied' || st === 'synced' || st === 'syncing') countReady++;
-    });
-    var readyPct = managedClusters.length > 0 ? Math.round(countReady / managedClusters.length * 100) : 0;
-    var omniHealth = getOmniHealth(s);
-    var gitHealth  = getGitHealth(s);
-
-    // ── 1. Fleet Health Bar ───────────────────────────────────────────────────
-    var pReady     = totalClusters > 0 ? (countReady     / totalClusters * 100).toFixed(1) : 0;
-    var pNotReady  = totalClusters > 0 ? (countNotReady  / totalClusters * 100).toFixed(1) : 0;
-    var pFailed    = totalClusters > 0 ? (countFailed    / totalClusters * 100).toFixed(1) : 0;
-    var pOutofsync = totalClusters > 0 ? (countOutofsync / totalClusters * 100).toFixed(1) : 0;
-    var pUnmanaged = totalClusters > 0 ? (countUnmanaged / totalClusters * 100).toFixed(1) : 0;
-    var legendItems = [];
-    if (countReady)     legendItems.push('<span class="dash-fleet-legend-item"><span class="dash-fleet-dot" style="background:#4ade80"></span><b style="color:#e4e4e7">' + countReady     + '</b>&nbsp;Ready</span>');
-    if (countNotReady)  legendItems.push('<span class="dash-fleet-legend-item"><span class="dash-fleet-dot" style="background:#f87171"></span><b style="color:#e4e4e7">' + countNotReady  + '</b>&nbsp;Not Ready</span>');
-    if (countOutofsync) legendItems.push('<span class="dash-fleet-legend-item"><span class="dash-fleet-dot" style="background:#fb923c"></span><b style="color:#e4e4e7">' + countOutofsync + '</b>&nbsp;Out of Sync</span>');
-    if (countFailed)    legendItems.push('<span class="dash-fleet-legend-item"><span class="dash-fleet-dot" style="background:#ef4444"></span><b style="color:#e4e4e7">' + countFailed    + '</b>&nbsp;Failed</span>');
-    if (countUnmanaged) legendItems.push('<span class="dash-fleet-legend-item"><span class="dash-fleet-dot" style="background:#52525b"></span><b style="color:#e4e4e7">' + countUnmanaged + '</b>&nbsp;Unmanaged</span>');
-    var fleetBar =
-      '<div class="dash-fleet-card">' +
-        '<div class="dash-fleet-title">Fleet Health</div>' +
-        '<div class="dash-fleet-bar">' +
-          (countReady     ? '<div class="dash-fleet-seg dash-fleet-seg--ready"     style="width:' + pReady     + '%" title="' + countReady     + ' ready"></div>'        : '') +
-          (countNotReady  ? '<div class="dash-fleet-seg dash-fleet-seg--notready"  style="width:' + pNotReady  + '%" title="' + countNotReady  + ' not ready"></div>'   : '') +
-          (countOutofsync ? '<div class="dash-fleet-seg dash-fleet-seg--outofsync" style="width:' + pOutofsync + '%" title="' + countOutofsync + ' out of sync"></div>' : '') +
-          (countFailed    ? '<div class="dash-fleet-seg dash-fleet-seg--failed"    style="width:' + pFailed    + '%" title="' + countFailed    + ' failed"></div>'      : '') +
-          (countUnmanaged ? '<div class="dash-fleet-seg dash-fleet-seg--unmanaged" style="width:' + pUnmanaged + '%" title="' + countUnmanaged + ' unmanaged"></div>'  : '') +
-        '</div>' +
-        '<div class="dash-fleet-legend">' + (legendItems.length ? legendItems.join('') : '<span style="color:#52525b;font-size:12px">No clusters</span>') + '</div>' +
-      '</div>';
-
-    // ── 2. Stat Strip ─────────────────────────────────────────────────────────
-    var statStrip =
-      '<div class="stat-strip">' +
-        '<div class="stat-tile">' +
-          '<div class="stat-tile-label">Clusters</div>' +
-          '<div class="stat-tile-value">' + totalClusters + '</div>' +
-          '<div class="stat-tile-sub">' + countReady + ' ready</div>' +
-        '</div>' +
-        '<div class="stat-tile">' +
-          '<div class="stat-tile-label">Health</div>' +
-          '<div class="stat-tile-value">' + readyPct + '<span style="font-size:16px;color:#71717a;font-weight:400">%</span></div>' +
-          '<div class="mini-bar"><div class="mini-bar-fill" style="width:' + readyPct + '%"></div></div>' +
-        '</div>' +
-        '<div class="stat-tile">' +
-          '<div class="stat-tile-label">Machine Classes</div>' +
-          '<div class="stat-tile-value">' + mcs.length + '</div>' +
-          '<div class="stat-tile-sub">Managed</div>' +
-        '</div>' +
-        '<div class="stat-tile">' +
-          '<div class="stat-tile-label">Last Sync</div>' +
-          '<div class="stat-tile-value" style="font-size:20px;letter-spacing:-0.5px">' + (ago(s.git && s.git.lastSync) || '—') + '</div>' +
-          '<div class="stat-tile-sub">' + (s.git && s.git.shortSha ? 'SHA ' + s.git.shortSha : '—') + '</div>' +
-        '</div>' +
-      '</div>';
-
-    // ── 3. Omni + Git cards ───────────────────────────────────────────────────
-    var omniCard =
-      '<div class="info-card">' +
-        '<div class="info-card-header">' +
-          '<span class="info-card-title">Omni Instance</span>' +
-          '<span class="badge ' + gitHealthBadgeClass(omniHealth.status) + '">' + omniHealth.label + '</span>' +
-        '</div>' +
-        '<div class="info-card-value">' + (s.omniEndpoint ? '<a href="' + s.omniEndpoint + '" target="_blank" style="color:#FB326E;text-decoration:none">' + s.omniEndpoint + '</a>' : '—') + '</div>' +
-        '<div class="info-card-sub">' +
-          'Omni <b style="color:#a1a1aa">' + (s.omniVersion || '?') + '</b> &nbsp;&middot;&nbsp; omnictl <b style="color:#a1a1aa">' + (s.omnictlVersion || '?') + '</b><br>' +
-          'Last check: ' + ago(s.omniHealth && s.omniHealth.lastCheck) +
-          (s.omniHealth && s.omniHealth.error ? '<br><span style="color:#f87171">' + escHtml(s.omniHealth.error) + '</span>' : '') +
-        '</div>' +
-      '</div>';
-
-    var gitCard =
-      '<div class="info-card">' +
-        '<div class="info-card-header">' +
-          '<span class="info-card-title">Git</span>' +
-          '<span class="badge ' + gitHealthBadgeClass(gitHealth.status) + '">' + gitHealth.label + '</span>' +
-        '</div>' +
-        '<div class="info-card-value">' + (s.git && s.git.repo ? '<a href="' + s.git.repo + '" target="_blank" style="color:#FB326E;text-decoration:none">' + s.git.repo + '</a>' : '—') + '</div>' +
-        '<div class="info-card-sub">' +
-          'Branch: <b style="color:#a1a1aa">' + (s.git && s.git.branch || '—') + '</b>' +
-          (s.git && s.git.shortSha ? ' &nbsp;&middot;&nbsp; <b style="color:#a1a1aa">' + s.git.shortSha + '</b>' : '') + '<br>' +
-          (s.git && s.git.commitMessage ? escHtml(s.git.commitMessage) + '<br>' : '') +
-          'Last sync: ' + ago(s.git && s.git.lastSync) +
-        '</div>' +
-      '</div>';
-
-    // ── 4. Reconcile Bar ──────────────────────────────────────────────────────
-    var recType = s.lastReconcile.type === 'soft' ? 'Refresh' : s.lastReconcile.type === 'hard' ? 'Sync' : '—';
-    var recDetail = recType;
-    if (ts(s.lastReconcile.startedAt) !== '-') recDetail += ' &nbsp;·&nbsp; Started ' + ts(s.lastReconcile.startedAt);
-    if (ts(s.lastReconcile.finishedAt) !== '-') recDetail += ' &nbsp;·&nbsp; Finished ' + ts(s.lastReconcile.finishedAt);
-    var reconcileBar =
-      '<div class="reconcile-bar">' +
-        '<span class="reconcile-bar-label">Last Reconciliation</span>' +
-        '<span class="badge ' + badgeClass(s.lastReconcile.status) + '">' + (s.lastReconcile.status || 'idle') + '</span>' +
-        '<span class="reconcile-bar-detail">' + recDetail + '</span>' +
-      '</div>';
-
-    // ── 5. Panels (max 5 each) ────────────────────────────────────────────────
-    var topClusters = clusters.slice().sort(function(a, b) { return a.id.localeCompare(b.id); }).slice(0, 5);
-    var topMcs      = mcs.slice().sort(function(a, b) { return a.id.localeCompare(b.id); }).slice(0, 5);
-
-    var clustersPanel =
-      '<div class="panel">' +
-        '<div class="panel-header">' +
-          '<span class="panel-nav-link" onclick="window.location.href=\'/clusters\'">Clusters</span>' +
-          '<div class="panel-header-right">' +
-            '<span class="toggle-status ' + (s.clustersEnabled ? 'on' : 'off') + '">Auto Sync</span>' +
-            '<button class="toggle-switch ' + (s.clustersEnabled ? 'on' : '') + '" onclick="window.__toggleClusters()">' +
-              '<div class="toggle-knob"></div>' +
-            '</button>' +
-            '<span class="count">' + clusters.length + '</span>' +
-          '</div>' +
-        '</div>' +
-        '<div class="resource-list">' +
-          (topClusters.length > 0
-            ? topClusters.map(function(r) {
-                var isFailed = r.status === 'failed';
-                var hasDiff  = r.diff && r.diff.length > 0;
-                var badge = '';
-                if (isFailed && hasDiff)          badge = '<span class="badge badge-outofsync">out of sync</span><span class="badge badge-failed">failed</span>';
-                else if (r.status === 'outofsync') badge = '<span class="badge badge-outofsync">out of sync</span>';
-                else if (r.status === 'success' || r.status === 'applied') badge = '<span class="badge badge-success">synced</span>';
-                else if (isFailed)                 badge = '<span class="badge badge-failed">failed</span>';
-                else if (r.status === 'unmanaged') badge = '<span class="badge badge-unmanaged">unmanaged</span>';
-                else if (r.status === 'syncing')   badge = '<span class="badge badge-syncing">syncing</span>';
-                else                               badge = '<span class="badge badge-idle">' + (r.status || '') + '</span>';
-                var healthBadge = r.status !== 'unmanaged' && (r.clusterReady === 'ready' && r.kubernetesApiReady === 'ready')
-                  ? '<span class="badge badge-ready">ready</span>'
-                  : r.status !== 'unmanaged' && (r.clusterReady === 'not-ready' || r.kubernetesApiReady === 'not-ready')
-                  ? '<span class="badge badge-notready">not ready</span>' : '';
-                var exportBtn = r.status === 'unmanaged' ? '<button class="btn-export" onclick="window.__exportCluster(\'' + r.id + '\', event)">export</button>' : '';
-                return '<div class="resource-item"><span class="resource-id">' + r.id + '</span>' +
-                  '<div class="resource-right">' + exportBtn + healthBadge + badge + '</div></div>';
-              }).join('') +
-              (clusters.length > 5 ? '<div class="resource-item" style="justify-content:center"><a href="/clusters" style="color:#FB326E;font-size:12px;text-decoration:none">View all ' + clusters.length + ' clusters →</a></div>' : '')
-            : '<div class="resource-item" style="color:#52525b">No clusters</div>') +
-        '</div>' +
-      '</div>';
-
-    var mcsPanel =
-      '<div class="panel">' +
-        '<div class="panel-header">' +
-          '<span class="panel-nav-link" onclick="window.location.href=\'/machineclasses\'">Machine Classes</span>' +
-          '<span class="count">' + mcs.length + '</span>' +
-        '</div>' +
-        '<div class="resource-list">' +
-          (topMcs.length > 0
-            ? topMcs.map(function(m) {
-                var displayStatus = m.status === 'success' ? 'synced' : m.status;
-                var dot = m.status === 'success' || m.status === 'applied' ? '#4ade80'
-                        : m.status === 'failed' ? '#f87171'
-                        : m.status === 'outofsync' ? '#fb923c' : '#52525b';
-                return '<div class="resource-item">' +
-                  '<span class="resource-id" style="display:flex;align-items:center;gap:8px">' +
-                    '<span style="width:7px;height:7px;border-radius:50%;background:' + dot + ';flex-shrink:0;display:inline-block"></span>' +
-                    m.id +
-                  '</span>' +
-                  '<div class="resource-right">' +
-                    (m.provisionType ? '<span class="provision-type ' + m.provisionType + '">' + (m.provisionType === 'auto' ? 'auto' : m.provisionType) + '</span>' : '') +
-                    '<span class="badge ' + badgeClass(m.status) + '">' + displayStatus + '</span>' +
-                  '</div>' +
-                '</div>';
-              }).join('') +
-              (mcs.length > 5 ? '<div class="resource-item" style="justify-content:center"><a href="/machineclasses" style="color:#FB326E;font-size:12px;text-decoration:none">View all ' + mcs.length + ' →</a></div>' : '')
-            : '<div class="resource-item" style="color:#52525b">No machine classes</div>') +
-        '</div>' +
-      '</div>';
-
-    return renderHeader(s) +
-      '<div class="info-row">' + omniCard + gitCard + '</div>' +
-      fleetBar +
-      '<div class="panels">' + clustersPanel + mcsPanel + '</div>';
-  }
-
   function render() {
     if (!state) {
-      app.innerHTML = '<div style="text-align:center;padding:60px;color:#52525b">Loading...</div>';
-      modalsEl.innerHTML = '';
       return;
     }
     var s = state;
 
+    if (clusterDetailId && currentRoute.startsWith('/clusters/')) {
+      app.innerHTML = renderClusterDetailPage(s);
+      applyDetailPageLayout();
+      modalsEl.innerHTML = renderDrawer();
+      if (clusterDetailTab === 'graph') {
+        requestAnimationFrame(function() {
+          var inner = document.querySelector('#cluster-detail-body .cluster-graph-inner');
+          if (inner) restoreGraphTransform(inner.id);
+        });
+      }
+      return;
+    }
+
+    restoreDefaultLayout();
     if (currentRoute === '/clusters') {
+      var activeIsSearch = document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.placeholder === 'Search clusters...';
+      var searchSelStart = activeIsSearch ? document.activeElement.selectionStart : null;
+      var searchSelEnd   = activeIsSearch ? document.activeElement.selectionEnd   : null;
       app.innerHTML = renderClustersView(s);
+      if (activeIsSearch) {
+        var inp = app.querySelector('input[placeholder="Search clusters..."]');
+        if (inp) { inp.focus(); inp.setSelectionRange(searchSelStart, searchSelEnd); }
+      }
     } else if (currentRoute === '/machineclasses') {
+      var activeIsMcSearch2 = document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.placeholder === 'Search machine classes...';
+      var mss2 = activeIsMcSearch2 ? document.activeElement.selectionStart : null;
+      var mse2 = activeIsMcSearch2 ? document.activeElement.selectionEnd   : null;
       app.innerHTML = renderMachineClassesView(s);
+      if (activeIsMcSearch2) {
+        var mci2 = app.querySelector('input[placeholder="Search machine classes..."]');
+        if (mci2) { mci2.focus(); mci2.setSelectionRange(mss2, mse2); }
+      }
+    } else if (currentRoute === '/instances') {
+      app.innerHTML = renderInstancesView(s);
     } else if (currentRoute === '/repos') {
       app.innerHTML = renderReposView(s);
     } else if (currentRoute === '/users') {
       app.innerHTML = renderUsersView(s);
+    } else if (currentRoute === '/logs') {
+      app.innerHTML = renderLogsView(s);
     } else {
-      app.innerHTML = renderDashboardView(s);
+      window.location.replace('/clusters');
     }
 
     modalsEl.innerHTML = renderDrawer();
 
-    // Auto-centre graph when the drawer opens on the graph tab
+    // Restore (or initially centre) the graph transform after a state re-render.
     if (currentModal && currentModal.activeTab === 'graph') {
       requestAnimationFrame(function() {
-        var body = document.querySelector('.drawer-body');
-        if (body) window.__graphCentre(body);
+        var inner = document.querySelector('.cluster-graph-inner');
+        if (inner) restoreGraphTransform(inner.id);
       });
     }
 
@@ -2346,25 +3641,200 @@ const uiHTML = `<!DOCTYPE html>
 
   window.__triggerReconcile = triggerReconcile;
   window.__checkGit = checkGit;
-  window.__toggleClusters = toggleClusters;
+  window.__refreshMC = refreshMC;
+  window.__setClusterAutoSync = setClusterAutoSync;
+  window.__setMCAutoSync = setMCAutoSync;
+  window.__syncMachineClass = syncMachineClass;
+  window.__refreshSingleMC = refreshSingleMC;
   window.__forceSync = forceSync;
+  window.__refreshCluster = refreshCluster;
+  window.__syncCluster = syncCluster;
+  window.__deleteCluster = deleteCluster;
+  window.__deleteMachineClass = deleteMachineClass;
+  window.__exportMachineClass = exportMachineClass;
   window.__exportCluster = exportCluster;
   window.__closeConfirmModal = closeConfirmModal;
   window.__confirmAction = confirmAction;
+  window.__setConfirmInput = function(v) {
+    confirmInput = v;
+    // Update the OK button disabled state directly — no full re-render needed.
+    var btn = document.getElementById('confirm-ok-btn');
+    if (btn && confirmModal && confirmModal.requireInput) {
+      btn.disabled = (v !== confirmModal.requireInput);
+    }
+  };
   window.__changeMachineClassPage = changeMachineClassPage;
   window.__changeClusterPage = changeClusterPage;
   window.__toggleMachineClassSort = toggleMachineClassSort;
+  window.__setMcSearch = setMcSearch;
+  window.__toggleMcStatusFilter = toggleMcStatusFilter;
+  window.__toggleClusterSyncFilter = toggleClusterSyncFilter;
   window.__toggleClusterSort = toggleClusterSort;
   window.__setClusterFilter = setClusterFilter;
   window.__clearClusterFilter = clearClusterFilter;
+  window.__setClusterSearch = setClusterSearch;
   window.__showClustersView = showClustersView;
   window.__hideClustersView = hideClustersView;
   window.__showLogsModal = showLogsModal;
   window.__closeLogsModal = closeLogsModal;
   window.__downloadLogs = downloadLogs;
+  // ── Repo CRUD ──────────────────────────────────────────────────────────────
+  var _repoModalIsEdit = false;
+
+  function openRepoModal(nameOrNull) {
+    var rc = null;
+    if (nameOrNull && state && state.repoConfigs) {
+      rc = state.repoConfigs.find(function(x) { return x.name === nameOrNull; }) || null;
+    }
+    _repoModalIsEdit = !!(rc && rc.name);
+    document.getElementById('repo-modal-title').textContent = _repoModalIsEdit ? 'Edit Repository' : 'Add Repository';
+    var nameEl = document.getElementById('rm-name');
+    nameEl.value    = rc ? (rc.name || '') : '';
+    nameEl.disabled = _repoModalIsEdit;
+    document.getElementById('rm-url').value      = rc ? (rc.url || '') : '';
+    document.getElementById('rm-branch').value   = rc ? (rc.branch || '') : '';
+    document.getElementById('rm-clusters').value = rc ? (rc.clustersPath || '') : '';
+    document.getElementById('rm-mc').value        = rc ? (rc.mcPath || '') : '';
+    var setTokenCb  = document.getElementById('rm-set-token');
+    var tokenInput  = document.getElementById('rm-token');
+    var tokenHint   = document.getElementById('rm-token-hint');
+    var tokenLabel  = document.getElementById('rm-set-token-label');
+    if (_repoModalIsEdit) {
+      setTokenCb.checked         = false;
+      tokenLabel.textContent     = rc.hasToken ? 'Replace existing token' : 'Set a token';
+      tokenHint.textContent      = rc.hasToken ? 'Leave unchecked to keep the existing token. Check to replace it, or check and leave blank to clear it.' : '';
+      tokenInput.style.display   = 'none';
+      tokenInput.value           = '';
+    } else {
+      setTokenCb.checked         = false;
+      tokenLabel.textContent     = 'Set access token';
+      tokenHint.textContent      = '';
+      tokenInput.style.display   = 'none';
+      tokenInput.value           = '';
+    }
+    setTokenCb.onchange = function() {
+      tokenInput.style.display = setTokenCb.checked ? '' : 'none';
+      if (!setTokenCb.checked) tokenInput.value = '';
+    };
+    var errEl = document.getElementById('repo-form-error');
+    errEl.style.display = 'none';
+    errEl.textContent   = '';
+    var btn = document.getElementById('repo-save-btn');
+    btn.disabled    = false;
+    btn.textContent = 'Save';
+    document.getElementById('repo-modal').classList.add('show');
+  }
+
+  function closeRepoModal() {
+    document.getElementById('repo-modal').classList.remove('show');
+  }
+
+  function saveRepo() {
+    var name    = document.getElementById('rm-name').value.trim();
+    var url     = document.getElementById('rm-url').value.trim();
+    var branch  = document.getElementById('rm-branch').value.trim() || 'main';
+    var clPath  = document.getElementById('rm-clusters').value.trim() || 'clusters';
+    var mcPath  = document.getElementById('rm-mc').value.trim() || 'machineclasses';
+    var setTokenCb = document.getElementById('rm-set-token');
+    var tokenInput = document.getElementById('rm-token');
+    var errEl = document.getElementById('repo-form-error');
+    errEl.style.display = 'none';
+    if (!name) { errEl.textContent = 'Name is required.'; errEl.style.display = ''; return; }
+    if (!url)  { errEl.textContent = 'URL is required.';  errEl.style.display = ''; return; }
+    var body = { name: name, url: url, branch: branch, clustersPath: clPath, mcPath: mcPath };
+    if (_repoModalIsEdit) {
+      body.clearToken = false;
+      if (setTokenCb.checked) {
+        var tokenVal = tokenInput.value;
+        if (!tokenVal) {
+          body.clearToken = true;
+        } else {
+          body.token = tokenVal;
+        }
+      }
+    } else {
+      if (setTokenCb.checked && tokenInput.value) {
+        body.token = tokenInput.value;
+      }
+    }
+    var method = _repoModalIsEdit ? 'PUT' : 'POST';
+    var btn = document.getElementById('repo-save-btn');
+    btn.disabled    = true;
+    btn.textContent = 'Saving…';
+    fetch('/api/repos', {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function(r) {
+      btn.disabled    = false;
+      btn.textContent = 'Save';
+      if (r.ok) {
+        closeRepoModal();
+      } else {
+        r.text().then(function(t) {
+          errEl.textContent   = t || ('Error: ' + r.status);
+          errEl.style.display = '';
+        });
+      }
+    }).catch(function(e) {
+      btn.disabled    = false;
+      btn.textContent = 'Save';
+      errEl.textContent   = 'Network error: ' + e.message;
+      errEl.style.display = '';
+    });
+  }
+
+  function deleteRepo(name) {
+    confirmInput = '';
+    var s = state || {};
+    var clusterIDs  = (s.repoClusterMap      && s.repoClusterMap[name])      || [];
+    var mcIDs       = (s.repoMachineClassMap && s.repoMachineClassMap[name]) || [];
+    // Build cluster lines with auto-sync indicator
+    var clusterLines = clusterIDs.map(function(id) { return escHtml(id); });
+    var mcLines = mcIDs.map(function(id) { return escHtml(id); });
+    var clusterSection = clusterLines.length
+      ? '\n\u2022 Clusters\n' + clusterLines.map(function(l) { return '<span style="display:block;margin-left:16px">\u2022 ' + l + '</span>'; }).join('')
+      : '';
+    var mcSection = mcLines.length
+      ? '\n\u2022 Machine Classes\n' + mcLines.map(function(l) { return '<span style="display:block;margin-left:16px">\u2022 ' + l + '</span>'; }).join('')
+      : '';
+    confirmModal = {
+      title: 'Remove Repository',
+      message: 'Are you sure you want to remove <b>' + escHtml(name) + '</b>?\n\n' +
+               'Deleting this repository will remove associated Clusters &amp; MachineClasses from Omni, where Auto-Sync is enabled. ' +
+               'The remaining resources will remain in Omni, but are marked as \u201cUnmanaged\u201d or \u201cOrphaned\u201d in OmniCD.' +
+               (clusterSection || mcSection ? '\n' + clusterSection + mcSection : '') +
+               '\n\n<i>Note: MachineClasses with Auto-Sync enabled that are associated with any Cluster will not be deleted.</i>',
+      requireInput: name,
+      inputPrompt: 'Please type \u2018' + name + '\u2019 to confirm deletion of the repository',
+      onConfirm: function() {
+        confirmModal = null;
+        confirmInput = '';
+        render();
+        fetch('/api/repos', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name })
+        }).then(function(r) {
+          if (!r.ok) { r.text().then(function(t) { alert('Delete failed: ' + (t || r.status)); }); }
+        }).catch(function(e) { alert('Network error: ' + e.message); });
+      }
+    };
+    render();
+  }
+
+  window.__openRepoModal  = openRepoModal;
+  window.__closeRepoModal = closeRepoModal;
+  window.__saveRepo       = saveRepo;
+  window.__deleteRepo     = deleteRepo;
+
+  // ── End Repo CRUD ───────────────────────────────────────────────────────────
   window.__showMachineClassModal = showMachineClassModal;
   window.__setMcPageSize = setMcPageSize;
   window.__setClusterPageSize = setClusterPageSize;
+  window.__navToCluster = navToCluster;
+  window.__setClusterDetailTab = setClusterDetailTab;
+  window.__refreshCurrentCluster = refreshCurrentCluster;
 
   // WebSocket connection
   function connectWebSocket() {
@@ -2382,11 +3852,13 @@ const uiHTML = `<!DOCTYPE html>
       ws.onmessage = function(event) {
         try {
           state = JSON.parse(event.data);
+          markAppLoaded();
+          var isDetailPage = clusterDetailId && currentRoute.startsWith('/clusters/');
           if (logsModal) {
-            // Update logs in-place to prevent flickering
             updateLogsInPlace();
+          } else if (isDetailPage) {
+            updateClusterDetailInPlace();
           } else if (currentModal || confirmModal) {
-            // Only update the main content, not the modal
             renderMainOnly();
           } else {
             render();
@@ -2428,6 +3900,9 @@ const uiHTML = `<!DOCTYPE html>
 
   // Render sidebar immediately (doesn't depend on state)
   document.getElementById('sidebar').innerHTML = renderSidebar();
+
+  // Apply flex layout immediately on cluster detail pages (avoids layout flash)
+  if (clusterDetailId) applyDetailPageLayout();
 
   // Sidebar collapse state
   var sidebarEl = document.getElementById('sidebar');

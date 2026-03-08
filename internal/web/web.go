@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -15,37 +16,61 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for simplicity
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			// No Origin header — non-browser client, allow.
+			return true
+		}
+		u, err := url.ParseRequestURI(origin)
+		if err != nil {
+			return false
+		}
+		// Only allow same-origin requests.
+		return u.Host == r.Host
 	},
 }
 
 // Server serves the web UI and API endpoints.
 type Server struct {
-	appState      *state.AppState
-	triggerHard   chan struct{}
-	triggerSoft   chan struct{}
-	port          string
-	version       string
-	clients       map[*websocket.Conn]bool
-	clientsMu     sync.RWMutex
-	broadcast     chan []byte
-	adminUsername string
-	adminPassword string
-	sessions      sync.Map // token (string) -> time.Time (login time)
+	appState              *state.AppState
+	triggerHard           chan struct{}
+	triggerSoft           chan struct{}
+	triggerRefreshCluster chan string
+	triggerDeleteCluster  chan string
+	triggerDeleteMC       chan string
+	triggerMCRefresh         chan struct{}
+	triggerMCRefreshSingle   chan string
+	triggerRepoChange        chan struct{}
+	port                  string
+	version               string
+	clients               map[*websocket.Conn]bool
+	clientsMu             sync.RWMutex
+	broadcast             chan []byte
+	adminUsername         string
+	adminPassword         string
+	authDisabled          bool
+	sessions              sync.Map // token (string) -> time.Time (login time)
 }
 
 // New creates a new web server.
-func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, port string, version string, adminUsername string, adminPassword string) *Server {
+func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, port string, version string, adminUsername string, adminPassword string, authDisabled bool) *Server {
 	s := &Server{
-		appState:      appState,
-		triggerHard:   triggerHard,
-		triggerSoft:   triggerSoft,
-		port:          port,
-		version:       version,
-		clients:       make(map[*websocket.Conn]bool),
-		broadcast:     make(chan []byte, 256),
-		adminUsername: adminUsername,
-		adminPassword: adminPassword,
+		appState:               appState,
+		triggerHard:            triggerHard,
+		triggerSoft:            triggerSoft,
+		triggerRefreshCluster:  triggerRefreshCluster,
+		triggerDeleteCluster:   triggerDeleteCluster,
+		triggerDeleteMC:        triggerDeleteMC,
+		triggerMCRefresh:       triggerMCRefresh,
+		triggerMCRefreshSingle: triggerMCRefreshSingle,
+		triggerRepoChange:      triggerRepoChange,
+		port:                  port,
+		version:               version,
+		clients:               make(map[*websocket.Conn]bool),
+		broadcast:             make(chan []byte, 256),
+		adminUsername:         adminUsername,
+		adminPassword:         adminPassword,
+		authDisabled:          authDisabled,
 	}
 
 	// Start broadcast handler
@@ -74,9 +99,19 @@ func (s *Server) Start() {
 	mux.HandleFunc("/api/check", s.requireAuth(s.handleCheck))
 	mux.HandleFunc("/api/clusters-toggle", s.requireAuth(s.handleClustersToggle))
 	mux.HandleFunc("/api/force-cluster", s.requireAuth(s.handleForceCluster))
+	mux.HandleFunc("/api/refresh-cluster", s.requireAuth(s.handleRefreshCluster))
+	mux.HandleFunc("/api/delete-cluster", s.requireAuth(s.handleDeleteCluster))
+	mux.HandleFunc("/api/set-cluster-autosync", s.requireAuth(s.handleSetClusterAutoSync))
+	mux.HandleFunc("/api/repos", s.requireAuth(s.handleRepos))
+	mux.HandleFunc("/api/refresh-mc", s.requireAuth(s.handleRefreshMC))
+	mux.HandleFunc("/api/refresh-single-mc", s.requireAuth(s.handleRefreshSingleMC))
+	mux.HandleFunc("/api/delete-machineclass", s.requireAuth(s.handleDeleteMachineClass))
+	mux.HandleFunc("/api/sync-machineclass", s.requireAuth(s.handleSyncMachineClass))
+	mux.HandleFunc("/api/set-mc-autosync", s.requireAuth(s.handleSetMCAutoSync))
 	mux.HandleFunc("/api/export-cluster", s.requireAuth(s.handleExportCluster))
 
 	// Serve the UI (all protected)
+	mux.HandleFunc("/clusters/", s.requireAuth(s.handleUI))
 	mux.HandleFunc("/clusters", s.requireAuth(s.handleUI))
 	mux.HandleFunc("/machineclasses", s.requireAuth(s.handleUI))
 	mux.HandleFunc("/repos", s.requireAuth(s.handleUI))
@@ -190,8 +225,11 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 	if snapshot.ClustersEnabled {
 		hash = hash * 31
 	}
-	if snapshot.VersionMismatch {
-		hash = hash * 37
+	// Hash per-cluster AutoSync so toggling it triggers an immediate UI refresh.
+	for _, c := range snapshot.Clusters {
+		if c.AutoSync != nil && !*c.AutoSync {
+			hash = hash*31 + 7
+		}
 	}
 	if len(snapshot.LastReconcile.Status) > 0 {
 		hash = hash*31 + uint64(snapshot.LastReconcile.Status[0])
@@ -209,6 +247,11 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 		}
 		if c.KubernetesAPIReady != "" {
 			for _, b := range []byte(c.KubernetesAPIReady) {
+				hash = hash*31 + uint64(b)
+			}
+		}
+		if c.ClusterPhase != "" {
+			for _, b := range []byte(c.ClusterPhase) {
 				hash = hash*31 + uint64(b)
 			}
 		}

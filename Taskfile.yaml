@@ -24,14 +24,8 @@ tasks:
     env:
       OMNI_ENDPOINT: '{{.OMNI_ENDPOINT}}'
       OMNI_SERVICE_ACCOUNT_KEY: '{{.OMNI_SERVICE_ACCOUNT_KEY}}'
-      GIT_REPO: '{{.GIT_REPO}}'
-      GIT_BRANCH: '{{.GIT_BRANCH | default "main"}}'
-      GIT_TOKEN: '{{.GIT_TOKEN}}'
       REFRESH_INTERVAL: '{{.REFRESH_INTERVAL | default "300"}}'
       SYNC_INTERVAL: '{{.SYNC_INTERVAL | default "3600"}}'
-      MC_PATH: '{{.MC_PATH | default "machine-classes"}}'
-      CLUSTERS_PATH: '{{.CLUSTERS_PATH | default "clusters"}}'
-      CLUSTERS_ENABLED: '{{.CLUSTERS_ENABLED | default "true"}}'
       WEB_PORT: '{{.WEB_PORT | default "8080"}}'
       LOG_LEVEL: '{{.LOG_LEVEL | default "DEBUG"}}'
 
@@ -119,8 +113,6 @@ tasks:
         docker run --rm -it \
           -e OMNI_ENDPOINT={{.OMNI_ENDPOINT}} \
           -e OMNI_SERVICE_ACCOUNT_KEY={{.OMNI_SERVICE_ACCOUNT_KEY}} \
-          -e GIT_REPO={{.GIT_REPO}} \
-          -e GIT_BRANCH={{.GIT_BRANCH | default "main"}} \
           -e LOG_LEVEL={{.LOG_LEVEL | default "INFO"}} \
           -p 8080:8080 \
           {{.DOCKER_IMAGE}}:latest
