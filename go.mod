@@ -9,9 +9,12 @@ require (
 )
 
 require (
+	github.com/coreos/go-oidc/v3 v3.17.0 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/petermattis/goid v0.0.0-20251121121749-a11dd1a45f9a // indirect
 	github.com/sasha-s/go-deadlock v0.3.6 // indirect
+	golang.org/x/oauth2 v0.36.0 // indirect
 )
 
 require (

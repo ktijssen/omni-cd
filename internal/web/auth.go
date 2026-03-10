@@ -66,7 +66,7 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		// No users configured yet — force first-time setup.
+		// No users configured yet — force first-time setup regardless of OIDC.
 		if s.authStore != nil && s.authStore.IsEmpty() {
 			if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/ws" {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -84,6 +84,18 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			http.Redirect(w, r, "/login", http.StatusFound)
 			return
 		}
+		// OIDC users with "none" role are authenticated but not authorised.
+		// Redirect them to /unauthorized for any page, or 403 for API/ws.
+		if role := s.sessionRole(r); role == "none" {
+			if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/ws" {
+				http.Error(w, "Forbidden", http.StatusForbidden)
+				return
+			}
+			if r.URL.Path != "/unauthorized" {
+				http.Redirect(w, r, "/unauthorized", http.StatusFound)
+				return
+			}
+		}
 		next(w, r)
 	}
 }
@@ -91,8 +103,10 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 // sessionInfo holds per-session metadata.
 type sessionInfo struct {
 	LoginTime   time.Time
-	Email       string // used for API calls (e.g. change-password)
+	Username    string // login identifier: username for local, email for OIDC
 	DisplayName string // shown in the sidebar
+	AuthMethod  string // "local" or "oidc"
+	Role        string // "admin", "viewer", "none" — empty means local-auth default (admin)
 }
 
 // validSession returns true if the token is an active, unexpired session.
@@ -124,8 +138,8 @@ func (s *Server) sessionUsername(r *http.Request) string {
 	return v.(sessionInfo).DisplayName
 }
 
-// sessionEmail returns the email for the session cookie in r, or empty string.
-func (s *Server) sessionEmail(r *http.Request) string {
+// sessionIdentity returns the login identifier for the session cookie in r, or empty string.
+func (s *Server) sessionIdentity(r *http.Request) string {
 	cookie, err := r.Cookie(sessionCookieName)
 	if err != nil {
 		return ""
@@ -134,13 +148,76 @@ func (s *Server) sessionEmail(r *http.Request) string {
 	if !ok {
 		return ""
 	}
-	return v.(sessionInfo).Email
+	return v.(sessionInfo).Username
+}
+
+// sessionRole returns the role for the session in r.
+// Local-auth sessions have an empty Role field and are always treated as "admin".
+func (s *Server) sessionRole(r *http.Request) string {
+	cookie, err := r.Cookie(sessionCookieName)
+	if err != nil {
+		return ""
+	}
+	v, ok := s.sessions.Load(cookie.Value)
+	if !ok {
+		return ""
+	}
+	info := v.(sessionInfo)
+	if info.AuthMethod == "oidc" {
+		return info.Role
+	}
+	return "admin" // local-auth users are always admin
+}
+
+// roleAtLeast returns true when role meets or exceeds minRole in the hierarchy.
+// Hierarchy (ascending): none < viewer < admin.
+func roleAtLeast(role, minRole string) bool {
+	levels := map[string]int{"none": 0, "viewer": 1, "admin": 2}
+	return levels[role] >= levels[minRole]
+}
+
+// requireRole wraps a handler and enforces a minimum role level.
+// It calls requireAuth first, so unauthenticated requests are redirected to /login.
+// If the session role is below minRole, API requests get 403 and page requests
+// are redirected to /unauthorized.
+func (s *Server) requireRole(minRole string, next http.HandlerFunc) http.HandlerFunc {
+	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		if s.authDisabled {
+			next(w, r)
+			return
+		}
+		role := s.sessionRole(r)
+		if !roleAtLeast(role, minRole) {
+			if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/ws" {
+				http.Error(w, "Forbidden", http.StatusForbidden)
+				return
+			}
+			http.Redirect(w, r, "/unauthorized", http.StatusFound)
+			return
+		}
+		next(w, r)
+	})
 }
 
 // loginBucketFor returns the rate-limit bucket for the given IP, creating it if needed.
 func (s *Server) loginBucketFor(ip string) *loginBucket {
 	v, _ := s.loginBuckets.LoadOrStore(ip, &loginBucket{})
 	return v.(*loginBucket)
+}
+
+// renderLoginPage builds the full login HTML, injecting an optional error banner and the form/SSO button.
+func (s *Server) renderLoginPage(errorHTML string) string {
+	page := loginHTML
+	if errorHTML != "" {
+		page = strings.ReplaceAll(page, "<!--ERROR-->", errorHTML)
+	}
+	page = strings.ReplaceAll(page, "<!--LOCAL_FORM-->", localFormHTML)
+	if s.oidcEnabled() {
+		page = strings.ReplaceAll(page, "<!--OIDC_BUTTON-->", `<div class="login-divider"><span>or</span></div><a href="/auth/login" class="sso-btn">Sign in with SSO</a>`)
+	} else {
+		page = strings.ReplaceAll(page, "<!--OIDC_BUTTON-->", "")
+	}
+	return page
 }
 
 // handleLogin serves GET /login (login page) and POST /login (credential check).
@@ -153,7 +230,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, loginHTML)
+		fmt.Fprint(w, s.renderLoginPage(""))
 
 	case http.MethodPost:
 		ip := clientIP(r)
@@ -165,16 +242,15 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			slog.Warn("Login blocked — too many failed attempts", "ip", ip, "component", "Auth")
 			w.Header().Set("Content-Type", "text/html")
 			w.WriteHeader(http.StatusTooManyRequests)
-			fmt.Fprint(w, strings.ReplaceAll(loginHTML, "<!--ERROR-->",
-				`<div class="login-error">Too many failed attempts — try again in 15 minutes</div>`))
+			fmt.Fprint(w, s.renderLoginPage(`<div class="login-error">Too many failed attempts — try again in 15 minutes</div>`))
 			return
 		}
 		bucket.mu.Unlock()
 
-		email := r.FormValue("email")
+		username := r.FormValue("username")
 		password := r.FormValue("password")
 
-		if s.authStore != nil && s.authStore.Validate(email, password) {
+		if s.authStore != nil && s.authStore.Validate(username, password) {
 			// Reset failure counter on success.
 			bucket.mu.Lock()
 			bucket.failures = 0
@@ -186,8 +262,8 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Internal server error", http.StatusInternalServerError)
 				return
 			}
-			displayName := s.authStore.GetDisplayName(email)
-			s.sessions.Store(token, sessionInfo{LoginTime: time.Now(), Email: email, DisplayName: displayName})
+			displayName := s.authStore.GetDisplayName(username)
+			s.sessions.Store(token, sessionInfo{LoginTime: time.Now(), Username: username, DisplayName: displayName})
 			http.SetCookie(w, &http.Cookie{
 				Name:     sessionCookieName,
 				Value:    token,
@@ -197,7 +273,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 				SameSite: http.SameSiteLaxMode,
 				MaxAge:   int(sessionDuration.Seconds()),
 			})
-			slog.Info("User logged in", "email", email, "ip", ip, "component", "Auth")
+			slog.Info("User logged in", "username", username, "ip", ip, "component", "Auth")
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
@@ -211,11 +287,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		bucket.mu.Unlock()
 
-		slog.Warn("Failed login attempt", "email", email, "ip", ip, "component", "Auth")
+		slog.Warn("Failed login attempt", "username", username, "ip", ip, "component", "Auth")
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprint(w, strings.ReplaceAll(loginHTML, "<!--ERROR-->",
-			`<div class="login-error">Invalid username or password</div>`))
+		fmt.Fprint(w, s.renderLoginPage(`<div class="login-error">Invalid username or password</div>`))
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

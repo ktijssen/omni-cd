@@ -108,6 +108,36 @@ const loginHTML = `<!DOCTYPE html>
     color: #52525b;
     margin-top: 24px;
   }
+  .sso-btn {
+    display: block;
+    width: 100%;
+    background: #18181b;
+    border: 1px solid #3f3f46;
+    border-radius: 8px;
+    color: #e4e4e7;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 11px;
+    text-align: center;
+    text-decoration: none;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .sso-btn:hover { border-color: #FB326E; background: #27272a; }
+  .login-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0;
+    color: #52525b;
+    font-size: 12px;
+  }
+  .login-divider::before,
+  .login-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #3f3f46;
+  }
 </style>
 </head>
 <body>
@@ -120,19 +150,22 @@ const loginHTML = `<!DOCTYPE html>
     <div class="login-title">Sign in</div>
     <div class="login-sub">Enter your credentials to continue</div>
     <!--ERROR-->
-    <form method="POST" action="/login">
+    <!--LOCAL_FORM-->
+    <!--OIDC_BUTTON-->
+  </div>
+  <div class="login-footer">Omni CD · Real-time updates</div>
+</div>
+</body>
+</html>`
+
+const localFormHTML = `<form method="POST" action="/login">
       <div class="login-field">
-        <label for="email">Email</label>
-        <input id="email" name="email" type="text" placeholder="you@example.com" autocomplete="email" required autofocus>
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" placeholder="username" autocomplete="username" required autofocus>
       </div>
       <div class="login-field">
         <label for="password">Password</label>
         <input id="password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required>
       </div>
       <button class="login-btn" type="submit">Sign in</button>
-    </form>
-  </div>
-  <div class="login-footer">Omni CD · Real-time updates</div>
-</div>
-</body>
-</html>`
+    </form>`

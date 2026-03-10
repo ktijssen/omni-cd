@@ -22,20 +22,8 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, setupHTML)
 
 	case http.MethodPost:
-		email := strings.TrimSpace(r.FormValue("email"))
-		displayName := strings.TrimSpace(r.FormValue("displayName"))
 		password := r.FormValue("password")
 		confirm := r.FormValue("confirm")
-		if email == "" {
-			w.Header().Set("Content-Type", "text/html")
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprint(w, strings.ReplaceAll(setupHTML, "<!--ERROR-->",
-				`<div class="login-error">Email is required</div>`))
-			return
-		}
-		if displayName == "" {
-			displayName = email
-		}
 		if err := auth.ValidatePasswordStrength(password); err != nil {
 			w.Header().Set("Content-Type", "text/html")
 			w.WriteHeader(http.StatusBadRequest)
@@ -50,7 +38,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 				`<div class="login-error">Passwords do not match</div>`))
 			return
 		}
-		if err := s.authStore.SetUser(email, displayName, password); err != nil {
+		if err := s.authStore.SetUser("admin", "Admin", password); err != nil {
 			http.Error(w, "Failed to save credentials", http.StatusInternalServerError)
 			return
 		}
@@ -182,17 +170,13 @@ const setupHTML = `<!DOCTYPE html>
     <span class="login-logo-text">Omni <span>CD</span></span>
   </div>
   <div class="login-card">
-    <div class="login-title">Create your account</div>
+    <div class="login-title">Create your Admin account</div>
     <div class="login-sub">Set up access to Omni CD</div>
     <!--ERROR-->
     <form method="POST" action="/setup">
       <div class="login-field">
-        <label for="email">Email</label>
-        <input id="email" name="email" type="text" placeholder="you@example.com" autocomplete="email" required autofocus>
-      </div>
-      <div class="login-field">
-        <label for="displayName">Display Name</label>
-        <input id="displayName" name="displayName" type="text" placeholder="Your name" autocomplete="name">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" value="admin" readonly style="opacity:0.5;cursor:not-allowed;" autofocus>
       </div>
       <div class="login-field">
         <label for="password">Password</label>
