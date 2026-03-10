@@ -8,12 +8,21 @@ import (
 )
 
 var omniLogoURI = "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(omniLogoSVG))
+var profileIconURI = "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(profileIconSVG))
 
 // handleUI serves the embedded UI.
 func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	html := strings.ReplaceAll(uiHTML, "{{APP_VERSION}}", s.version)
 	html = strings.ReplaceAll(html, "{{OMNI_LOGO_URI}}", omniLogoURI)
+	html = strings.ReplaceAll(html, "{{PROFILE_ICON_URI}}", profileIconURI)
+	username := s.sessionUsername(r)
+	html = strings.ReplaceAll(html, "{{LOGGED_IN_AS}}", username)
+	authDisabledVal := "false"
+	if s.authDisabled {
+		authDisabledVal = "true"
+	}
+	html = strings.ReplaceAll(html, "{{AUTH_DISABLED}}", authDisabledVal)
 	fmt.Fprint(w, html)
 }
 
@@ -301,7 +310,8 @@ const uiHTML = `<!DOCTYPE html>
   .btn-sort:disabled:hover { border-color: #3f3f46; color: #71717a; }
   .btn-sort.active { border-color: #FB326E; color: #FB326E; background: rgba(251, 50, 110, 0.1); }
   .btn-sort.btn-primary:hover { border-color: #FB326E; color: #FB326E; }
-  .btn-sort.btn-primary.active:hover { border-color: #71717a; color: #71717a; background: rgba(63,63,70,0.4); }
+  .btn-sort.btn-primary:disabled:hover { border-color: #3f3f46; color: #71717a; }
+  .btn-sort.btn-primary.active:hover { border-color: #FB326E; color: #FB326E; background: rgba(251, 50, 110, 0.1); }
   .cluster-card-actions .btn-sort.btn-primary:hover { border-color: #a1a1aa; color: #a1a1aa; }
   .cluster-card-actions .btn-sort.btn-primary.active:hover { border-color: #71717a; color: #71717a; background: rgba(63,63,70,0.4); }
   .btn-sort.btn-primary.auto-sync:not(.active):hover { border-color: #3f3f46; color: #a1a1aa; background: transparent; }
@@ -410,6 +420,7 @@ const uiHTML = `<!DOCTYPE html>
   .logs-page { display:flex; flex-direction:column; height:100%; }
   .logs-page-header { display:flex; align-items:center; justify-content:space-between; padding:0; margin-bottom:0; border-bottom:none; }
   .logs-page-body { flex:1; overflow-y:auto; background:#1b1b1d; border-radius:8px; }
+  .logs-filters { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 0 0; }
   .logs-page-body::-webkit-scrollbar { width:6px; }
   .logs-page-body::-webkit-scrollbar-track { background:#1b1b1d; }
   .logs-page-body::-webkit-scrollbar-thumb { background:#3f3f46; border-radius:3px; }
@@ -444,6 +455,7 @@ const uiHTML = `<!DOCTYPE html>
   .log-entry { padding: 2px 20px; font-size: 11px; font-weight: 400; }
   .log-entry:hover { background: #323235; }
   .log-ts { color: #52525b; }
+  .log-debug { color: #818cf8; }
   .log-info { color: #e4e4e7; }
   .log-warn { color: #facc15; }
   .log-error { color: #f87171; }
@@ -971,6 +983,12 @@ const uiHTML = `<!DOCTYPE html>
   .sidebar-item.active .sidebar-item-icon { color: #FB326E; }
   .sidebar-item-icon { font-size: 15px; width: 20px; text-align: center; }
   .sidebar-sep { height: 1px; background: #27272a; margin: 6px 8px; }
+  .sidebar-group-arrow { margin-left: auto; font-size: 11px; color: #52525b; transition: transform 0.15s; }
+  .sidebar-subgroup { display: none; flex-direction: column; gap: 2px; padding-left: 4px; }
+  .sidebar-subgroup.open { display: flex; }
+  .sidebar-subitem { padding-left: 24px !important; }
+  .sidebar.collapsed .sidebar-group-arrow { display: none; }
+  .sidebar.collapsed .sidebar-subgroup { display: none !important; }
   .sidebar-toggle { flex-shrink: 0; background: none; border: none; cursor: pointer; color: #71717a; font-size: 15px; padding: 2px 5px; border-radius: 4px; transition: color 0.15s, background 0.15s; margin-left: auto; line-height: 1; }
   .sidebar-toggle:hover { color: #e4e4e7; background: #27272a; }
   .sidebar.collapsed { width: 56px; }
@@ -983,6 +1001,13 @@ const uiHTML = `<!DOCTYPE html>
   .sidebar.collapsed .sidebar-item-icon { width: auto; }
   .sidebar.collapsed .sidebar-nav { padding: 12px 4px; }
   .sidebar.collapsed .sidebar-footer { padding: 8px 4px; }
+  .sidebar-user { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #27272a; }
+  .sidebar-user-icon { width: 28px; height: 28px; flex-shrink: 0; opacity: 0.45; filter: invert(1); }
+  .sidebar-user-text { flex: 1; min-width: 0; }
+  .sidebar-user-label { font-size: 10px; color: #52525b; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+  .sidebar-user-name { font-size: 12px; font-weight: 500; color: #a1a1aa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sidebar.collapsed .sidebar-user-text { display: none; }
+  .sidebar.collapsed .sidebar-user { justify-content: center; padding: 10px 0; }
   .main-content { flex: 1; min-width: 0; padding-bottom: 36px; }
   .placeholder-page { padding: 64px 24px; text-align: center; color: #52525b; }
   .placeholder-page .placeholder-icon { font-size: 40px; margin-bottom: 16px; }
@@ -1005,6 +1030,10 @@ const uiHTML = `<!DOCTYPE html>
   .repo-form-input:disabled { opacity:0.5; cursor:not-allowed; }
   .repo-token-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
   .repo-form-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+  .pw-checks { display:flex; flex-direction:column; gap:5px; margin:0 0 16px; }
+  .pw-check { display:flex; align-items:center; gap:8px; font-size:12px; color:#52525b; transition:color 0.15s; }
+  .pw-check.met { color:#4ade80; }
+  .pw-check-icon { font-size:11px; width:12px; flex-shrink:0; }
   .repo-form-error { color:#f87171; font-size:12px; margin-top:8px; }
 
   /* Cluster detail page */
@@ -1081,12 +1110,82 @@ const uiHTML = `<!DOCTYPE html>
     </div>
   </div>
 </div>
+<div id="chpw-modal" class="repo-modal-wrap">
+  <div class="repo-modal-box">
+    <div class="repo-modal-title">Change Password</div>
+    <div id="chpw-error" style="color:#f87171;font-size:13px;min-height:18px;margin-bottom:8px;"></div>
+    <div class="repo-form-group">
+      <label class="repo-form-label">Current Password</label>
+      <input class="repo-form-input" id="chpw-current" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div class="repo-form-group">
+      <label class="repo-form-label">New Password</label>
+      <input class="repo-form-input" id="chpw-new" type="password" placeholder="••••••••" autocomplete="new-password" oninput="updateChpwChecks(this.value);document.getElementById('chpw-confirm-msg').textContent=document.getElementById('chpw-confirm').value?(document.getElementById('chpw-confirm').value===this.value?'✓ Passwords match':'✗ Passwords do not match'):'';document.getElementById('chpw-confirm-msg').style.color=document.getElementById('chpw-confirm').value===this.value?'#4ade80':'#f87171';">
+    </div>
+    <div class="pw-checks" style="margin:0 0 12px;">
+      <div class="pw-check" id="chpw-chk-len"><span class="pw-check-icon">✗</span>12 characters or more</div>
+      <div class="pw-check" id="chpw-chk-upper"><span class="pw-check-icon">✗</span>Uppercase letter</div>
+      <div class="pw-check" id="chpw-chk-num"><span class="pw-check-icon">✗</span>Number</div>
+      <div class="pw-check" id="chpw-chk-special"><span class="pw-check-icon">✗</span>Special character</div>
+    </div>
+    <div class="repo-form-group">
+      <label class="repo-form-label">Confirm New Password</label>
+      <input class="repo-form-input" id="chpw-confirm" type="password" placeholder="••••••••" autocomplete="new-password" oninput="var m=document.getElementById('chpw-confirm-msg');if(!this.value){m.textContent='';return;}var match=this.value===document.getElementById('chpw-new').value;m.style.color=match?'#4ade80':'#f87171';m.textContent=match?'✓ Passwords match':'✗ Passwords do not match';">
+      <div id="chpw-confirm-msg" style="font-size:12px;margin-top:6px;min-height:16px;"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+      <button class="btn-sort btn-primary" onclick="window.__closeChangePassword()">Cancel</button>
+      <button class="btn-sort btn-primary" onclick="window.__submitChangePassword()">Change Password</button>
+    </div>
+  </div>
+</div>
+<div id="editprofile-modal" class="repo-modal-wrap">
+  <div class="repo-modal-box">
+    <div class="repo-modal-title">Edit Profile</div>
+    <div id="editprofile-error" style="color:#f87171;font-size:13px;min-height:18px;margin-bottom:8px;"></div>
+    <div class="repo-form-group">
+      <label class="repo-form-label">Email</label>
+      <input class="repo-form-input" id="editprofile-email" type="email" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="repo-form-group">
+      <label class="repo-form-label">Display Name</label>
+      <input class="repo-form-input" id="editprofile-displayname" type="text" placeholder="Your name" autocomplete="name">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+      <button class="btn-sort btn-primary" onclick="window.__closeEditProfile()">Cancel</button>
+      <button class="btn-sort btn-primary" onclick="window.__submitEditProfile()">Save</button>
+    </div>
+  </div>
+</div>
+<div id="omni-instance-modal" class="repo-modal-wrap">
+  <div class="repo-modal-box">
+    <div class="repo-modal-title" id="omni-instance-modal-title">Add Omni Instance</div>
+    <div class="repo-form-group">
+      <label class="repo-form-label" for="oim-endpoint">Endpoint URL <span style="color:#f87171">*</span></label>
+      <input class="repo-form-input" id="oim-endpoint" type="text" placeholder="https://your-omni-instance.example.com" />
+    </div>
+    <div class="repo-form-group">
+      <label class="repo-form-label" for="oim-key">Service Account Key</label>
+      <input class="repo-form-input" id="oim-key" type="password" placeholder="Paste service account key" />
+      <div style="font-size:11px;color:#71717a;margin-top:4px" id="oim-key-hint"></div>
+    </div>
+    <div id="oim-test-result" style="display:none;margin-top:4px;font-size:12px"></div>
+    <div class="repo-form-error" id="oim-form-error" style="display:none"></div>
+    <div class="repo-form-actions">
+      <button class="btn-sort btn-primary" onclick="window.__closeOmniInstanceModal()">Cancel</button>
+      <button class="btn-sort btn-primary" id="oim-test-btn" onclick="window.__testOmniInstance()">Test Connection</button>
+      <button class="btn-sort btn-primary" id="oim-save-btn" onclick="window.__saveOmniInstance()">Save</button>
+    </div>
+  </div>
+</div>
 <script>
 (function() {
   var app      = document.getElementById('app');
   var modalsEl = document.getElementById('modals');
   var footerEl = document.getElementById('footer');
   var appVersion = '{{APP_VERSION}}';
+  var loggedInAs = '{{LOGGED_IN_AS}}';
+  var authDisabled = {{AUTH_DISABLED}};
   if (footerEl) footerEl.textContent = 'Omni CD ' + appVersion + ' · Real-time updates';
   var state = null;
   var loadingOverlay = document.getElementById('loading-overlay');
@@ -1110,6 +1209,9 @@ const uiHTML = `<!DOCTYPE html>
   var mcPageSize = 10;
   var clusterPageSize = 10;
   var logsModal = false;
+  var logsSearch = '';
+  var logsLevelFilter = ''; // '' = all, 'INFO', 'WARN', 'ERROR'
+  var logsComponentFilter = ''; // '' = all, or a specific label
   var currentRoute = window.location.pathname;
   var ws = null;
   var wsReconnectDelay = 1000;
@@ -1874,6 +1976,7 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   function logClass(level) {
+    if (level === 'DEBUG') return 'log-debug';
     if (level === 'WARN') return 'log-warn';
     if (level === 'ERROR') return 'log-error';
     return 'log-info';
@@ -1897,9 +2000,10 @@ const uiHTML = `<!DOCTYPE html>
     var serverStart = state.serverStartedAt || '';
     var knownStart  = localStorage.getItem('omniCdServerStart');
     if (serverStart !== knownStart) {
-      // New server session — wait for reconcile to complete.
+      // New server session — wait for reconcile to complete, or show the UI
+      // immediately if the app is idle (Omni not yet configured, waiting for UI input).
       var status = state.lastReconcile && state.lastReconcile.status;
-      if (status !== 'success' && status !== 'failed') return;
+      if (status !== 'success' && status !== 'failed' && status !== 'idle') return;
       localStorage.setItem('omniCdServerStart', serverStart);
       hideOverlay(true);
     } else {
@@ -2294,21 +2398,34 @@ const uiHTML = `<!DOCTYPE html>
     window.location.href = '/clusters';
   }
 
+  var settingsOpen = localStorage.getItem('sidebar-settings-open') === '1';
+  var settingsRoutes = authDisabled ? ['/instances', '/repos'] : ['/instances', '/repos', '/users'];
+
+  window.__toggleSettings = function() {
+    settingsOpen = !settingsOpen;
+    localStorage.setItem('sidebar-settings-open', settingsOpen ? '1' : '0');
+    var subgroup = document.getElementById('settings-subgroup');
+    var arrow    = document.getElementById('settings-arrow');
+    if (subgroup) subgroup.classList.toggle('open', settingsOpen);
+    if (arrow)    arrow.textContent = settingsOpen ? '▾' : '▸';
+  };
+
   function renderSidebar() {
+    // Auto-expand Settings when on a settings sub-route (read-only, don't mutate settingsOpen).
+    var showSettings = settingsOpen || settingsRoutes.indexOf(currentRoute) >= 0;
+
     var navItems = [
-      { label: 'Clusters',       icon: '◈', href: '/clusters' },
+      { label: 'Clusters',        icon: '◈', href: '/clusters' },
       { label: 'Machine Classes', icon: '▦', href: '/machineclasses' },
       null,
-      { label: 'Instances',      icon: '⬡', href: '/instances' },
-      { label: 'Repos',          icon: '⎇', href: '/repos' },
-      { label: 'Users',          icon: '◉', href: '/users' },
-      { label: 'Logs',           icon: '≡', href: '/logs' },
+      { label: 'Logs',            icon: '≡', href: '/logs' },
     ];
     var html = '<div class="sidebar-logo">' +
       '<img class="logo sidebar-logo-img" src="{{OMNI_LOGO_URI}}" alt="Omni">' +
       '<div class="sidebar-logo-text">Omni <span>CD</span></div>' +
       '<button class="sidebar-toggle" id="sidebar-toggle" onclick="window.__toggleSidebar()" title="Toggle sidebar">‹</button>' +
     '</div>' +
+    (loggedInAs ? '<div class="sidebar-user"><img class="sidebar-user-icon" src="{{PROFILE_ICON_URI}}" alt="user"><div class="sidebar-user-text"><div class="sidebar-user-label">Logged in as:</div><div class="sidebar-user-name">' + escHtml(loggedInAs) + '</div></div></div>' : '') +
     '<div class="sidebar-nav">';
     navItems.forEach(function(item) {
       if (!item) { html += '<div class="sidebar-sep"></div>'; return; }
@@ -2318,8 +2435,32 @@ const uiHTML = `<!DOCTYPE html>
         '<span class="sidebar-item-label">' + item.label + '</span>' +
       '</a>';
     });
+
+    // Settings collapsible group.
+    var settingsActive = settingsRoutes.indexOf(currentRoute) >= 0;
+    var instanceLabel = 'Instances' + (state && !state.omniConfigured ? ' <span style="color:#fb923c">●</span>' : '');
+    var subItems = [
+      { label: instanceLabel, icon: '⬡', href: '/instances' },
+      { label: 'Repos',       icon: '⎇', href: '/repos' },
+    ];
+    if (!authDisabled) subItems.push({ label: 'Users', icon: '◉', href: '/users' });
+    html += '<button class="sidebar-item' + (settingsActive ? ' active' : '') + '" onclick="window.__toggleSettings()" title="Settings" style="width:100%;background:none;border:none;cursor:pointer;">' +
+      '<span class="sidebar-item-icon">⚙</span>' +
+      '<span class="sidebar-item-label">Settings</span>' +
+      '<span id="settings-arrow" class="sidebar-group-arrow">' + (showSettings ? '▾' : '▸') + '</span>' +
+    '</button>';
+    html += '<div id="settings-subgroup" class="sidebar-subgroup' + (showSettings ? ' open' : '') + '">';
+    subItems.forEach(function(item) {
+      var isActive = currentRoute === item.href;
+      html += '<a class="sidebar-item sidebar-subitem' + (isActive ? ' active' : '') + '" href="' + item.href + '" title="' + item.label + '">' +
+        '<span class="sidebar-item-icon">' + item.icon + '</span>' +
+        '<span class="sidebar-item-label">' + item.label + '</span>' +
+      '</a>';
+    });
+    html += '</div>';
+
     html += '</div>' +
-      '<div class="sidebar-footer" style="padding:8px">' +
+      '<div class="sidebar-footer">' +
         '<a class="sidebar-item" href="/logout" style="color:#71717a;" title="Sign out">' +
           '<span class="sidebar-item-icon">⏻</span>' +
           '<span class="sidebar-item-label">Sign out</span>' +
@@ -2329,17 +2470,70 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   function renderLogsView(s) {
-    var logsHtml = (s.logs && s.logs.length > 0)
-      ? s.logs.map(function(l) {
-          return '<div class="log-entry"><span class="log-msg">' + l.message + '</span></div>';
+    var allLogs = (s.logs && s.logs.length > 0) ? s.logs : [];
+
+    // Collect unique component labels for the dropdown.
+    var components = [];
+    allLogs.forEach(function(l) {
+      if (l.label && components.indexOf(l.label) < 0) components.push(l.label);
+    });
+    components.sort();
+
+    // Apply filters.
+    var search = logsSearch.toLowerCase();
+    var filtered = allLogs.filter(function(l) {
+      if (logsLevelFilter && l.level !== logsLevelFilter) return false;
+      if (logsComponentFilter && l.label !== logsComponentFilter) return false;
+      if (search && l.message.toLowerCase().indexOf(search) < 0 && (l.label || '').toLowerCase().indexOf(search) < 0) return false;
+      return true;
+    });
+
+    var logsHtml = filtered.length > 0
+      ? filtered.map(function(l) {
+          return '<div class="log-entry">' +
+            '<span class="log-ts">' + ts(l.timestamp) + '</span> ' +
+            '<span class="' + logClass(l.level) + '" style="font-size:10px;min-width:36px;display:inline-block">' + escHtml(l.level || 'INFO') + '</span> ' +
+            (l.label ? '<span class="log-label">[' + escHtml(l.label) + ']</span> ' : '') +
+            '<span class="log-msg">' + escHtml(l.message) + '</span>' +
+          '</div>';
         }).join('')
-      : '<div class="log-entry" style="color:#52525b">No logs yet</div>';
+      : '<div class="log-entry" style="color:#52525b">' + (allLogs.length > 0 ? 'No logs match the current filters' : 'No logs yet') + '</div>';
+
+    var levels = (s.logLevel === 'DEBUG' ? ['DEBUG'] : []).concat(['INFO', 'WARN', 'ERROR']);
+    var levelBtns = levels.map(function(lv) {
+      var active = logsLevelFilter === lv ? ' active' : '';
+      return '<button class="btn-sort btn-primary' + active + '" onclick="window.__setLogsLevel(\'' + lv + '\')">' + lv + '</button>';
+    }).join('');
+
+    var componentOpts = '<option value="">All components</option>' +
+      components.map(function(c) {
+        return '<option value="' + escHtml(c) + '"' + (logsComponentFilter === c ? ' selected' : '') + '>' + escHtml(c) + '</option>';
+      }).join('');
+    var componentSelect = '<select onchange="window.__setLogsComponent(this.value)" style="background:#18181b;border:1px solid #3f3f46;border-radius:4px;color:#e4e4e7;font-size:12px;padding:3px 8px;outline:none;font-family:inherit;cursor:pointer">' + componentOpts + '</select>';
+
+    var searchInput = '<input type="text" placeholder="Search logs..." value="' + escHtml(logsSearch) + '" oninput="window.__setLogsSearch(this.value)" style="background:#18181b;border:1px solid #3f3f46;border-radius:4px;color:#e4e4e7;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;" />';
+
+    var clearBtn = (logsSearch || logsLevelFilter || logsComponentFilter)
+      ? '<button class="btn-sort" onclick="window.__clearLogsFilters()" title="Clear filters">✕ Clear</button>'
+      : '';
+
+    var countHint = '<span style="font-size:11px;color:#52525b;margin-left:4px">' + filtered.length + ' / ' + allLogs.length + '</span>';
+
     var logsHeader = '<div class="header">' +
       '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Logs</h1>' +
-      '<button class="btn-sort btn-primary" onclick="window.__downloadLogs()" style="margin-left:auto">Download Logs</button>' +
+      '<button class="btn-sort btn-primary" onclick="window.__openLogFilesModal()" style="margin-left:auto">Show Logs</button>' +
+      '<button class="btn-sort btn-primary" onclick="window.__downloadTodaysLogs()" style="margin-left:8px">Download Today\'s Logs</button>' +
+    '</div>' +
+    '<div class="logs-filters">' +
+      searchInput +
+      componentSelect +
+      levelBtns +
+      clearBtn +
+      countHint +
     '</div>';
+
     return logsHeader +
-      '<div class="logs-page" style="height:calc(100vh - 120px);padding:0 0 12px">' +
+      '<div class="logs-page" style="height:calc(100vh - 160px);padding:0 0 12px;margin-top:8px">' +
         '<div class="logs-page-body" id="logs-page-container">' +
           logsHtml +
         '</div>' +
@@ -2397,30 +2591,264 @@ const uiHTML = `<!DOCTYPE html>
 
   function renderInstancesView(s) {
     var omniHealth = getOmniHealth(s);
-    var omniCard =
-      '<div class="info-card">' +
-        '<div class="info-card-header">' +
-          '<span class="info-card-title">Omni Instance</span>' +
-          '<span class="badge ' + gitHealthBadgeClass(omniHealth.status) + '">' + omniHealth.label + '</span>' +
-        '</div>' +
-        '<div class="info-card-value">' + (s.omniEndpoint ? '<a href="' + s.omniEndpoint + '" target="_blank" style="color:#FB326E;text-decoration:none">' + s.omniEndpoint + '</a>' : '—') + '</div>' +
-        '<div class="info-card-sub">' +
-          'Omni <b style="color:#a1a1aa">' + (s.omniVersion || '?') + '</b><br>' +
-          'Last check: ' + ago(s.omniHealth && s.omniHealth.lastCheck) +
-          (s.omniHealth && s.omniHealth.error ? '<br><span style="color:#f87171">' + escHtml(s.omniHealth.error) + '</span>' : '') +
+    var isConfigured = s.omniConfigured || s.omniEnvLocked;
+    var disabledAttr = s.omniEnvLocked ? ' disabled title="Configured via environment variables"' : '';
+
+    var cardsHtml = '';
+    if (isConfigured) {
+      cardsHtml = '<div class="info-row">' +
+        '<div class="info-card">' +
+          '<div class="info-card-header">' +
+            '<span class="info-card-title">Omni Instance</span>' +
+            '<span class="badge ' + gitHealthBadgeClass(omniHealth.status) + '">' + omniHealth.label + '</span>' +
+          '</div>' +
+          '<div class="info-card-value">' + (s.omniEndpoint ? '<a href="' + escHtml(s.omniEndpoint) + '" target="_blank" style="color:#FB326E;text-decoration:none">' + escHtml(s.omniEndpoint) + '</a>' : '<span style="color:#71717a">Not configured</span>') + '</div>' +
+          '<div class="info-card-sub">' +
+            (s.omniConfigured ? 'Version: <b style="color:#a1a1aa">' + escHtml(s.omniVersion || '?') + '</b><br>' : '') +
+            (s.omniConfigured ? 'Last check: ' + ago(s.omniHealth && s.omniHealth.lastCheck) : '') +
+            (s.omniHealth && s.omniHealth.error ? '<br><span style="color:#f87171">' + escHtml(s.omniHealth.error) + '</span>' : '') +
+          '</div>' +
+          '<div class="info-card-actions">' +
+            '<button class="btn-sort btn-primary"' + disabledAttr + ' onclick="window.__openOmniInstanceModal()">Edit</button>' +
+            '<button class="btn-sort btn-primary"' + disabledAttr + ' onclick="window.__deleteOmniInstance()">Delete</button>' +
+          '</div>' +
         '</div>' +
       '</div>';
-    return renderHeader(s) +
-      '<div class="info-row">' + omniCard + '</div>';
+    } else {
+      cardsHtml = '<div class="placeholder-page">' +
+        '<div class="placeholder-icon">⚡</div>' +
+        '<div class="placeholder-title">Omni Instance</div>' +
+        '<div class="placeholder-sub">No Omni instance configured — add one using the button above</div>' +
+      '</div>';
+    }
+
+    var addDisabled = isConfigured ? ' disabled' : '';
+    var header = '<div class="header">' +
+      '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Instances</h1>' +
+      '<button class="btn-sort btn-primary"' + addDisabled + ' onclick="window.__openOmniInstanceModal()" style="margin-left:auto">Add Omni Instance</button>' +
+    '</div>';
+
+    return header + cardsHtml;
   }
 
+  function openOmniInstanceModal() {
+    var isEdit = state && state.omniConfigured;
+    document.getElementById('omni-instance-modal-title').textContent = isEdit ? 'Edit Omni Instance' : 'Add Omni Instance';
+    document.getElementById('oim-endpoint').value = (state && state.omniEndpoint) || '';
+    document.getElementById('oim-key').value = '';
+    document.getElementById('oim-key-hint').textContent = (state && state.omniHasStoredKey) ? 'Stored — leave blank to keep current key' : '';
+    document.getElementById('oim-test-result').style.display = 'none';
+    document.getElementById('oim-form-error').style.display = 'none';
+    document.getElementById('omni-instance-modal').classList.add('show');
+  }
+
+  function closeOmniInstanceModal() {
+    document.getElementById('omni-instance-modal').classList.remove('show');
+  }
+
+  async function saveOmniInstance() {
+    var endpoint = document.getElementById('oim-endpoint').value.trim();
+    var key = document.getElementById('oim-key').value.trim();
+    var errEl = document.getElementById('oim-form-error');
+    errEl.style.display = 'none';
+    if (!endpoint) { errEl.textContent = 'Endpoint is required'; errEl.style.display = ''; return; }
+    if (!key && !(state && state.omniHasStoredKey)) { errEl.textContent = 'Service account key is required'; errEl.style.display = ''; return; }
+    var btn = document.getElementById('oim-save-btn');
+    btn.disabled = true;
+    try {
+      var body = { endpoint: endpoint };
+      if (key) body.serviceAccountKey = key;
+      var r = await fetch('/api/omni-instance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      var d = await r.json();
+      if (!r.ok) {
+        errEl.textContent = 'Save failed: ' + (d.error || r.status);
+        errEl.style.display = '';
+      } else {
+        closeOmniInstanceModal();
+        fetchState();
+      }
+    } catch(e) {
+      errEl.textContent = 'Network error: ' + e.message;
+      errEl.style.display = '';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function testOmniInstance() {
+    var endpoint = document.getElementById('oim-endpoint').value.trim();
+    var key = document.getElementById('oim-key').value.trim();
+    var resultEl = document.getElementById('oim-test-result');
+    if (!endpoint || !key) {
+      resultEl.textContent = 'Endpoint and service account key are required for testing';
+      resultEl.style.color = '#f87171';
+      resultEl.style.display = '';
+      return;
+    }
+    var btn = document.getElementById('oim-test-btn');
+    btn.disabled = true;
+    resultEl.style.display = 'none';
+    try {
+      var r = await fetch('/api/omni-instance/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: endpoint, serviceAccountKey: key })
+      });
+      var d = await r.json();
+      resultEl.textContent = r.ok ? 'Connection successful' : (d.error || 'Test failed');
+      resultEl.style.color = r.ok ? '#4ade80' : '#f87171';
+      resultEl.style.display = '';
+    } catch(e) {
+      resultEl.textContent = 'Network error: ' + e.message;
+      resultEl.style.color = '#f87171';
+      resultEl.style.display = '';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function deleteOmniInstance() {
+    confirmModal = {
+      message: 'Delete the Omni instance configuration?',
+      confirmText: 'Delete',
+      onConfirm: function() {
+        confirmModal = null;
+        render();
+        fetch('/api/omni-instance', { method: 'DELETE' })
+          .then(function(r) {
+            if (!r.ok) { r.text().then(function(t) { alert('Delete failed: ' + (t || r.status)); }); }
+            else { fetchState(); }
+          }).catch(function(e) { alert('Network error: ' + e.message); });
+      }
+    };
+    render();
+  }
+
+  var _usersData = null;
+
   function renderUsersView(s) {
-    return renderHeader(s) +
-      '<div class="placeholder-page">' +
-        '<div class="placeholder-icon">◉</div>' +
-        '<div class="placeholder-title">User Management</div>' +
-        '<div class="placeholder-sub">Authentication &amp; RBAC coming soon</div>' +
-      '</div>';
+    var header = '<div class="header">' +
+      '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Users</h1>' +
+    '</div>';
+
+    var content;
+    if (!_usersData) {
+      content = '<div style="color:#71717a;font-size:13px;padding:24px 0;">Loading...</div>';
+      fetchUsers();
+    } else if (_usersData.length === 0) {
+      content = '<div style="color:#71717a;font-size:13px;padding:24px 0;">No users found.</div>';
+    } else {
+      var u = _usersData[0];
+      content =
+        '<div style="display:flex;align-items:center;gap:12px;background:#27272a;border:1px solid #3f3f46;border-radius:10px;padding:14px 16px;max-width:480px;">' +
+          '<img src="{{PROFILE_ICON_URI}}" style="width:18px;height:18px;opacity:0.5;filter:invert(1);flex-shrink:0;" alt="">' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(u.displayName || u.email) + '</div>' +
+            '<div style="font-size:12px;color:#71717a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(u.email) + '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;">' +
+            '<button class="btn-sort btn-primary" onclick="window.__openEditProfile()">Edit Profile</button>' +
+            '<button class="btn-sort btn-primary" onclick="window.__openChangePassword()">Change Password</button>' +
+          '</div>' +
+        '</div>';
+    }
+
+    return header + content;
+  }
+
+  async function fetchUsers() {
+    try {
+      var r = await fetch('/api/users');
+      _usersData = await r.json();
+      if (currentRoute === '/users') renderMainOnly();
+    } catch(e) {}
+  }
+
+  window.__openChangePassword = function() {
+    document.getElementById('chpw-current').value = '';
+    document.getElementById('chpw-new').value = '';
+    document.getElementById('chpw-confirm').value = '';
+    document.getElementById('chpw-error').textContent = '';
+    document.getElementById('chpw-confirm-msg').textContent = '';
+    updateChpwChecks('');
+    document.getElementById('chpw-modal').classList.add('show');
+    document.getElementById('chpw-current').focus();
+  };
+
+  window.__closeChangePassword = function() {
+    document.getElementById('chpw-modal').classList.remove('show');
+  };
+
+  window.__openEditProfile = function() {
+    var u = _usersData && _usersData[0];
+    document.getElementById('editprofile-email').value = u ? (u.email || '') : '';
+    document.getElementById('editprofile-displayname').value = u ? (u.displayName || '') : '';
+    document.getElementById('editprofile-error').textContent = '';
+    document.getElementById('editprofile-modal').classList.add('show');
+    document.getElementById('editprofile-email').focus();
+  };
+
+  window.__closeEditProfile = function() {
+    document.getElementById('editprofile-modal').classList.remove('show');
+  };
+
+  window.__submitEditProfile = async function() {
+    var newEmail = document.getElementById('editprofile-email').value.trim();
+    var newDisplayName = document.getElementById('editprofile-displayname').value.trim();
+    var errEl = document.getElementById('editprofile-error');
+    errEl.textContent = '';
+    if (!newEmail) { errEl.textContent = 'Email is required'; return; }
+    try {
+      var r = await fetch('/api/users/update-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newEmail: newEmail, newDisplayName: newDisplayName })
+      });
+      var d = await r.json();
+      if (!r.ok) { errEl.textContent = d.error || 'Failed to update profile'; return; }
+      window.__closeEditProfile();
+      _usersData = null;
+      fetchUsers();
+    } catch(e) { errEl.textContent = 'Request failed'; }
+  };
+
+  window.__submitChangePassword = async function() {
+    var current = document.getElementById('chpw-current').value;
+    var newPw   = document.getElementById('chpw-new').value;
+    var confirm = document.getElementById('chpw-confirm').value;
+    var errEl   = document.getElementById('chpw-error');
+    errEl.textContent = '';
+    if (newPw !== confirm) { errEl.textContent = 'New passwords do not match'; return; }
+    try {
+      var r = await fetch('/api/users/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: current, newPassword: newPw })
+      });
+      var d = await r.json();
+      if (!r.ok) { errEl.textContent = d.error || 'Failed to change password'; return; }
+      window.__closeChangePassword();
+    } catch(e) { errEl.textContent = 'Request failed'; }
+  };
+
+  function updateChpwChecks(v) {
+    var checks = {
+      'chpw-chk-len':     v.length >= 12,
+      'chpw-chk-upper':   /[A-Z]/.test(v),
+      'chpw-chk-num':     /[0-9]/.test(v),
+      'chpw-chk-special': /[^a-zA-Z0-9]/.test(v)
+    };
+    for (var id in checks) {
+      var el = document.getElementById(id);
+      if (!el) continue;
+      var icon = el.querySelector('.pw-check-icon');
+      if (checks[id]) { el.classList.add('met'); icon.textContent = '✓'; }
+      else { el.classList.remove('met'); icon.textContent = '✗'; }
+    }
   }
 
   function renderHeader(s, clusterOverride) {
@@ -3310,6 +3738,34 @@ const uiHTML = `<!DOCTYPE html>
             : '<div class="log-entry" style="color:#52525b">No logs yet</div>') +
         '</div>' +
       '</div>' +
+    '</div>' +
+    '<div class="modal ' + (logFilesList !== null || logFilesLoading ? 'show' : '') + '" onclick="if(event.target===this)window.__closeLogFilesModal()">' +
+      '<div class="modal-content" style="max-width:560px" onclick="event.stopPropagation()">' +
+        '<div class="logs-modal-header">' +
+          '<div class="logs-modal-title">Log Files</div>' +
+          '<button class="modal-close" onclick="window.__closeLogFilesModal()">&times;</button>' +
+        '</div>' +
+        '<div style="padding:16px 24px;min-height:80px">' +
+          (logFilesLoading
+            ? '<div style="color:#71717a;text-align:center;padding:24px">Loading...</div>'
+            : (logFilesList && logFilesList.length > 0
+                ? '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+                    '<thead><tr>' +
+                      '<th style="text-align:left;color:#71717a;font-weight:400;padding:4px 8px">Date</th>' +
+                      '<th style="text-align:right;color:#71717a;font-weight:400;padding:4px 8px">Size</th>' +
+                      '<th style="padding:4px 8px"></th>' +
+                    '</tr></thead><tbody>' +
+                    (logFilesList || []).map(function(f) {
+                      return '<tr style="border-top:1px solid #27272a">' +
+                        '<td style="padding:6px 8px;color:#e4e4e7">' + escHtml(f.date) + '</td>' +
+                        '<td style="padding:6px 8px;color:#71717a;text-align:right">' + formatBytes(f.size) + '</td>' +
+                        '<td style="padding:6px 8px;text-align:right"><button class="btn-sort btn-primary" onclick="window.__downloadLogFile(\'' + escHtml(f.date) + '\')">Download</button></td>' +
+                      '</tr>';
+                    }).join('') +
+                    '</tbody></table>'
+                : '<div style="color:#71717a;text-align:center;padding:24px">No log files found</div>')) +
+        '</div>' +
+      '</div>' +
     '</div>';
   }
 
@@ -3384,17 +3840,38 @@ const uiHTML = `<!DOCTYPE html>
     }
   }
 
-  function downloadLogs() {
-    if (!state || !state.logs) return;
-    var blob = new Blob([JSON.stringify(state.logs, null, 2)], { type: 'application/json' });
-    var url = window.URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = 'omni-cd-logs.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+  function downloadTodaysLogs() {
+    var today = new Date().toISOString().slice(0, 10);
+    window.location.href = '/api/logs/download?date=' + today;
+  }
+
+  function downloadLogFile(date) {
+    window.location.href = '/api/logs/download?date=' + date;
+  }
+
+  var logFilesList = null;
+  var logFilesLoading = false;
+
+  function openLogFilesModal() {
+    logFilesList = null;
+    logFilesLoading = true;
+    render();
+    fetch('/api/logs/files')
+      .then(function(r) { return r.json(); })
+      .then(function(d) { logFilesList = d; logFilesLoading = false; render(); })
+      .catch(function() { logFilesList = []; logFilesLoading = false; render(); });
+  }
+
+  function closeLogFilesModal() {
+    logFilesList = null;
+    logFilesLoading = false;
+    render();
+  }
+
+  function formatBytes(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+    return (b / (1024 * 1024)).toFixed(1) + ' MB';
   }
 
   function paginateItems(items, page) {
@@ -3618,7 +4095,14 @@ const uiHTML = `<!DOCTYPE html>
     } else if (currentRoute === '/users') {
       app.innerHTML = renderUsersView(s);
     } else if (currentRoute === '/logs') {
+      var activeIsLogSearch = document.activeElement && document.activeElement.tagName === 'INPUT' && document.activeElement.placeholder === 'Search logs...';
+      var lss = activeIsLogSearch ? document.activeElement.selectionStart : null;
+      var lse = activeIsLogSearch ? document.activeElement.selectionEnd   : null;
       app.innerHTML = renderLogsView(s);
+      if (activeIsLogSearch) {
+        var li = app.querySelector('input[placeholder="Search logs..."]');
+        if (li) { li.focus(); li.setSelectionRange(lss, lse); }
+      }
     } else {
       window.location.replace('/clusters');
     }
@@ -3677,7 +4161,14 @@ const uiHTML = `<!DOCTYPE html>
   window.__hideClustersView = hideClustersView;
   window.__showLogsModal = showLogsModal;
   window.__closeLogsModal = closeLogsModal;
-  window.__downloadLogs = downloadLogs;
+  window.__downloadTodaysLogs  = downloadTodaysLogs;
+  window.__openLogFilesModal   = openLogFilesModal;
+  window.__closeLogFilesModal  = closeLogFilesModal;
+  window.__downloadLogFile     = downloadLogFile;
+  window.__setLogsSearch = function(v) { logsSearch = v; render(); };
+  window.__setLogsLevel = function(v) { logsLevelFilter = logsLevelFilter === v ? '' : v; render(); };
+  window.__setLogsComponent = function(v) { logsComponentFilter = v; render(); };
+  window.__clearLogsFilters = function() { logsSearch = ''; logsLevelFilter = ''; logsComponentFilter = ''; render(); };
   // ── Repo CRUD ──────────────────────────────────────────────────────────────
   var _repoModalIsEdit = false;
 
@@ -3823,6 +4314,12 @@ const uiHTML = `<!DOCTYPE html>
     render();
   }
 
+  window.__openOmniInstanceModal  = openOmniInstanceModal;
+  window.__closeOmniInstanceModal = closeOmniInstanceModal;
+  window.__saveOmniInstance       = saveOmniInstance;
+  window.__testOmniInstance       = testOmniInstance;
+  window.__deleteOmniInstance     = deleteOmniInstance;
+
   window.__openRepoModal  = openRepoModal;
   window.__closeRepoModal = closeRepoModal;
   window.__saveRepo       = saveRepo;
@@ -3917,6 +4414,7 @@ const uiHTML = `<!DOCTYPE html>
     localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
     applySidebarCollapse(collapsed);
   };
+
   applySidebarCollapse(localStorage.getItem('sidebarCollapsed') === '1');
 
   // Start WebSocket connection

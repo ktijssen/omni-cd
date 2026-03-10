@@ -26,8 +26,10 @@ A GitOps tool for [Sidero Omni](https://www.siderolabs.com/omni/). It watches on
 - **Unmanaged clusters** — Clusters created outside of Git are visible and can be exported as templates
 - **Machine class usage** — Each MachineClass card lists which clusters are currently using it
 - **Persistent state** — State is saved to disk and restored on restart
-- **Authentication** — Username/password login with session cookies (or fully disabled for internal use)
+- **Authentication** — Email/password login with session cookies, first-time setup wizard, and user management (or fully disabled for internal use)
 - **Real-time web UI** — WebSocket-driven dashboard; no page refreshes needed
+- **Log persistence** — Logs are written to daily rotating files and survive container restarts
+- **Omni instance management** — Omni endpoint and service account key can be configured via the web UI
 
 ---
 
@@ -37,15 +39,12 @@ A GitOps tool for [Sidero Omni](https://www.siderolabs.com/omni/). It watches on
 
 ```bash
 docker run -d \
-  -e OMNI_ENDPOINT=https://your-omni.omni.siderolabs.io \
-  -e OMNI_SERVICE_ACCOUNT_KEY=your-service-account-key \
-  -e ADMIN_PASSWORD=changeme \
   -v omni-cd-data:/data \
   -p 8080:8080 \
   ghcr.io/ktijssen/sidero-omni-cd:latest
 ```
 
-Repositories are added and managed at runtime from the **Repos** page in the web UI.
+The Omni endpoint and service account key can be set via environment variables **or** configured at runtime from the **Instances** page in the web UI.
 
 ### Docker Compose
 
@@ -65,16 +64,19 @@ A full example with all variables is in [`deploy/compose/`](deploy/compose/).
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `OMNI_ENDPOINT` | Yes | — | Omni instance URL |
-| `OMNI_SERVICE_ACCOUNT_KEY` | Yes | — | Omni service account key |
+| `OMNI_ENDPOINT` | No* | — | Omni instance URL |
+| `OMNI_SERVICE_ACCOUNT_KEY` | No* | — | Omni service account key |
 | `REFRESH_INTERVAL` | No | `300` | Seconds between git pull + drift checks |
-| `ADMIN_USERNAME` | No | `admin` | Web UI login username |
-| `ADMIN_PASSWORD` | Yes* | — | Web UI login password |
-| `AUTH_DISABLED` | No | `false` | Set `true` to disable login entirely |
+| `ADMIN_USERNAME` | No | `admin` | ⚠️ **Deprecated** — Bootstrap email used on first boot with `ADMIN_PASSWORD`. Will be removed in the next release. Use the `/setup` wizard instead. |
+| `ADMIN_PASSWORD` | No** | — | ⚠️ **Deprecated** — Bootstrap password applied on first boot only (ignored once a user exists). Will be removed in the next release. Use the `/setup` wizard instead. |
+| `AUTH_DISABLED` | No | `false` | Set `true` to disable login entirely (hides Users page) |
 | `WEB_PORT` | No | `8080` | Web UI port |
 | `LOG_LEVEL` | No | `INFO` | Log level: `DEBUG`, `INFO`, `WARN`, `ERROR` |
+| `LOG_RETENTION_DAYS` | No | `7` | Number of days to keep daily log files |
 
-\* Required unless `AUTH_DISABLED=true`.
+\* Can be configured via the **Instances** page in the web UI instead. If set via environment, the values are locked and cannot be changed from the UI.
+
+\*\* `ADMIN_PASSWORD` and `ADMIN_USERNAME` are deprecated and will be removed in the next release. Use the **Setup** page (`/setup`) to create the initial account interactively.
 
 ---
 
@@ -120,7 +122,7 @@ Resources are always processed in this order:
 
 ### State Persistence
 
-State is saved to `/data/omni-cd-state.json` after each reconcile and restored on startup, so the UI shows current state immediately without waiting for the first cycle.
+State is saved to `/data/state/state.json` after each reconcile and restored on startup, so the UI shows current state immediately without waiting for the first cycle.
 
 ---
 
@@ -152,7 +154,7 @@ Card grid showing each MachineClass with its provisioning mode, resource setting
 
 ### Instances (`/instances`)
 
-Omni instance overview.
+Manage the Omni endpoint and service account key. When credentials are provided via environment variables they are shown as read-only. When not set via ENV, use the **Add Omni Instance** button to configure the connection, or **Edit** / **Delete** an existing one. Changes take effect immediately.
 
 ### Repos (`/repos`)
 
@@ -162,11 +164,24 @@ Add, edit, and remove Git repositories at runtime without restarting. Supports o
 
 ### Users (`/users`)
 
-User management page.
+Manage the local user account. Shows the current user's display name and email. From here you can:
+
+- **Edit Profile** — update your email address and display name
+- **Change Password** — change your password (requires current password; enforces strength rules)
+
+> This page is hidden and inaccessible when `AUTH_DISABLED=true`.
 
 ### Logs (`/logs`)
 
-Reconciler log stream with a **Download Logs** button to export as JSON.
+Reconciler log stream with filtering and export:
+
+- **Level filter** — toggle INFO / WARN / ERROR (and DEBUG when `LOG_LEVEL=DEBUG`)
+- **Component filter** — narrow logs to a specific component
+- **Text search** — filter by message content
+- **Download Today's Logs** — download the current day's log file as JSONL
+- **Show Logs** — browse all stored daily log files with individual download buttons
+
+Logs are written to daily rotating files under `/data/logs/` and are re-loaded into the ring buffer on restart so history is preserved across container restarts. Files older than `LOG_RETENTION_DAYS` days are automatically deleted.
 
 ---
 
@@ -192,6 +207,15 @@ Reconciler log stream with a **Download Logs** button to export as JSON.
 | `POST` | `/api/repos` | Add a git repository |
 | `PUT` | `/api/repos` | Update a git repository |
 | `DELETE` | `/api/repos` | Remove a git repository |
+| `GET` | `/api/omni-instance` | Get current Omni instance config |
+| `POST` | `/api/omni-instance` | Save Omni instance config |
+| `POST` | `/api/omni-instance/test` | Test Omni connection |
+| `DELETE` | `/api/omni-instance` | Remove stored Omni instance config |
+| `GET` | `/api/logs/files` | List available daily log files |
+| `GET` | `/api/logs/download?date=YYYY-MM-DD` | Download a specific day's log file |
+| `GET` | `/api/users` | List users (email + display name, no hashes) |
+| `POST` | `/api/users/change-password` | Change password `{"currentPassword":"…","newPassword":"…"}` |
+| `POST` | `/api/users/update-profile` | Update email/display name `{"newEmail":"…","newDisplayName":"…"}` |
 
 ---
 
@@ -241,29 +265,17 @@ task                         # List all available tasks
 
 ---
 
-## Releases
-
-Docker images are published automatically to [GitHub Releases](https://github.com/ktijssen/sidero-omni-cd/releases) and GHCR when [`hack/VERSION`](hack/VERSION) is updated on `main`. Both `linux/amd64` and `linux/arm64` are supported.
-
-To cut a new release, update the version in `hack/VERSION` and push to `main`:
-
-```bash
-echo "v1.2.0" > hack/VERSION
-git add hack/VERSION && git commit -m "chore: release v1.2.0"
-git push origin main
-```
-
----
-
 ## Troubleshooting
 
 **Cluster stuck in Out of Sync** — Click the Diff tab to see what changed, then use the Sync button or check the Logs page for the underlying error.
 
 **MachineClass not applying** — Open the resource modal and check the Error tab for validation output.
 
-**State lost after restart** — Ensure `/data` is backed by a persistent volume.
+**State lost after restart** — Ensure `/data` is backed by a persistent volume. State is stored in `/data/state/state.json`.
 
-**Login not working** — Verify `ADMIN_USERNAME` / `ADMIN_PASSWORD` are set, or set `AUTH_DISABLED=true` for passwordless access.
+**Login not working** — If you set `ADMIN_PASSWORD` on first boot it creates the initial account. Once a user exists, `ADMIN_PASSWORD` is ignored — use the **Users** page to change the password, or set `AUTH_DISABLED=true` for passwordless access.
+
+**Cannot connect to Omni** — Check the Instances page to verify the endpoint and key are configured. If set via ENV, ensure the variables are correct. The startup log shows which credential source is active.
 
 ---
 

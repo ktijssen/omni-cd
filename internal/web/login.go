@@ -122,8 +122,8 @@ const loginHTML = `<!DOCTYPE html>
     <!--ERROR-->
     <form method="POST" action="/login">
       <div class="login-field">
-        <label for="username">Username</label>
-        <input id="username" name="username" type="text" placeholder="admin" autocomplete="username" required autofocus>
+        <label for="email">Email</label>
+        <input id="email" name="email" type="text" placeholder="you@example.com" autocomplete="email" required autofocus>
       </div>
       <div class="login-field">
         <label for="password">Password</label>

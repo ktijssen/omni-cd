@@ -7,14 +7,17 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"omni-cd/internal/auth"
 	"omni-cd/internal/config"
 	"omni-cd/internal/git"
 	"omni-cd/internal/omni"
+	"omni-cd/internal/omniinstance"
 	"omni-cd/internal/reconciler"
 	"omni-cd/internal/state"
 	"omni-cd/internal/web"
@@ -29,7 +32,6 @@ func main() {
 	// Load config first to get log level
 	cfg, err := config.Load()
 	if err != nil {
-		// Can't use logInfo yet as slog isn't configured
 		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
 		os.Exit(1)
 	}
@@ -41,48 +43,55 @@ func main() {
 	})))
 
 	logInfo("Starting OmniCD")
-	for _, rc := range cfg.Repos {
-		logInfo("Watching repository", "name", rc.Name, "repo", rc.URL, "branch", rc.Branch)
+	migrateDataFiles()
+
+	// Load (or create) the auth store. ADMIN_PASSWORD is only applied on first
+	// boot (empty store) so a password set via the setup UI is never overwritten.
+	authStore, err := auth.New("/data/auth/users.json")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load auth store: %v\n", err)
+		os.Exit(1)
+	}
+	if cfg.AdminPassword != "" && authStore.IsEmpty() {
+		if err := authStore.SetPassword(cfg.AdminUsername, cfg.AdminPassword); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to set admin password from ENV: %v\n", err)
+			os.Exit(1)
+		}
+		logInfo("Admin password set from environment variable (first boot)")
 	}
 	logInfo("Refresh reconcile interval", "interval", cfg.RefreshInterval)
 
-	// Initialise the Omni API client
-	if err := omni.Init(cfg.OmniEndpoint, cfg.OmniServiceAccountKey); err != nil {
-		logInfo("Failed to initialise Omni client", "error", err)
-		os.Exit(1)
-	}
-
-	// Verify Omni connectivity
-	if err := omni.CheckConnectivity(); err != nil {
-		logInfo("Omni authentication failed", "error", err)
-		os.Exit(1)
-	}
-	logInfo("Omni authenticated successfully")
-
-	// Shared state for the web UI
-	stateFile := "/data/omni-cd-state.json"
-	appState = state.New(500, cfg.OmniEndpoint, true, stateFile)
-	logDebug("State file configured", "path", stateFile)
-
-	// Initialise mutable repo configs.
-	// Try to load from the persisted repos.json first (reflects any UI edits);
-	// fall back to the repos defined in the startup config.
-	repoFile := "/data/repos.json"
-	appState.SetRepoFile(repoFile)
-	if err := appState.LoadRepoConfigs(); err != nil {
-		logError("Failed to load persisted repo configs", "error", err)
-	}
-	if len(appState.GetRepoConfigs()) == 0 {
-		appState.SetRepoConfigs(cfg.Repos)
-		if err := appState.SaveRepoConfigs(); err != nil {
-			logError("Failed to persist initial repo configs", "error", err)
+	// Resolve Omni credentials: ENV vars take precedence over the persisted file.
+	instanceFile := omniinstance.DefaultPath
+	effectiveEndpoint := cfg.OmniEndpoint
+	effectiveKey := cfg.OmniServiceAccountKey
+	if cfg.OmniEnvLocked {
+		logInfo("Omni credentials loaded from environment variables", "endpoint", effectiveEndpoint)
+	} else {
+		if inst, err := omniinstance.Load(instanceFile); err != nil {
+			logError("Failed to load instances.json", "error", err)
+		} else if inst != nil {
+			effectiveEndpoint = inst.Endpoint
+			effectiveKey = inst.ServiceAccountKey
+			logInfo("Omni credentials loaded from config file", "endpoint", effectiveEndpoint, "path", instanceFile)
+		} else {
+			logInfo("No Omni credentials found — waiting for configuration via UI")
 		}
 	}
+	configured := effectiveEndpoint != "" && effectiveKey != ""
 
-	// Fetch and store version info
-	omniVersion := omni.GetOmniVersion()
-	appState.SetVersions(omniVersion)
-	logDebug("Omni version", "version", omniVersion)
+	// Shared state for the web UI — always created so the setup UI works
+	// even before Omni is configured.
+	stateFile := "/data/state/state.json"
+	appState = state.New(500, effectiveEndpoint, true, stateFile)
+	appState.SetEnvLocked(cfg.OmniEnvLocked)
+	appState.SetHasStoredKey(!cfg.OmniEnvLocked && effectiveKey != "")
+	appState.LogLevel = strings.ToUpper(cfg.LogLevel)
+	logDebug("State file configured", "path", stateFile)
+
+	logDir := "/data/logs"
+	appState.SetLogDir(logDir, cfg.LogRetentionDays)
+	logInfo("Log rotation configured", "dir", logDir, "retention_days", cfg.LogRetentionDays)
 
 	// Channels for web UI to trigger reconciles
 	triggerHard := make(chan struct{}, 1)
@@ -93,14 +102,69 @@ func main() {
 	triggerMCRefresh := make(chan struct{}, 1)
 	triggerMCRefreshSingle := make(chan string, 1)
 	triggerRepoChange := make(chan struct{}, 1)
+	triggerOmniConfigured := make(chan struct{}, 1)
 
-	// Start the web UI server
-	webServer := web.New(appState, triggerHard, triggerSoft, triggerRefreshCluster, triggerDeleteCluster, triggerDeleteMC, triggerMCRefresh, triggerMCRefreshSingle, triggerRepoChange, cfg.WebPort, version, cfg.AdminUsername, cfg.AdminPassword, cfg.AuthDisabled)
+	// Start the web UI server early — needed for the setup UI in unconfigured mode.
+	webServer := web.New(appState, triggerHard, triggerSoft, triggerRefreshCluster, triggerDeleteCluster, triggerDeleteMC, triggerMCRefresh, triggerMCRefreshSingle, triggerRepoChange, triggerOmniConfigured, instanceFile, logDir, cfg.WebPort, version, authStore, cfg.AuthDisabled)
 	webServer.Start()
 
 	// Set up graceful shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
+	// loadOmniStartupData loads repo configs and version info after Omni is ready.
+	loadOmniStartupData := func() {
+		repoFile := "/data/config/repos.json"
+		appState.SetRepoFile(repoFile)
+		if err := appState.LoadRepoConfigs(); err != nil {
+			logError("Failed to load persisted repo configs", "error", err)
+		}
+		if len(appState.GetRepoConfigs()) == 0 {
+			appState.SetRepoConfigs(cfg.Repos)
+			if err := appState.SaveRepoConfigs(); err != nil {
+				logError("Failed to persist initial repo configs", "error", err)
+			}
+		}
+		omniVersion := omni.GetOmniVersion()
+		appState.SetVersions(omniVersion)
+		logDebug("Omni version", "version", omniVersion)
+	}
+
+	if configured {
+		if err := omni.Init(effectiveEndpoint, effectiveKey); err != nil {
+			if cfg.OmniEnvLocked {
+				fmt.Fprintf(os.Stderr, "Failed to initialise Omni client: %v\n", err)
+				os.Exit(1)
+			}
+			logError("Failed to initialise Omni client, waiting for UI configuration", "error", err)
+			configured = false
+		} else if err := omni.CheckConnectivity(); err != nil {
+			if cfg.OmniEnvLocked {
+				fmt.Fprintf(os.Stderr, "Omni authentication failed: %v\n", err)
+				os.Exit(1)
+			}
+			logError("Omni connectivity check failed, waiting for UI configuration", "error", err)
+			appState.SetOmniHealth("failed", err.Error())
+			configured = false
+		} else {
+			logInfo("Omni authenticated successfully")
+			appState.SetOmniConfigured(true)
+			appState.SetOmniHealth("healthy", "")
+			loadOmniStartupData()
+		}
+	}
+
+	if !configured {
+		logInfo("Omni not configured — waiting for configuration via UI")
+		select {
+		case <-triggerOmniConfigured:
+			// omni.Init was already called by the save handler.
+			loadOmniStartupData()
+		case <-stop:
+			logInfo("Shutting down gracefully")
+			return
+		}
+	}
 
 	// buildMultiClient constructs a fresh MultiClient from the current repo configs
 	// stored in appState.  Always call this inside the reconcile lock or at a quiet
@@ -307,7 +371,6 @@ func main() {
 		}()
 	}
 	startWatcher()
-
 	// Run immediately on start (hard reconcile)
 	doReconcile(buildMultiClient(), rec, cfg, true, setClusterDirs, setMCDirs)
 	// Poll right after the initial reconcile so ClusterReady is populated
@@ -454,6 +517,7 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 				[]string{workDir + "/" + rc.ClustersPath},
 				[]string{workDir + "/" + rc.MCPath},
 			)
+			os.RemoveAll(workDir)
 			// Clusters skipped by ForceDeleteFromDirs due to auto-sync being
 			// disabled are no longer owned by any repo — mark them orphaned
 			// immediately so the UI reflects the correct state right away.
@@ -543,14 +607,23 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 		appState.SetOmniHealth("healthy", "")
 	}
 
-	// Nothing to reconcile yet — repos will be added from the UI.
+	// No repos configured — still discover unmanaged resources from Omni so the
+	// UI shows what exists, marked as unmanaged.
 	if len(appState.GetRepoConfigs()) == 0 {
-		logInfo("No repositories configured, clearing all cluster and machine class state")
-		appState.SetClusters(nil)
-		appState.SetMachineClasses(nil)
+		logInfo("No repositories configured, collecting unmanaged resources from Omni")
 		appState.ClearRepoMaps()
+		liveClusterIDs, _, _ := omni.GetCachedClusterIDsWithPhases()
+		if len(liveClusterIDs) == 0 {
+			if ids, err := omni.GetClusterIDs(); err == nil {
+				liveClusterIDs = ids
+			}
+		}
+		rec.CollectUnmanagedClusters(nil, liveClusterIDs)
+		liveMCStates, _ := omni.GetCachedMachineClasses()
+		rec.CollectUnmanagedMachineClasses(nil, liveMCStates)
 		appState.SetReconcileFinished(true)
 		appState.Save()
+		logInfo("Reconcile finished")
 		return
 	}
 
@@ -757,6 +830,34 @@ func formatLogMessage(level, msg string, attrs ...any) string {
 	}
 
 	return strings.Join(jsonParts, ",") + "}"
+}
+
+// migrateDataFiles moves files from the old flat /data/ layout to the new
+// structured layout. Only moves a file when the old path exists and the new
+// path does not, so it is safe to run on every startup.
+func migrateDataFiles() {
+	migrations := []struct{ old, new string }{
+		{"/data/omni-cd-state.json", "/data/state/state.json"},
+		{"/data/omni-instance.json", "/data/config/instances.json"},
+		{"/data/repos.json", "/data/config/repos.json"},
+	}
+	for _, m := range migrations {
+		if _, err := os.Stat(m.old); os.IsNotExist(err) {
+			continue // old file not present, nothing to migrate
+		}
+		if _, err := os.Stat(m.new); err == nil {
+			continue // new file already exists, skip
+		}
+		if err := os.MkdirAll(filepath.Dir(m.new), 0755); err != nil {
+			logError("Migration: failed to create directory", "path", filepath.Dir(m.new), "error", err)
+			continue
+		}
+		if err := os.Rename(m.old, m.new); err != nil {
+			logError("Migration: failed to move file", "from", m.old, "to", m.new, "error", err)
+			continue
+		}
+		logInfo("Migration: moved file to new location", "from", m.old, "to", m.new)
+	}
 }
 
 // parseLogLevel converts a string log level to slog.Level
