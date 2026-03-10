@@ -50,14 +50,19 @@ type Server struct {
 	clients                map[*websocket.Conn]bool
 	clientsMu              sync.RWMutex
 	broadcast              chan []byte
-	authStore     *auth.Store
-	authDisabled  bool
-	sessions      sync.Map // token (string) -> time.Time (login time)
-	loginBuckets  sync.Map // IP (string) -> *loginBucket
+	authStore    *auth.Store
+	authDisabled bool
+	sessions     sync.Map // token (string) -> sessionInfo
+	loginBuckets sync.Map // IP (string) -> *loginBucket
+	// OIDC
+	oidcRT     *OIDCRuntime
+	oidcMu     sync.RWMutex
+	oidcStates sync.Map // state token (string) -> oidcStateEntry
+	oidcUsers  *oidcUserStore
 }
 
 // New creates a new web server.
-func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, triggerOmniConfigured chan struct{}, omniInstanceFile string, logDir string, port string, version string, authStore *auth.Store, authDisabled bool) *Server {
+func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, triggerOmniConfigured chan struct{}, omniInstanceFile string, logDir string, port string, version string, authStore *auth.Store, authDisabled bool, oidcRT *OIDCRuntime) *Server {
 	s := &Server{
 		appState:               appState,
 		triggerHard:            triggerHard,
@@ -77,6 +82,8 @@ func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan s
 		broadcast:              make(chan []byte, 256),
 		authStore:              authStore,
 		authDisabled:           authDisabled,
+		oidcRT:    oidcRT,
+		oidcUsers: loadOIDCUserStore(oidcUsersPath),
 	}
 
 	// Start broadcast handler
@@ -84,6 +91,9 @@ func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan s
 
 	// Start state change monitor
 	go s.monitorStateChanges()
+
+	// Periodically purge expired OIDC state tokens to prevent unbounded growth.
+	go s.cleanupOIDCStates()
 
 	return s
 }
@@ -96,47 +106,57 @@ func (s *Server) Start() {
 	mux.HandleFunc("/setup", s.handleSetup)
 	mux.HandleFunc("/login", s.handleLogin)
 	mux.HandleFunc("/logout", s.handleLogout)
+	mux.HandleFunc("/unauthorized", s.handleUnauthorized)
 
-	// WebSocket endpoint (auth checked inside requireAuth)
-	mux.HandleFunc("/ws", s.requireAuth(s.handleWebSocket))
+	// OIDC SSO routes — public (the handlers check OIDC is enabled)
+	mux.HandleFunc("/auth/login", s.handleOIDCLogin)
+	mux.HandleFunc("/auth/callback", s.handleOIDCCallback)
 
-	// API endpoints
-	mux.HandleFunc("/api/state", s.requireAuth(s.handleState))
-	mux.HandleFunc("/api/reconcile", s.requireAuth(s.handleReconcile))
-	mux.HandleFunc("/api/check", s.requireAuth(s.handleCheck))
-	mux.HandleFunc("/api/clusters-toggle", s.requireAuth(s.handleClustersToggle))
-	mux.HandleFunc("/api/force-cluster", s.requireAuth(s.handleForceCluster))
-	mux.HandleFunc("/api/refresh-cluster", s.requireAuth(s.handleRefreshCluster))
-	mux.HandleFunc("/api/delete-cluster", s.requireAuth(s.handleDeleteCluster))
-	mux.HandleFunc("/api/set-cluster-autosync", s.requireAuth(s.handleSetClusterAutoSync))
-	mux.HandleFunc("/api/repos", s.requireAuth(s.handleRepos))
-	mux.HandleFunc("/api/refresh-mc", s.requireAuth(s.handleRefreshMC))
-	mux.HandleFunc("/api/refresh-single-mc", s.requireAuth(s.handleRefreshSingleMC))
-	mux.HandleFunc("/api/delete-machineclass", s.requireAuth(s.handleDeleteMachineClass))
-	mux.HandleFunc("/api/sync-machineclass", s.requireAuth(s.handleSyncMachineClass))
-	mux.HandleFunc("/api/set-mc-autosync", s.requireAuth(s.handleSetMCAutoSync))
-	mux.HandleFunc("/api/export-cluster", s.requireAuth(s.handleExportCluster))
-	mux.HandleFunc("/api/omni-instance", s.requireAuth(s.handleOmniInstance))
-	mux.HandleFunc("/api/omni-instance/test", s.requireAuth(s.handleTestOmniInstance))
-	mux.HandleFunc("/api/logs/files", s.requireAuth(s.handleLogFiles))
-	mux.HandleFunc("/api/logs/download", s.requireAuth(s.handleLogDownload))
-	mux.HandleFunc("/api/users", s.requireAuth(s.handleUsers))
-	mux.HandleFunc("/api/users/change-password", s.requireAuth(s.handleChangePassword))
-	mux.HandleFunc("/api/users/update-profile", s.requireAuth(s.handleUpdateProfile))
+	// WebSocket endpoint — viewer+
+	mux.HandleFunc("/ws", s.requireRole("viewer", s.handleWebSocket))
 
-	// Serve the UI (all protected)
-	mux.HandleFunc("/clusters/", s.requireAuth(s.handleUI))
-	mux.HandleFunc("/clusters", s.requireAuth(s.handleUI))
-	mux.HandleFunc("/machineclasses", s.requireAuth(s.handleUI))
-	mux.HandleFunc("/repos", s.requireAuth(s.handleUI))
-	mux.HandleFunc("/users", s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+	// Read-only API endpoints — viewer+
+	mux.HandleFunc("/api/state", s.requireRole("viewer", s.handleState))
+	mux.HandleFunc("/api/logs/files", s.requireRole("viewer", s.handleLogFiles))
+	mux.HandleFunc("/api/logs/download", s.requireRole("viewer", s.handleLogDownload))
+
+	// Write API endpoints — admin only
+	mux.HandleFunc("/api/reconcile", s.requireRole("admin", s.handleReconcile))
+	mux.HandleFunc("/api/check", s.requireRole("admin", s.handleCheck))
+	mux.HandleFunc("/api/clusters-toggle", s.requireRole("admin", s.handleClustersToggle))
+	mux.HandleFunc("/api/force-cluster", s.requireRole("admin", s.handleForceCluster))
+	mux.HandleFunc("/api/refresh-cluster", s.requireRole("admin", s.handleRefreshCluster))
+	mux.HandleFunc("/api/delete-cluster", s.requireRole("admin", s.handleDeleteCluster))
+	mux.HandleFunc("/api/set-cluster-autosync", s.requireRole("admin", s.handleSetClusterAutoSync))
+	mux.HandleFunc("/api/export-cluster", s.requireRole("admin", s.handleExportCluster))
+	mux.HandleFunc("/api/repos", s.requireRole("admin", s.handleRepos))
+	mux.HandleFunc("/api/refresh-mc", s.requireRole("admin", s.handleRefreshMC))
+	mux.HandleFunc("/api/refresh-single-mc", s.requireRole("admin", s.handleRefreshSingleMC))
+	mux.HandleFunc("/api/delete-machineclass", s.requireRole("admin", s.handleDeleteMachineClass))
+	mux.HandleFunc("/api/sync-machineclass", s.requireRole("admin", s.handleSyncMachineClass))
+	mux.HandleFunc("/api/set-mc-autosync", s.requireRole("admin", s.handleSetMCAutoSync))
+	mux.HandleFunc("/api/omni-instance", s.requireRole("admin", s.handleOmniInstance))
+	mux.HandleFunc("/api/omni-instance/test", s.requireRole("admin", s.handleTestOmniInstance))
+	mux.HandleFunc("/api/users", s.requireRole("admin", s.handleUsers))
+	mux.HandleFunc("/api/users/change-password", s.requireRole("admin", s.handleChangePassword))
+	mux.HandleFunc("/api/users/update-profile", s.requireRole("admin", s.handleUpdateProfile))
+	mux.HandleFunc("/api/users/oidc", s.requireRole("admin", s.handleOIDCUsers))
+	mux.HandleFunc("/api/oidc-config", s.requireRole("admin", s.handleOIDCConfigAPI))
+
+	// Serve the UI (all protected, viewer+)
+	mux.HandleFunc("/clusters/", s.requireRole("viewer", s.handleUI))
+	mux.HandleFunc("/clusters", s.requireRole("viewer", s.handleUI))
+	mux.HandleFunc("/machineclasses", s.requireRole("viewer", s.handleUI))
+	mux.HandleFunc("/repos", s.requireRole("viewer", s.handleUI))
+	mux.HandleFunc("/logs", s.requireRole("viewer", s.handleUI))
+	mux.HandleFunc("/users", s.requireRole("admin", func(w http.ResponseWriter, r *http.Request) {
 		if s.authDisabled {
 			http.Redirect(w, r, "/clusters", http.StatusFound)
 			return
 		}
 		s.handleUI(w, r)
 	}))
-	mux.HandleFunc("/", s.requireAuth(s.handleUI))
+	mux.HandleFunc("/", s.requireRole("viewer", s.handleUI))
 
 	addr := fmt.Sprintf(":%s", s.port)
 	slog.Info("Web UI listening", "address", addr, "component", "Web")

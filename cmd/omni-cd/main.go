@@ -17,6 +17,7 @@ import (
 	"omni-cd/internal/config"
 	"omni-cd/internal/git"
 	"omni-cd/internal/omni"
+	oidcconfig "omni-cd/internal/oidc"
 	"omni-cd/internal/omniinstance"
 	"omni-cd/internal/reconciler"
 	"omni-cd/internal/state"
@@ -53,11 +54,11 @@ func main() {
 		os.Exit(1)
 	}
 	if cfg.AdminPassword != "" && authStore.IsEmpty() {
-		if err := authStore.SetPassword(cfg.AdminUsername, cfg.AdminPassword); err != nil {
+		if err := authStore.SetUser("admin", "Admin", cfg.AdminPassword); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to set admin password from ENV: %v\n", err)
 			os.Exit(1)
 		}
-		logInfo("Admin password set from environment variable (first boot)")
+		logInfo("Admin account set from environment variables (first boot)")
 	}
 	logInfo("Refresh reconcile interval", "interval", cfg.RefreshInterval)
 
@@ -93,6 +94,14 @@ func main() {
 	appState.SetLogDir(logDir, cfg.LogRetentionDays)
 	logInfo("Log rotation configured", "dir", logDir, "retention_days", cfg.LogRetentionDays)
 
+	// Set up repo persistence unconditionally so repos can be saved even before
+	// Omni is configured. Without this, SaveRepoConfigs() is a no-op.
+	repoFile := "/data/config/repos.json"
+	appState.SetRepoFile(repoFile)
+	if err := appState.LoadRepoConfigs(); err != nil {
+		logError("Failed to load persisted repo configs", "error", err)
+	}
+
 	// Channels for web UI to trigger reconciles
 	triggerHard := make(chan struct{}, 1)
 	triggerSoft := make(chan struct{}, 1)
@@ -104,21 +113,43 @@ func main() {
 	triggerRepoChange := make(chan struct{}, 1)
 	triggerOmniConfigured := make(chan struct{}, 1)
 
+	// Initialise OIDC from environment variables (optional).
+	var oidcRT *web.OIDCRuntime
+	if cfg.OIDC != nil {
+		oidcCfg := &oidcconfig.Config{
+			IssuerURL:    cfg.OIDC.IssuerURL,
+			ClientID:     cfg.OIDC.ClientID,
+			ClientSecret: cfg.OIDC.ClientSecret,
+			RedirectURL:  cfg.OIDC.RedirectURL,
+			Scopes:       cfg.OIDC.Scopes,
+			GroupsClaim:  cfg.OIDC.GroupsClaim,
+			AdminGroups:  cfg.OIDC.AdminGroups,
+			AdminEmails:  cfg.OIDC.AdminEmails,
+			ViewerGroups: cfg.OIDC.ViewerGroups,
+			ViewerEmails: cfg.OIDC.ViewerEmails,
+			DefaultRole:  cfg.OIDC.DefaultRole,
+			Insecure:     cfg.OIDC.Insecure,
+		}
+		if rt, err := web.InitOIDCRuntime(oidcCfg); err != nil {
+			logError("Failed to initialise OIDC provider", "error", err)
+		} else {
+			oidcRT = rt
+			logInfo("OIDC provider initialised", "issuer", oidcCfg.IssuerURL)
+		}
+	}
+
 	// Start the web UI server early — needed for the setup UI in unconfigured mode.
-	webServer := web.New(appState, triggerHard, triggerSoft, triggerRefreshCluster, triggerDeleteCluster, triggerDeleteMC, triggerMCRefresh, triggerMCRefreshSingle, triggerRepoChange, triggerOmniConfigured, instanceFile, logDir, cfg.WebPort, version, authStore, cfg.AuthDisabled)
+	webServer := web.New(appState, triggerHard, triggerSoft, triggerRefreshCluster, triggerDeleteCluster, triggerDeleteMC, triggerMCRefresh, triggerMCRefreshSingle, triggerRepoChange, triggerOmniConfigured, instanceFile, logDir, cfg.WebPort, version, authStore, cfg.AuthDisabled, oidcRT)
 	webServer.Start()
 
 	// Set up graceful shutdown
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
-	// loadOmniStartupData loads repo configs and version info after Omni is ready.
+	// loadOmniStartupData seeds repo configs from cfg.Repos (if none loaded from
+	// disk) and fetches the Omni version after Omni is ready. Repo file setup is
+	// done unconditionally above so SaveRepoConfigs() always writes to disk.
 	loadOmniStartupData := func() {
-		repoFile := "/data/config/repos.json"
-		appState.SetRepoFile(repoFile)
-		if err := appState.LoadRepoConfigs(); err != nil {
-			logError("Failed to load persisted repo configs", "error", err)
-		}
 		if len(appState.GetRepoConfigs()) == 0 {
 			appState.SetRepoConfigs(cfg.Repos)
 			if err := appState.SaveRepoConfigs(); err != nil {

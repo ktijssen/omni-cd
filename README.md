@@ -3,12 +3,16 @@
 A GitOps tool for [Sidero Omni](https://www.siderolabs.com/omni/). It watches one or more Git repositories and continuously reconciles **MachineClasses** and **Cluster templates** to your Omni instance.
 
 <p>
+  <img src="docs/loginpage.png" width="49%" alt="Login Page" />
   <img src="docs/clusters-view.png" width="49%" alt="Clusters" />
+</p>
+<p>
+  <img src="docs/cluster-detail-graph.png" width="49%" alt="Cluster Detail" />
   <img src="docs/machine-classes-view.png" width="49%" alt="Machine Classes" />
 </p>
 <p>
   <img src="docs/repos-view.png" width="49%" alt="Repos" />
-  <img src="docs/cluster-detail-graph.png" width="49%" alt="Cluster Detail" />
+  <img src="docs/users-view.png" width="49%" alt="Users" />
 </p>
 
 ---
@@ -26,7 +30,7 @@ A GitOps tool for [Sidero Omni](https://www.siderolabs.com/omni/). It watches on
 - **Unmanaged clusters** — Clusters created outside of Git are visible and can be exported as templates
 - **Machine class usage** — Each MachineClass card lists which clusters are currently using it
 - **Persistent state** — State is saved to disk and restored on restart
-- **Authentication** — Email/password login with session cookies, first-time setup wizard, and user management (or fully disabled for internal use)
+- **Authentication** — Username/password login with session cookies, first-time setup wizard, OIDC/SSO support, and user management (or fully disabled for internal use)
 - **Real-time web UI** — WebSocket-driven dashboard; no page refreshes needed
 - **Log persistence** — Logs are written to daily rotating files and survive container restarts
 - **Omni instance management** — Omni endpoint and service account key can be configured via the web UI
@@ -45,6 +49,8 @@ docker run -d \
 ```
 
 The Omni endpoint and service account key can be set via environment variables **or** configured at runtime from the **Instances** page in the web UI.
+
+On first boot you will be redirected to `/setup` to create the initial admin account (username `admin`).
 
 ### Docker Compose
 
@@ -67,8 +73,7 @@ A full example with all variables is in [`deploy/compose/`](deploy/compose/).
 | `OMNI_ENDPOINT` | No* | — | Omni instance URL |
 | `OMNI_SERVICE_ACCOUNT_KEY` | No* | — | Omni service account key |
 | `REFRESH_INTERVAL` | No | `300` | Seconds between git pull + drift checks |
-| `ADMIN_USERNAME` | No | `admin` | ⚠️ **Deprecated** — Bootstrap email used on first boot with `ADMIN_PASSWORD`. Will be removed in the next release. Use the `/setup` wizard instead. |
-| `ADMIN_PASSWORD` | No** | — | ⚠️ **Deprecated** — Bootstrap password applied on first boot only (ignored once a user exists). Will be removed in the next release. Use the `/setup` wizard instead. |
+| `ADMIN_PASSWORD` | No** | — | Bootstrap password for the `admin` account, applied on first boot only (ignored once a user exists) |
 | `AUTH_DISABLED` | No | `false` | Set `true` to disable login entirely (hides Users page) |
 | `WEB_PORT` | No | `8080` | Web UI port |
 | `LOG_LEVEL` | No | `INFO` | Log level: `DEBUG`, `INFO`, `WARN`, `ERROR` |
@@ -76,7 +81,44 @@ A full example with all variables is in [`deploy/compose/`](deploy/compose/).
 
 \* Can be configured via the **Instances** page in the web UI instead. If set via environment, the values are locked and cannot be changed from the UI.
 
-\*\* `ADMIN_PASSWORD` and `ADMIN_USERNAME` are deprecated and will be removed in the next release. Use the **Setup** page (`/setup`) to create the initial account interactively.
+\*\* If `ADMIN_PASSWORD` is not set, navigate to `/setup` on first boot to create the initial account interactively.
+
+---
+
+## Authentication
+
+### First-time Setup
+
+On first boot (no users configured), all requests redirect to `/setup`. Enter a password for the built-in `admin` account. Username is fixed as `admin`.
+
+Alternatively, set `ADMIN_PASSWORD` to bootstrap the account from an environment variable — useful for automated deployments.
+
+### Local Login
+
+![Login page](docs/loginpage.png)
+
+Log in at `/login` with username `admin` and your password. Sessions last 24 hours. Failed login attempts are rate-limited (5 failures → 15-minute lockout per IP).
+
+### OIDC / Single Sign-On
+
+Set the `OIDC_*` environment variables to enable SSO. When OIDC is configured, a **Sign in with SSO** button appears on the login page alongside the local login form.
+
+OIDC users are assigned roles (`admin`, `viewer`, or `none`) based on group/email mappings. The first OIDC user to log in is automatically promoted to `admin`. Roles can be changed from the **Users** page.
+
+| Variable | Description |
+|---|---|
+| `OIDC_ISSUER_URL` | OIDC provider URL (e.g. `https://accounts.example.com`) |
+| `OIDC_CLIENT_ID` | OAuth2 client ID |
+| `OIDC_CLIENT_SECRET` | OAuth2 client secret |
+| `OIDC_REDIRECT_URL` | Callback URL (leave empty to auto-derive) |
+| `OIDC_SCOPES` | Comma-separated scopes (default: `openid,email,profile`) |
+| `OIDC_GROUPS_CLAIM` | JWT claim for group membership (default: `groups`) |
+| `OIDC_ADMIN_GROUPS` | Groups granted `admin` role |
+| `OIDC_ADMIN_EMAILS` | Emails granted `admin` role |
+| `OIDC_VIEWER_GROUPS` | Groups granted `viewer` role |
+| `OIDC_VIEWER_EMAILS` | Emails granted `viewer` role |
+| `OIDC_DEFAULT_ROLE` | Role when no rule matches (`admin` \| `viewer` \| `none`, default: `viewer`) |
+| `OIDC_INSECURE` | Set `true` for self-signed IdP certificates |
 
 ---
 
@@ -164,10 +206,14 @@ Add, edit, and remove Git repositories at runtime without restarting. Supports o
 
 ### Users (`/users`)
 
-Manage the local user account. Shows the current user's display name and email. From here you can:
+![Users view](docs/users-view.png)
 
-- **Edit Profile** — update your email address and display name
+Manage user accounts. The **Local Admin Account** section shows the built-in `admin` account with options to:
+
+- **Edit Profile** — update the display name
 - **Change Password** — change your password (requires current password; enforces strength rules)
+
+When OIDC is enabled, an **SSO Users** section lists all users who have logged in via SSO, with their assigned role. Admins can edit each user's role (`admin`, `viewer`, or `none`) from this page.
 
 > This page is hidden and inaccessible when `AUTH_DISABLED=true`.
 
@@ -213,9 +259,11 @@ Logs are written to daily rotating files under `/data/logs/` and are re-loaded i
 | `DELETE` | `/api/omni-instance` | Remove stored Omni instance config |
 | `GET` | `/api/logs/files` | List available daily log files |
 | `GET` | `/api/logs/download?date=YYYY-MM-DD` | Download a specific day's log file |
-| `GET` | `/api/users` | List users (email + display name, no hashes) |
+| `GET` | `/api/users` | List local users (username + display name) |
 | `POST` | `/api/users/change-password` | Change password `{"currentPassword":"…","newPassword":"…"}` |
-| `POST` | `/api/users/update-profile` | Update email/display name `{"newEmail":"…","newDisplayName":"…"}` |
+| `POST` | `/api/users/update-profile` | Update display name `{"newDisplayName":"…"}` |
+| `GET` | `/api/users/oidc` | List OIDC users with roles |
+| `PATCH` | `/api/users/oidc` | Update an OIDC user's role `{"email":"…","role":"admin\|viewer\|none"}` |
 
 ---
 
@@ -273,7 +321,7 @@ task                         # List all available tasks
 
 **State lost after restart** — Ensure `/data` is backed by a persistent volume. State is stored in `/data/state/state.json`.
 
-**Login not working** — If you set `ADMIN_PASSWORD` on first boot it creates the initial account. Once a user exists, `ADMIN_PASSWORD` is ignored — use the **Users** page to change the password, or set `AUTH_DISABLED=true` for passwordless access.
+**Login not working** — Use username `admin` with the password set during `/setup` or via `ADMIN_PASSWORD` on first boot. Once a user exists, `ADMIN_PASSWORD` is ignored — use the **Users** page to change the password, or set `AUTH_DISABLED=true` for passwordless access.
 
 **Cannot connect to Omni** — Check the Instances page to verify the endpoint and key are configured. If set via ENV, ensure the variables are correct. The startup log shows which credential source is active.
 

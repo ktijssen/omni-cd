@@ -6,28 +6,21 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 	"unicode"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 // User holds a single account's credentials.
-// The Username field is kept for reading legacy JSON files only; new records
-// use Email + DisplayName. Migration runs automatically in New().
 type User struct {
-	// Legacy field — only populated when reading old data.
-	Username string `json:"username,omitempty"`
-
-	Email        string    `json:"email,omitempty"`
-	DisplayName  string    `json:"displayName,omitempty"`
-	PasswordHash string    `json:"passwordHash"`
-	CreatedAt    time.Time `json:"createdAt"`
+	Username     string `json:"username,omitempty"`
+	DisplayName  string `json:"displayName,omitempty"`
+	PasswordHash string `json:"passwordHash"`
 }
 
 // UserInfo is a safe, hash-free view of a User for API responses.
 type UserInfo struct {
-	Email       string `json:"email"`
+	Username    string `json:"username"`
 	DisplayName string `json:"displayName"`
 }
 
@@ -40,8 +33,6 @@ type Store struct {
 
 // New loads (or creates) a Store backed by the file at path.
 // Returns an empty store when the file does not yet exist.
-// Any legacy records that have Username but no Email are migrated in-place
-// and the file is re-saved with the new schema.
 func New(path string) (*Store, error) {
 	s := &Store{path: path}
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -54,23 +45,6 @@ func New(path string) (*Store, error) {
 	if err := json.Unmarshal(data, &s.users); err != nil {
 		return nil, err
 	}
-
-	// Migration: Username-only records → Email + DisplayName.
-	migrated := false
-	for i, u := range s.users {
-		if u.Email == "" && u.Username != "" {
-			s.users[i].Email = u.Username
-			s.users[i].DisplayName = u.Username
-			s.users[i].Username = ""
-			migrated = true
-		}
-	}
-	if migrated {
-		if err := s.save(); err != nil {
-			return nil, err
-		}
-	}
-
 	return s, nil
 }
 
@@ -111,32 +85,32 @@ func (s *Store) IsEmpty() bool {
 	return len(s.users) == 0
 }
 
-// Validate returns true when the email exists and password matches the stored hash.
-func (s *Store) Validate(email, password string) bool {
+// Validate returns true when the username exists and password matches the stored hash.
+func (s *Store) Validate(username, password string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, u := range s.users {
-		if u.Email == email {
+		if u.Username == username {
 			return bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) == nil
 		}
 	}
 	return false
 }
 
-// GetDisplayName returns the display name for the given email, or the email
+// GetDisplayName returns the display name for the given username, or the username
 // itself if no display name is set.
-func (s *Store) GetDisplayName(email string) string {
+func (s *Store) GetDisplayName(username string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, u := range s.users {
-		if u.Email == email {
+		if u.Username == username {
 			if u.DisplayName != "" {
 				return u.DisplayName
 			}
-			return email
+			return username
 		}
 	}
-	return email
+	return username
 }
 
 // List returns a hash-free snapshot of all users.
@@ -145,14 +119,13 @@ func (s *Store) List() []UserInfo {
 	defer s.mu.RUnlock()
 	out := make([]UserInfo, len(s.users))
 	for i, u := range s.users {
-		out[i] = UserInfo{Email: u.Email, DisplayName: u.DisplayName}
+		out[i] = UserInfo{Username: u.Username, DisplayName: u.DisplayName}
 	}
 	return out
 }
 
-// SetUser creates or updates a user with the given email, display name, and
-// password. Use this for initial setup and admin bootstrap.
-func (s *Store) SetUser(email, displayName, password string) error {
+// SetUser creates or updates a user with the given username, display name, and password.
+func (s *Store) SetUser(username, displayName, password string) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
@@ -160,7 +133,7 @@ func (s *Store) SetUser(email, displayName, password string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, u := range s.users {
-		if u.Email == email {
+		if u.Username == username {
 			s.users[i].PasswordHash = string(hash)
 			if displayName != "" {
 				s.users[i].DisplayName = displayName
@@ -169,54 +142,39 @@ func (s *Store) SetUser(email, displayName, password string) error {
 		}
 	}
 	s.users = append(s.users, User{
-		Email:        email,
+		Username:     username,
 		DisplayName:  displayName,
 		PasswordHash: string(hash),
-		CreatedAt:    time.Now().UTC(),
 	})
 	return s.save()
 }
 
-// SetPassword updates the password for an existing user identified by email.
-// Kept for backward-compatible use (ADMIN_PASSWORD env var bootstrap).
-func (s *Store) SetPassword(email, password string) error {
-	return s.SetUser(email, "", password)
-}
-
-// UpdateProfile updates the email and/or display name for an existing user.
-// newEmail may be empty to keep the current email. newDisplayName may be empty
-// to keep the current display name. Returns the (possibly unchanged) email so
-// the caller can update the session.
-func (s *Store) UpdateProfile(currentEmail, newEmail, newDisplayName string) (string, error) {
+// UpdateProfile updates the display name for an existing user.
+// newDisplayName may be empty to keep the current value.
+func (s *Store) UpdateProfile(username, newDisplayName string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, u := range s.users {
-		if u.Email == currentEmail {
-			if newEmail != "" {
-				s.users[i].Email = newEmail
-			}
+		if u.Username == username {
 			if newDisplayName != "" {
 				s.users[i].DisplayName = newDisplayName
 			}
-			if err := s.save(); err != nil {
-				return currentEmail, err
-			}
-			return s.users[i].Email, nil
+			return s.save()
 		}
 	}
-	return currentEmail, errors.New("user not found")
+	return errors.New("user not found")
 }
 
 // ChangePassword verifies currentPassword then replaces the hash with newPassword.
 // Returns an error if currentPassword is wrong or newPassword fails strength checks.
-func (s *Store) ChangePassword(email, currentPassword, newPassword string) error {
-	if !s.Validate(email, currentPassword) {
+func (s *Store) ChangePassword(username, currentPassword, newPassword string) error {
+	if !s.Validate(username, currentPassword) {
 		return errors.New("current password is incorrect")
 	}
 	if err := ValidatePasswordStrength(newPassword); err != nil {
 		return err
 	}
-	return s.SetPassword(email, newPassword)
+	return s.SetUser(username, "", newPassword)
 }
 
 // save writes the current user list to disk. Must be called with s.mu held (write).

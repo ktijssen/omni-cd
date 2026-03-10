@@ -23,6 +23,21 @@ func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
 		authDisabledVal = "true"
 	}
 	html = strings.ReplaceAll(html, "{{AUTH_DISABLED}}", authDisabledVal)
+	// Inject the user's role so the JS can show/hide admin-only controls.
+	// AUTH_DISABLED and local-auth users always get "admin".
+	userRole := "admin"
+	if !s.authDisabled {
+		userRole = s.sessionRole(r)
+		if userRole == "" {
+			userRole = "admin"
+		}
+	}
+	html = strings.ReplaceAll(html, "{{USER_ROLE}}", userRole)
+	oidcEnabledVal := "false"
+	if s.oidcEnabled() {
+		oidcEnabledVal = "true"
+	}
+	html = strings.ReplaceAll(html, "{{OIDC_ENABLED}}", oidcEnabledVal)
 	fmt.Fprint(w, html)
 }
 
@@ -1144,8 +1159,8 @@ const uiHTML = `<!DOCTYPE html>
     <div class="repo-modal-title">Edit Profile</div>
     <div id="editprofile-error" style="color:#f87171;font-size:13px;min-height:18px;margin-bottom:8px;"></div>
     <div class="repo-form-group">
-      <label class="repo-form-label">Email</label>
-      <input class="repo-form-input" id="editprofile-email" type="email" placeholder="you@example.com" autocomplete="email">
+      <label class="repo-form-label">Username</label>
+      <input class="repo-form-input" id="editprofile-email" type="text" placeholder="admin" autocomplete="username" readonly style="opacity:0.5;cursor:not-allowed;">
     </div>
     <div class="repo-form-group">
       <label class="repo-form-label">Display Name</label>
@@ -1154,6 +1169,47 @@ const uiHTML = `<!DOCTYPE html>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
       <button class="btn-sort btn-primary" onclick="window.__closeEditProfile()">Cancel</button>
       <button class="btn-sort btn-primary" onclick="window.__submitEditProfile()">Save</button>
+    </div>
+  </div>
+</div>
+<div id="edit-oidc-user-modal" class="repo-modal-wrap">
+  <div class="repo-modal-box">
+    <div class="repo-modal-title">Edit SSO User</div>
+    <div id="edit-oidc-user-error" style="color:#f87171;font-size:13px;min-height:18px;margin-bottom:8px;"></div>
+    <input type="hidden" id="edit-oidc-user-email">
+    <input type="hidden" id="edit-oidc-user-role" value="none">
+    <div class="repo-form-group">
+      <label class="repo-form-label">Role</label>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+        <div id="oidc-role-opt-admin" onclick="window.__selectOIDCRole('admin')"
+          style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid #3f3f46;cursor:pointer;transition:border-color 0.15s,background 0.15s;">
+          <div style="width:10px;height:10px;border-radius:50%;background:#FB326E;flex-shrink:0;"></div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#FB326E;">Admin</div>
+            <div style="font-size:11px;color:#71717a;">Full access — can change settings and trigger actions</div>
+          </div>
+        </div>
+        <div id="oidc-role-opt-viewer" onclick="window.__selectOIDCRole('viewer')"
+          style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid #3f3f46;cursor:pointer;transition:border-color 0.15s,background 0.15s;">
+          <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;flex-shrink:0;"></div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#22c55e;">Viewer</div>
+            <div style="font-size:11px;color:#71717a;">Read-only access — can view clusters and logs</div>
+          </div>
+        </div>
+        <div id="oidc-role-opt-none" onclick="window.__selectOIDCRole('none')"
+          style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid #3f3f46;cursor:pointer;transition:border-color 0.15s,background 0.15s;">
+          <div style="width:10px;height:10px;border-radius:50%;background:#71717a;flex-shrink:0;"></div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#71717a;">No Access</div>
+            <div style="font-size:11px;color:#71717a;">Cannot log in — redirected to the access denied page</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn-sort btn-primary" onclick="window.__closeEditOIDCUser()">Cancel</button>
+      <button class="btn-sort btn-primary" onclick="window.__submitEditOIDCUser()">Save</button>
     </div>
   </div>
 </div>
@@ -1186,6 +1242,9 @@ const uiHTML = `<!DOCTYPE html>
   var appVersion = '{{APP_VERSION}}';
   var loggedInAs = '{{LOGGED_IN_AS}}';
   var authDisabled = {{AUTH_DISABLED}};
+  var oidcEnabled = {{OIDC_ENABLED}};
+  var userRole = '{{USER_ROLE}}'; // "admin" or "viewer"
+  var isAdmin = userRole === 'admin';
   if (footerEl) footerEl.textContent = 'Omni CD ' + appVersion + ' · Real-time updates';
   var state = null;
   var loadingOverlay = document.getElementById('loading-overlay');
@@ -1533,17 +1592,17 @@ const uiHTML = `<!DOCTYPE html>
         : '<div style="color:#71717a;text-align:center;padding:40px;">' + (cluster.status === 'unmanaged' ? 'No diff — this cluster has no template in Git.' : 'No diff available') + '</div>';
     }
     var clusterActions = '<div class="cluster-card-actions" style="padding:10px 0 10px 24px">' +
-      '<button class="btn-sort btn-primary" onclick="window.__refreshCurrentCluster()">&#8635; Refresh</button>' +
-      (cluster.status !== 'deleting' && (cluster.status === 'unmanaged' || cluster.status === 'orphaned')
+      (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__refreshCurrentCluster()">&#8635; Refresh</button>' : '') +
+      (isAdmin && cluster.status !== 'deleting' && (cluster.status === 'unmanaged' || cluster.status === 'orphaned')
         ? '<button class="btn-sort btn-primary" onclick="window.__exportCluster(\'' + cluster.id + '\', event)">&#8595; Export</button>'
         : '') +
-      (cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'
+      (isAdmin && cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'
         ? '<button class="btn-sort btn-primary" onclick="window.__syncCluster(\'' + cluster.id + '\', event)">&#8645; Sync</button>'
         : '') +
-      (cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'
+      (isAdmin && cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'
         ? '<button class="btn-sort btn-primary auto-sync ' + (cluster.autoSync === false ? '' : 'active') + '" onclick="window.__setClusterAutoSync(\'' + cluster.id + '\', ' + (cluster.autoSync === false ? 'true' : 'false') + ', event)">' + (cluster.autoSync === false ? '○ Auto-Sync' : '○ Auto-Sync') + '</button>'
         : '') +
-      (cluster.status !== 'deleting' && cluster.status !== 'unmanaged'
+      (isAdmin && cluster.status !== 'deleting' && cluster.status !== 'unmanaged'
         ? '<button class="btn-sort btn-primary" onclick="window.__deleteCluster(\'' + cluster.id + '\', event)">&#10005; Delete</button>'
         : '') +
     '</div>';
@@ -2399,7 +2458,7 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   var settingsOpen = localStorage.getItem('sidebar-settings-open') === '1';
-  var settingsRoutes = authDisabled ? ['/instances', '/repos'] : ['/instances', '/repos', '/users'];
+  var settingsRoutes = (authDisabled || !isAdmin) ? ['/instances', '/repos'] : ['/instances', '/repos', '/users'];
 
   window.__toggleSettings = function() {
     settingsOpen = !settingsOpen;
@@ -2443,7 +2502,7 @@ const uiHTML = `<!DOCTYPE html>
       { label: instanceLabel, icon: '⬡', href: '/instances' },
       { label: 'Repos',       icon: '⎇', href: '/repos' },
     ];
-    if (!authDisabled) subItems.push({ label: 'Users', icon: '◉', href: '/users' });
+    if (!authDisabled && isAdmin) subItems.push({ label: 'Users', icon: '◉', href: '/users' });
     html += '<button class="sidebar-item' + (settingsActive ? ' active' : '') + '" onclick="window.__toggleSettings()" title="Settings" style="width:100%;background:none;border:none;cursor:pointer;">' +
       '<span class="sidebar-item-icon">⚙</span>' +
       '<span class="sidebar-item-label">Settings</span>' +
@@ -2574,17 +2633,17 @@ const uiHTML = `<!DOCTYPE html>
             (r.commitMessage ? escHtml(r.commitMessage) + '<br>' : '') +
             (r.lastSync ? 'Last sync: ' + ago(r.lastSync) : '<span style="color:#52525b">Never synced</span>') +
           '</div>' +
-          '<div class="info-card-actions">' +
+          (isAdmin ? '<div class="info-card-actions">' +
             '<button class="btn-sort btn-primary" onclick="window.__openRepoModal(\'' + safeName + '\')">Edit</button>' +
             '<button class="btn-sort btn-primary" onclick="window.__deleteRepo(\'' + safeName + '\')">Delete</button>' +
-          '</div>' +
+          '</div>' : '') +
         '</div>';
       }).join('');
       cardsHtml = '<div class="info-row">' + cards + '</div>';
     }
     var repoHeader = '<div class="header">' +
       '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Repositories</h1>' +
-      '<button class="btn-sort btn-primary" onclick="window.__openRepoModal(null)" style="margin-left:auto">Add Repository</button>' +
+      (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__openRepoModal(null)" style="margin-left:auto">Add Repository</button>' : '') +
     '</div>';
     return repoHeader + cardsHtml;
   }
@@ -2608,10 +2667,10 @@ const uiHTML = `<!DOCTYPE html>
             (s.omniConfigured ? 'Last check: ' + ago(s.omniHealth && s.omniHealth.lastCheck) : '') +
             (s.omniHealth && s.omniHealth.error ? '<br><span style="color:#f87171">' + escHtml(s.omniHealth.error) + '</span>' : '') +
           '</div>' +
-          '<div class="info-card-actions">' +
+          (isAdmin ? '<div class="info-card-actions">' +
             '<button class="btn-sort btn-primary"' + disabledAttr + ' onclick="window.__openOmniInstanceModal()">Edit</button>' +
             '<button class="btn-sort btn-primary"' + disabledAttr + ' onclick="window.__deleteOmniInstance()">Delete</button>' +
-          '</div>' +
+          '</div>' : '') +
         '</div>' +
       '</div>';
     } else {
@@ -2625,7 +2684,7 @@ const uiHTML = `<!DOCTYPE html>
     var addDisabled = isConfigured ? ' disabled' : '';
     var header = '<div class="header">' +
       '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Instances</h1>' +
-      '<button class="btn-sort btn-primary"' + addDisabled + ' onclick="window.__openOmniInstanceModal()" style="margin-left:auto">Add Omni Instance</button>' +
+      (isAdmin ? '<button class="btn-sort btn-primary"' + addDisabled + ' onclick="window.__openOmniInstanceModal()" style="margin-left:auto">Add Omni Instance</button>' : '') +
     '</div>';
 
     return header + cardsHtml;
@@ -2729,26 +2788,26 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   var _usersData = null;
+  var _oidcUsersLoaded = false;
+  var _oidcUsersData = null;
 
   function renderUsersView(s) {
     var header = '<div class="header">' +
       '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Users</h1>' +
     '</div>';
 
-    var content;
+    var content = '';
     if (!_usersData) {
       content = '<div style="color:#71717a;font-size:13px;padding:24px 0;">Loading...</div>';
       fetchUsers();
-    } else if (_usersData.length === 0) {
-      content = '<div style="color:#71717a;font-size:13px;padding:24px 0;">No users found.</div>';
-    } else {
+    } else if (_usersData.length > 0) {
       var u = _usersData[0];
       content =
+        '<div style="font-size:13px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">Local Admin Account</div>' +
         '<div style="display:flex;align-items:center;gap:12px;background:#27272a;border:1px solid #3f3f46;border-radius:10px;padding:14px 16px;max-width:480px;">' +
           '<img src="{{PROFILE_ICON_URI}}" style="width:18px;height:18px;opacity:0.5;filter:invert(1);flex-shrink:0;" alt="">' +
           '<div style="flex:1;min-width:0;">' +
-            '<div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(u.displayName || u.email) + '</div>' +
-            '<div style="font-size:12px;color:#71717a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(u.email) + '</div>' +
+            '<div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(u.displayName || u.username) + '</div>' +
           '</div>' +
           '<div style="display:flex;gap:8px;">' +
             '<button class="btn-sort btn-primary" onclick="window.__openEditProfile()">Edit Profile</button>' +
@@ -2757,8 +2816,85 @@ const uiHTML = `<!DOCTYPE html>
         '</div>';
     }
 
-    return header + content;
+    // SSO users section (shown when any OIDC users have logged in).
+    var oidcSection = '';
+    if (_oidcUsersData !== null) {
+      var oidcRows = _oidcUsersData.length === 0
+        ? '<div style="padding:12px 14px;font-size:13px;color:#71717a;">No SSO users have logged in yet.</div>'
+        : _oidcUsersData.map(function(u) {
+            var roleLabel = u.role === 'admin' ? 'Admin' : u.role === 'viewer' ? 'Viewer' : 'No Access';
+            var roleColor = u.role === 'admin' ? '#FB326E' : u.role === 'viewer' ? '#22c55e' : '#71717a';
+            return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #3f3f46;">' +
+              '<div style="flex:1;min-width:0;">' +
+                '<div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(u.displayName || u.email) + '</div>' +
+                '<div style="font-size:12px;color:#71717a;">' + escHtml(u.email) + '</div>' +
+                '<div style="font-size:11px;color:#52525b;margin-top:2px">Last seen: ' + new Date(u.lastSeen).toLocaleString() + '</div>' +
+              '</div>' +
+              '<span style="font-size:12px;font-weight:600;color:' + roleColor + ';margin-right:8px;">' + roleLabel + '</span>' +
+              '<button class="btn-sort btn-primary" onclick="window.__openEditOIDCUser(\'' + escHtml(u.email).replace(/\\/g,'\\\\').replace(/\'/g,"\\'") + '\', \'' + escHtml(u.role).replace(/\\/g,'\\\\').replace(/\'/g,"\\'") + '\')">Edit</button>' +
+            '</div>';
+          }).join('');
+      oidcSection = '<div style="margin-top:28px">' +
+        '<div style="font-size:13px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">SSO Users</div>' +
+        '<div style="background:#27272a;border:1px solid #3f3f46;border-radius:10px;overflow:hidden;max-width:560px">' +
+          oidcRows +
+        '</div>' +
+      '</div>';
+    }
+    if (!_oidcUsersLoaded) fetchOIDCUsers();
+
+    return header + content + oidcSection;
   }
+
+  async function fetchOIDCUsers() {
+    try {
+      var r = await fetch('/api/users/oidc');
+      if (!r.ok) return;
+      _oidcUsersData = await r.json();
+      _oidcUsersLoaded = true;
+      if (currentRoute === '/users') renderMainOnly();
+    } catch(e) {}
+  }
+
+  window.__selectOIDCRole = function(role) {
+    document.getElementById('edit-oidc-user-role').value = role;
+    ['admin','viewer','none'].forEach(function(r) {
+      var el = document.getElementById('oidc-role-opt-' + r);
+      if (!el) return;
+      el.style.background = r === role ? '#27272a' : '';
+      el.style.borderColor = r === role ? (r === 'admin' ? '#FB326E' : r === 'viewer' ? '#22c55e' : '#71717a') : '#3f3f46';
+    });
+  };
+
+  window.__openEditOIDCUser = function(email, currentRole) {
+    document.getElementById('edit-oidc-user-email').value = email;
+    document.getElementById('edit-oidc-user-error').textContent = '';
+    window.__selectOIDCRole(currentRole || 'none');
+    document.getElementById('edit-oidc-user-modal').classList.add('show');
+  };
+
+  window.__closeEditOIDCUser = function() {
+    document.getElementById('edit-oidc-user-modal').classList.remove('show');
+  };
+
+  window.__submitEditOIDCUser = async function() {
+    var email = document.getElementById('edit-oidc-user-email').value;
+    var role = document.getElementById('edit-oidc-user-role').value;
+    var errEl = document.getElementById('edit-oidc-user-error');
+    errEl.textContent = '';
+    try {
+      var r = await fetch('/api/users/oidc', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, role: role }),
+      });
+      if (!r.ok) { errEl.textContent = 'Failed to update role'; return; }
+      window.__closeEditOIDCUser();
+      _oidcUsersLoaded = false;
+      _oidcUsersData = null;
+      fetchOIDCUsers();
+    } catch(e) { errEl.textContent = 'Network error'; }
+  };
 
   async function fetchUsers() {
     try {
@@ -2785,7 +2921,7 @@ const uiHTML = `<!DOCTYPE html>
 
   window.__openEditProfile = function() {
     var u = _usersData && _usersData[0];
-    document.getElementById('editprofile-email').value = u ? (u.email || '') : '';
+    document.getElementById('editprofile-email').value = u ? (u.username || '') : '';
     document.getElementById('editprofile-displayname').value = u ? (u.displayName || '') : '';
     document.getElementById('editprofile-error').textContent = '';
     document.getElementById('editprofile-modal').classList.add('show');
@@ -2797,16 +2933,14 @@ const uiHTML = `<!DOCTYPE html>
   };
 
   window.__submitEditProfile = async function() {
-    var newEmail = document.getElementById('editprofile-email').value.trim();
     var newDisplayName = document.getElementById('editprofile-displayname').value.trim();
     var errEl = document.getElementById('editprofile-error');
     errEl.textContent = '';
-    if (!newEmail) { errEl.textContent = 'Email is required'; return; }
     try {
       var r = await fetch('/api/users/update-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newEmail: newEmail, newDisplayName: newDisplayName })
+        body: JSON.stringify({ newDisplayName: newDisplayName })
       });
       var d = await r.json();
       if (!r.ok) { errEl.textContent = d.error || 'Failed to update profile'; return; }
@@ -2991,18 +3125,18 @@ const uiHTML = `<!DOCTYPE html>
                 '<div style="margin-top:auto">' +
                   '<div class="mc-card-divider" style="margin-top:8px"></div>' +
                   '<div class="cluster-card-actions">' +
-                    '<button class="btn-sort btn-primary" onclick="window.__exportMachineClass(\'' + m.id + '\', event);event.stopPropagation()" title="Export machine class as YAML">\u2193 Export</button>' +
-                    (usedByClusters.length > 0
+                    (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__exportMachineClass(\'' + m.id + '\', event);event.stopPropagation()" title="Export machine class as YAML">\u2193 Export</button>' : '') +
+                    (isAdmin ? (usedByClusters.length > 0
                       ? '<button class="btn-sort btn-primary" disabled title="Cannot delete \u2014 in use by: ' + usedByClusters.join(', ') + '">\u2715 Delete</button>'
-                      : '<button class="btn-sort btn-primary" onclick="window.__deleteMachineClass(\'' + m.id + '\', event);event.stopPropagation()" title="Delete this machine class from Omni">\u2715 Delete</button>') +
+                      : '<button class="btn-sort btn-primary" onclick="window.__deleteMachineClass(\'' + m.id + '\', event);event.stopPropagation()" title="Delete this machine class from Omni">\u2715 Delete</button>') : '') +
                   '</div>' +
                 '</div>'
               : '<div style="margin-top:auto">' +
                   '<div class="mc-card-divider" style="margin-top:8px"></div>' +
                   '<div class="cluster-card-actions">' +
-                    '<button class="btn-sort" onclick="window.__refreshSingleMC(\'' + m.id + '\', event);event.stopPropagation()" title="Refresh this machine class from Git">\u21bb Refresh</button>' +
-                    '<button class="btn-sort" onclick="window.__syncMachineClass(\'' + m.id + '\', event);event.stopPropagation()" title="Force sync this machine class from Git">\u21c5 Sync</button>' +
-                    '<button class="btn-sort btn-primary auto-sync ' + (m.autoSync === true ? 'active' : '') + '" onclick="window.__setMCAutoSync(\'' + m.id + '\', ' + (m.autoSync === true ? 'false' : 'true') + ', event);event.stopPropagation()" title="Toggle per-machine-class auto sync">\u25cb Auto-Sync</button>' +
+                    (isAdmin ? '<button class="btn-sort" onclick="window.__refreshSingleMC(\'' + m.id + '\', event);event.stopPropagation()" title="Refresh this machine class from Git">\u21bb Refresh</button>' : '') +
+                    (isAdmin ? '<button class="btn-sort" onclick="window.__syncMachineClass(\'' + m.id + '\', event);event.stopPropagation()" title="Force sync this machine class from Git">\u21c5 Sync</button>' : '') +
+                    (isAdmin ? '<button class="btn-sort btn-primary auto-sync ' + (m.autoSync === true ? 'active' : '') + '" onclick="window.__setMCAutoSync(\'' + m.id + '\', ' + (m.autoSync === true ? 'false' : 'true') + ', event);event.stopPropagation()" title="Toggle per-machine-class auto sync">\u25cb Auto-Sync</button>' : '') +
                   '</div>' +
                 '</div>') +
             '</div>' +
@@ -3012,8 +3146,8 @@ const uiHTML = `<!DOCTYPE html>
 
     var mcActionBar = '<div style="display:flex;align-items:center;gap:8px">' +
       (isRunning ? '<span class="spinner"></span>' : '') +
-      '<button class="btn-sort btn-primary" onclick="window.__refreshMC()" ' + (isRunning ? 'disabled' : '') + '>' + (mcRunning ? 'Refreshing...' : 'Refresh') + '</button>' +
-      '<button class="btn-sort btn-primary" onclick="window.__triggerReconcile()" ' + (isRunning ? 'disabled' : '') + '>' + (syncRunning ? 'Syncing...' : 'Sync') + '</button>' +
+      (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__refreshMC()" ' + (isRunning ? 'disabled' : '') + '>' + (mcRunning ? 'Refreshing...' : 'Refresh') + '</button>' : '') +
+      (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__triggerReconcile()" ' + (isRunning ? 'disabled' : '') + '>' + (syncRunning ? 'Syncing...' : 'Sync') + '</button>' : '') +
       '<input type="text" placeholder="Search machine classes..." value="' + mcSearch + '" oninput="window.__setMcSearch(this.value)" style="background:#18181b;border:1px solid #3f3f46;border-radius:4px;color:#e4e4e7;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;margin-left:8px;" />' +
     '</div>';
     var mcHeader = '<div class="header">' +
@@ -3195,11 +3329,11 @@ const uiHTML = `<!DOCTYPE html>
           sectionsHtml +
           '<div class="cluster-card-divider" style="margin-top:8px"></div>' +
           '<div class="cluster-card-actions">' +
-            '<button class="btn-sort btn-primary" onclick="window.__refreshCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Re-read live state from Omni">↺ Refresh</button>' +
-            (c.status !== 'deleting' && (c.status === 'unmanaged' || c.status === 'orphaned') ? '<button class="btn-sort btn-primary" onclick="window.__exportCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Export cluster as YAML template">↓ Export</button>' : '') +
-            (c.status !== 'deleting' && c.status !== 'unmanaged' && c.status !== 'orphaned' ? '<button class="btn-sort btn-primary" onclick="window.__syncCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Force sync this cluster from Git">⇅ Sync</button>' : '') +
-            (c.status !== 'deleting' && c.status !== 'unmanaged' && c.status !== 'orphaned' ? '<button class="btn-sort btn-primary auto-sync ' + (c.autoSync === false ? '' : 'active') + '" onclick="window.__setClusterAutoSync(\'' + c.id + '\', ' + (c.autoSync === false ? 'true' : 'false') + ', event);event.stopPropagation()" title="Toggle per-cluster auto sync">' + (c.autoSync === false ? '○ Auto-Sync' : '○ Auto-Sync') + '</button>' : '') +
-            (c.status !== 'deleting' && c.status !== 'unmanaged' ? '<button class="btn-sort btn-primary" onclick="window.__deleteCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Delete this cluster from Omni">\u2715 Delete</button>' : '') +
+            (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__refreshCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Re-read live state from Omni">↺ Refresh</button>' : '') +
+            (isAdmin && c.status !== 'deleting' && (c.status === 'unmanaged' || c.status === 'orphaned') ? '<button class="btn-sort btn-primary" onclick="window.__exportCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Export cluster as YAML template">↓ Export</button>' : '') +
+            (isAdmin && c.status !== 'deleting' && c.status !== 'unmanaged' && c.status !== 'orphaned' ? '<button class="btn-sort btn-primary" onclick="window.__syncCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Force sync this cluster from Git">⇅ Sync</button>' : '') +
+            (isAdmin && c.status !== 'deleting' && c.status !== 'unmanaged' && c.status !== 'orphaned' ? '<button class="btn-sort btn-primary auto-sync ' + (c.autoSync === false ? '' : 'active') + '" onclick="window.__setClusterAutoSync(\'' + c.id + '\', ' + (c.autoSync === false ? 'true' : 'false') + ', event);event.stopPropagation()" title="Toggle per-cluster auto sync">' + (c.autoSync === false ? '○ Auto-Sync' : '○ Auto-Sync') + '</button>' : '') +
+            (isAdmin && c.status !== 'deleting' && c.status !== 'unmanaged' ? '<button class="btn-sort btn-primary" onclick="window.__deleteCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Delete this cluster from Omni">\u2715 Delete</button>' : '') +
           '</div>' +
         '</div>' +
       '</div>';
@@ -3246,8 +3380,8 @@ const uiHTML = `<!DOCTYPE html>
     '</div>';
     var actionBar = '<div style="display:flex;align-items:center;gap:8px">' +
       (isRunningC ? '<span class="spinner"></span>' : '') +
-      '<button class="btn-sort btn-primary" onclick="window.__checkGit()" ' + (isRunningC ? 'disabled' : '') + '>' + (gitRunningC ? 'Refreshing...' : 'Refresh') + '</button>' +
-      '<button class="btn-sort btn-primary" onclick="window.__triggerReconcile()" ' + (isRunningC ? 'disabled' : '') + '>' + (syncRunningC ? 'Syncing...' : 'Sync') + '</button>' +
+      (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__checkGit()" ' + (isRunningC ? 'disabled' : '') + '>' + (gitRunningC ? 'Refreshing...' : 'Refresh') + '</button>' : '') +
+      (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__triggerReconcile()" ' + (isRunningC ? 'disabled' : '') + '>' + (syncRunningC ? 'Syncing...' : 'Sync') + '</button>' : '') +
       '<input type="text" placeholder="Search clusters..." value="' + clusterSearch + '" oninput="window.__setClusterSearch(this.value)" style="background:#18181b;border:1px solid #3f3f46;border-radius:4px;color:#e4e4e7;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;margin-left:8px;" />' +
     '</div>';
     var clusterHeader = '<div class="header">' +

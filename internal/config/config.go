@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -14,6 +15,23 @@ type RepoConfig struct {
 	ClustersPath string `yaml:"clusters_path"`
 	MCPath       string `yaml:"mc_path"`
 	Token        string `yaml:"-"` // not serialised to disk in plaintext
+}
+
+// OIDCConfig holds OIDC provider settings loaded from environment variables.
+// OIDC is enabled when OIDC_ISSUER_URL and OIDC_CLIENT_ID are both set.
+type OIDCConfig struct {
+	IssuerURL    string
+	ClientID     string
+	ClientSecret string
+	RedirectURL  string   // optional: auto-derived from the login request when empty
+	Scopes       []string // defaults to ["openid", "email", "profile"]
+	GroupsClaim  string   // defaults to "groups"
+	AdminGroups  []string
+	AdminEmails  []string
+	ViewerGroups []string
+	ViewerEmails []string
+	DefaultRole  string // "admin", "viewer", "none" — defaults to "viewer"
+	Insecure     bool   // skip TLS verification (self-signed certs)
 }
 
 // Config holds all configuration for omni-cd.
@@ -36,9 +54,11 @@ type Config struct {
 	WebPort string
 
 	// Authentication
-	AdminUsername string
 	AdminPassword string
 	AuthDisabled  bool // AUTH_DISABLED=true skips login entirely
+
+	// OIDC — nil when not configured via environment variables.
+	OIDC *OIDCConfig
 
 	// Logging
 	LogLevel         string // DEBUG, INFO, WARN, ERROR
@@ -59,6 +79,27 @@ func Load() (*Config, error) {
 	authDisabled, _ := strconv.ParseBool(os.Getenv("AUTH_DISABLED"))
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
 
+	var oidcCfg *OIDCConfig
+	if issuer := os.Getenv("OIDC_ISSUER_URL"); issuer != "" {
+		if clientID := os.Getenv("OIDC_CLIENT_ID"); clientID != "" {
+			insecure, _ := strconv.ParseBool(os.Getenv("OIDC_INSECURE"))
+			oidcCfg = &OIDCConfig{
+				IssuerURL:    issuer,
+				ClientID:     clientID,
+				ClientSecret: os.Getenv("OIDC_CLIENT_SECRET"),
+				RedirectURL:  os.Getenv("OIDC_REDIRECT_URL"),
+				Scopes:       splitCSV(os.Getenv("OIDC_SCOPES")),
+				GroupsClaim:  os.Getenv("OIDC_GROUPS_CLAIM"),
+				AdminGroups:  splitCSV(os.Getenv("OIDC_ADMIN_GROUPS")),
+				AdminEmails:  splitCSV(os.Getenv("OIDC_ADMIN_EMAILS")),
+				ViewerGroups: splitCSV(os.Getenv("OIDC_VIEWER_GROUPS")),
+				ViewerEmails: splitCSV(os.Getenv("OIDC_VIEWER_EMAILS")),
+				DefaultRole:  os.Getenv("OIDC_DEFAULT_ROLE"),
+				Insecure:     insecure,
+			}
+		}
+	}
+
 	// Repos starts empty; repos are managed at runtime via the web UI.
 	return &Config{
 		OmniEndpoint:          endpoint,
@@ -67,9 +108,9 @@ func Load() (*Config, error) {
 		RefreshInterval:       time.Duration(refreshSec) * time.Second,
 		Repos:                 nil,
 		WebPort:               getEnv("WEB_PORT", "8080"),
-		AdminUsername:         getEnv("ADMIN_USERNAME", "admin"),
 		AdminPassword:         adminPassword,
 		AuthDisabled:          authDisabled,
+		OIDC:                  oidcCfg,
 		LogLevel:              getEnv("LOG_LEVEL", "INFO"),
 		LogRetentionDays:      retentionDays,
 	}, nil
@@ -80,4 +121,18 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func splitCSV(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
