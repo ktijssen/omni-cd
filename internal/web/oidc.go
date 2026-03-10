@@ -366,6 +366,21 @@ func (s *Server) handleGetOIDCConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 
+// cleanupOIDCStates periodically removes state tokens that were never consumed
+// (e.g. the user closed the browser before completing the OIDC flow).
+func (s *Server) cleanupOIDCStates() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		s.oidcStates.Range(func(key, value any) bool {
+			if time.Since(value.(oidcStateEntry).CreatedAt) > 10*time.Minute {
+				s.oidcStates.Delete(key)
+			}
+			return true
+		})
+	}
+}
+
 // --- helpers ---
 
 

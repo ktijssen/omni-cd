@@ -92,6 +92,9 @@ func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan s
 	// Start state change monitor
 	go s.monitorStateChanges()
 
+	// Periodically purge expired OIDC state tokens to prevent unbounded growth.
+	go s.cleanupOIDCStates()
+
 	return s
 }
 

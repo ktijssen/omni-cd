@@ -120,8 +120,9 @@ func (s *Server) handleOIDCUsers(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid role; must be admin, viewer, or none", http.StatusBadRequest)
 			return
 		}
-		if s.oidcUsers != nil {
-			s.oidcUsers.setRole(body.Email, body.Role)
+		if s.oidcUsers == nil || !s.oidcUsers.setRole(body.Email, body.Role) {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
 		}
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 		return

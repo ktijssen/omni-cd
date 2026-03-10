@@ -2831,7 +2831,7 @@ const uiHTML = `<!DOCTYPE html>
                 '<div style="font-size:11px;color:#52525b;margin-top:2px">Last seen: ' + new Date(u.lastSeen).toLocaleString() + '</div>' +
               '</div>' +
               '<span style="font-size:12px;font-weight:600;color:' + roleColor + ';margin-right:8px;">' + roleLabel + '</span>' +
-              '<button class="btn-sort btn-primary" onclick="window.__openEditOIDCUser(\'' + escHtml(u.email) + '\', \'' + escHtml(u.role) + '\')">Edit</button>' +
+              '<button class="btn-sort btn-primary" onclick="window.__openEditOIDCUser(\'' + escHtml(u.email).replace(/\\/g,'\\\\').replace(/\'/g,"\\'") + '\', \'' + escHtml(u.role).replace(/\\/g,'\\\\').replace(/\'/g,"\\'") + '\')">Edit</button>' +
             '</div>';
           }).join('');
       oidcSection = '<div style="margin-top:28px">' +

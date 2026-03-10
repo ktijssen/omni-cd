@@ -176,11 +176,11 @@ const setupHTML = `<!DOCTYPE html>
     <form method="POST" action="/setup">
       <div class="login-field">
         <label for="username">Username</label>
-        <input id="username" name="username" type="text" value="admin" readonly style="opacity:0.5;cursor:not-allowed;" autofocus>
+        <input id="username" name="username" type="text" value="admin" readonly style="opacity:0.5;cursor:not-allowed;">
       </div>
       <div class="login-field">
         <label for="password">Password</label>
-        <input id="password" name="password" type="password" placeholder="••••••••" autocomplete="new-password" required>
+        <input id="password" name="password" type="password" placeholder="••••••••" autocomplete="new-password" required autofocus>
       </div>
       <div class="login-field">
         <label for="confirm">Confirm password</label>
