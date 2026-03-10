@@ -4,10 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"omni-cd/internal/config"
 	"omni-cd/internal/omni"
+	"omni-cd/internal/omniinstance"
 )
 
 // handleState returns the current application state as JSON.
@@ -527,4 +531,204 @@ func (s *Server) signalRepoChange() {
 	case s.triggerRepoChange <- struct{}{}:
 	default:
 	}
+}
+
+// handleOmniInstance handles GET and POST for the Omni instance configuration.
+// GET returns the current endpoint and whether a key is stored (never the key itself).
+// POST saves new credentials after verifying connectivity. Returns 403 when ENV-locked.
+func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method == http.MethodGet {
+		snap := s.appState.Snapshot()
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"endpoint":   snap.OmniEndpoint,
+			"hasKey":     snap.OmniHasStoredKey,
+			"envLocked":  snap.OmniEnvLocked,
+			"configured": snap.OmniConfigured,
+		})
+		return
+	}
+
+	if r.Method == http.MethodDelete {
+		if s.appState.IsEnvLocked() {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "omni instance is configured via environment variables"})
+			return
+		}
+		if err := os.Remove(s.omniInstanceFile); err != nil && !os.IsNotExist(err) {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": "failed to delete config: " + err.Error()})
+			return
+		}
+		s.appState.SetOmniEndpoint("")
+		s.appState.SetHasStoredKey(false)
+		s.appState.SetOmniConfigured(false)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.appState.IsEnvLocked() {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"error": "omni instance is configured via environment variables"})
+		return
+	}
+
+	var req struct {
+		Endpoint          string `json:"endpoint"`
+		ServiceAccountKey string `json:"serviceAccountKey"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	req.Endpoint = strings.TrimSpace(req.Endpoint)
+	req.ServiceAccountKey = strings.TrimSpace(req.ServiceAccountKey)
+	if req.Endpoint == "" || req.ServiceAccountKey == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "endpoint and serviceAccountKey are required"})
+		return
+	}
+
+	if err := omni.TestConnectivity(req.Endpoint, req.ServiceAccountKey); err != nil {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		json.NewEncoder(w).Encode(map[string]string{"error": "connectivity check failed: " + err.Error()})
+		return
+	}
+
+	if err := omni.Init(req.Endpoint, req.ServiceAccountKey); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to initialise client: " + err.Error()})
+		return
+	}
+
+	if err := omniinstance.Save(s.omniInstanceFile, omniinstance.InstanceConfig{Endpoint: req.Endpoint, ServiceAccountKey: req.ServiceAccountKey}); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to save config: " + err.Error()})
+		return
+	}
+
+	s.appState.SetOmniEndpoint(req.Endpoint)
+	s.appState.SetHasStoredKey(true)
+	s.appState.SetOmniConfigured(true)
+
+	// Signal main() to start the reconciler (non-blocking — already running is fine).
+	select {
+	case s.triggerOmniConfigured <- struct{}{}:
+	default:
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// handleTestOmniInstance tests connectivity for a given endpoint+key without
+// persisting anything or touching the global client state.
+func (s *Server) handleTestOmniInstance(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.appState.IsEnvLocked() {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"error": "omni instance is configured via environment variables"})
+		return
+	}
+
+	var req struct {
+		Endpoint          string `json:"endpoint"`
+		ServiceAccountKey string `json:"serviceAccountKey"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := omni.TestConnectivity(req.Endpoint, req.ServiceAccountKey); err != nil {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// handleLogFiles returns a JSON list of available daily log files, newest first.
+func (s *Server) handleLogFiles(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	entries, err := os.ReadDir(s.logDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			json.NewEncoder(w).Encode([]interface{}{})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	type fileInfo struct {
+		Date     string `json:"date"`
+		Filename string `json:"filename"`
+		Size     int64  `json:"size"`
+	}
+	var files []fileInfo
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasPrefix(name, "omni-cd-") || !strings.HasSuffix(name, ".log") {
+			continue
+		}
+		dateStr := strings.TrimSuffix(strings.TrimPrefix(name, "omni-cd-"), ".log")
+		if _, err := time.Parse("2006-01-02", dateStr); err != nil {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		files = append(files, fileInfo{Date: dateStr, Filename: name, Size: info.Size()})
+	}
+	// Reverse so newest is first.
+	for i, j := 0, len(files)-1; i < j; i, j = i+1, j-1 {
+		files[i], files[j] = files[j], files[i]
+	}
+	if files == nil {
+		files = []fileInfo{}
+	}
+	json.NewEncoder(w).Encode(files)
+}
+
+// handleLogDownload streams a daily log file as a download.
+// Query param: date=YYYY-MM-DD
+func (s *Server) handleLogDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	date := r.URL.Query().Get("date")
+	if date == "" {
+		date = time.Now().UTC().Format("2006-01-02")
+	}
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		http.Error(w, "invalid date format", http.StatusBadRequest)
+		return
+	}
+	filename := "omni-cd-" + date + ".log"
+	path := filepath.Join(s.logDir, filename)
+	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	http.ServeFile(w, r, path)
 }

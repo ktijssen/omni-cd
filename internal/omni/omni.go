@@ -125,6 +125,22 @@ func CheckConnectivity() error {
 	return err
 }
 
+// TestConnectivity creates a throwaway client to verify credentials without
+// touching the global omniClient state.
+func TestConnectivity(endpoint, serviceAccountKey string) error {
+	c, err := client.New(endpoint, client.WithServiceAccount(serviceAccountKey))
+	if err != nil {
+		return fmt.Errorf("failed to create client: %w", err)
+	}
+	defer c.Close()
+	st := c.Omni().State()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	_, err = safe.StateGet[*sysresources.SysVersion](ctx, st,
+		sysresources.NewSysVersion(sysresources.SysVersionID).Metadata())
+	return err
+}
+
 // ============================================================
 // Version
 // ============================================================

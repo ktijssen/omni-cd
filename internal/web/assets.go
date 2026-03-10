@@ -1,5 +1,14 @@
 package web
 
+// profileIconSVG is the user profile icon (svgrepo.com/show/343494/profile-user-account).
+const profileIconSVG = `<svg width="800px" height="800px" viewBox="0 0 32 32" enable-background="new 0 0 32 32" version="1.1" xml:space="preserve" xmlns="http://www.w3.org/2000/svg">
+<g>
+<circle cx="16" cy="16" fill="none" r="15" stroke="currentColor" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+<path d="M26,27L26,27c0-5.523-4.477-10-10-10h0c-5.523,0-10,4.477-10,10v0" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+<circle cx="16" cy="11" fill="none" r="6" stroke="currentColor" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="2"/>
+</g>
+</svg>`
+
 // omniLogoSVG is the Omni logo SVG, embedded locally to avoid external URL dependencies.
 const omniLogoSVG = `<svg width="1000" height="1008" viewBox="0 0 1000 1008" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g clip-path="url(#clip0_941_65)">

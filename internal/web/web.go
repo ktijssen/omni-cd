@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"omni-cd/internal/auth"
 	"omni-cd/internal/state"
 
 	"github.com/gorilla/websocket"
@@ -32,28 +33,31 @@ var upgrader = websocket.Upgrader{
 
 // Server serves the web UI and API endpoints.
 type Server struct {
-	appState              *state.AppState
-	triggerHard           chan struct{}
-	triggerSoft           chan struct{}
-	triggerRefreshCluster chan string
-	triggerDeleteCluster  chan string
-	triggerDeleteMC       chan string
-	triggerMCRefresh         chan struct{}
-	triggerMCRefreshSingle   chan string
-	triggerRepoChange        chan struct{}
-	port                  string
-	version               string
-	clients               map[*websocket.Conn]bool
-	clientsMu             sync.RWMutex
-	broadcast             chan []byte
-	adminUsername         string
-	adminPassword         string
-	authDisabled          bool
-	sessions              sync.Map // token (string) -> time.Time (login time)
+	appState               *state.AppState
+	triggerHard            chan struct{}
+	triggerSoft            chan struct{}
+	triggerRefreshCluster  chan string
+	triggerDeleteCluster   chan string
+	triggerDeleteMC        chan string
+	triggerMCRefresh       chan struct{}
+	triggerMCRefreshSingle chan string
+	triggerRepoChange      chan struct{}
+	triggerOmniConfigured  chan struct{}
+	omniInstanceFile       string
+	logDir                 string
+	port                   string
+	version                string
+	clients                map[*websocket.Conn]bool
+	clientsMu              sync.RWMutex
+	broadcast              chan []byte
+	authStore     *auth.Store
+	authDisabled  bool
+	sessions      sync.Map // token (string) -> time.Time (login time)
+	loginBuckets  sync.Map // IP (string) -> *loginBucket
 }
 
 // New creates a new web server.
-func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, port string, version string, adminUsername string, adminPassword string, authDisabled bool) *Server {
+func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, triggerOmniConfigured chan struct{}, omniInstanceFile string, logDir string, port string, version string, authStore *auth.Store, authDisabled bool) *Server {
 	s := &Server{
 		appState:               appState,
 		triggerHard:            triggerHard,
@@ -64,13 +68,15 @@ func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan s
 		triggerMCRefresh:       triggerMCRefresh,
 		triggerMCRefreshSingle: triggerMCRefreshSingle,
 		triggerRepoChange:      triggerRepoChange,
-		port:                  port,
-		version:               version,
-		clients:               make(map[*websocket.Conn]bool),
-		broadcast:             make(chan []byte, 256),
-		adminUsername:         adminUsername,
-		adminPassword:         adminPassword,
-		authDisabled:          authDisabled,
+		triggerOmniConfigured:  triggerOmniConfigured,
+		omniInstanceFile:       omniInstanceFile,
+		logDir:                 logDir,
+		port:                   port,
+		version:                version,
+		clients:                make(map[*websocket.Conn]bool),
+		broadcast:              make(chan []byte, 256),
+		authStore:              authStore,
+		authDisabled:           authDisabled,
 	}
 
 	// Start broadcast handler
@@ -87,6 +93,7 @@ func (s *Server) Start() {
 	mux := http.NewServeMux()
 
 	// Public routes — no auth required
+	mux.HandleFunc("/setup", s.handleSetup)
 	mux.HandleFunc("/login", s.handleLogin)
 	mux.HandleFunc("/logout", s.handleLogout)
 
@@ -109,13 +116,26 @@ func (s *Server) Start() {
 	mux.HandleFunc("/api/sync-machineclass", s.requireAuth(s.handleSyncMachineClass))
 	mux.HandleFunc("/api/set-mc-autosync", s.requireAuth(s.handleSetMCAutoSync))
 	mux.HandleFunc("/api/export-cluster", s.requireAuth(s.handleExportCluster))
+	mux.HandleFunc("/api/omni-instance", s.requireAuth(s.handleOmniInstance))
+	mux.HandleFunc("/api/omni-instance/test", s.requireAuth(s.handleTestOmniInstance))
+	mux.HandleFunc("/api/logs/files", s.requireAuth(s.handleLogFiles))
+	mux.HandleFunc("/api/logs/download", s.requireAuth(s.handleLogDownload))
+	mux.HandleFunc("/api/users", s.requireAuth(s.handleUsers))
+	mux.HandleFunc("/api/users/change-password", s.requireAuth(s.handleChangePassword))
+	mux.HandleFunc("/api/users/update-profile", s.requireAuth(s.handleUpdateProfile))
 
 	// Serve the UI (all protected)
 	mux.HandleFunc("/clusters/", s.requireAuth(s.handleUI))
 	mux.HandleFunc("/clusters", s.requireAuth(s.handleUI))
 	mux.HandleFunc("/machineclasses", s.requireAuth(s.handleUI))
 	mux.HandleFunc("/repos", s.requireAuth(s.handleUI))
-	mux.HandleFunc("/users", s.requireAuth(s.handleUI))
+	mux.HandleFunc("/users", s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		if s.authDisabled {
+			http.Redirect(w, r, "/clusters", http.StatusFound)
+			return
+		}
+		s.handleUI(w, r)
+	}))
 	mux.HandleFunc("/", s.requireAuth(s.handleUI))
 
 	addr := fmt.Sprintf(":%s", s.port)
