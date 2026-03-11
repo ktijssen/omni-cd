@@ -75,6 +75,8 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 				LoginTime:   old.LoginTime,
 				Username:    old.Username,
 				DisplayName: displayName,
+				AuthMethod:  old.AuthMethod,
+				Role:        old.Role,
 			})
 		}
 	}

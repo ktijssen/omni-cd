@@ -95,6 +95,9 @@ func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan s
 	// Periodically purge expired OIDC state tokens to prevent unbounded growth.
 	go s.cleanupOIDCStates()
 
+	// Periodically purge stale login rate-limit buckets to prevent unbounded growth.
+	go s.cleanupLoginBuckets()
+
 	return s
 }
 
@@ -161,8 +164,15 @@ func (s *Server) Start() {
 	addr := fmt.Sprintf(":%s", s.port)
 	slog.Info("Web UI listening", "address", addr, "component", "Web")
 
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      securityHeadersMiddleware(mux),
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
 	go func() {
-		if err := http.ListenAndServe(addr, mux); err != nil {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("Web server failed", "error", err, "component", "Web")
 		}
 	}()
@@ -302,6 +312,17 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 		}
 	}
 	return hash
+}
+
+// securityHeadersMiddleware adds standard security response headers to every reply.
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // BroadcastState sends current state to all connected WebSocket clients.

@@ -93,6 +93,20 @@ func (s *oidcUserStore) setRole(email, role string) bool {
 	return false
 }
 
+// delete removes a user by email. Returns false if the user was not found.
+func (s *oidcUserStore) delete(email string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, u := range s.users {
+		if u.Email == email {
+			s.users = append(s.users[:i], s.users[i+1:]...)
+			s.save()
+			return true
+		}
+	}
+	return false
+}
+
 func (s *oidcUserStore) save() {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0700); err != nil {
 		slog.Warn("Failed to create directory for OIDC users", "error", err, "component", "OIDC")
@@ -102,8 +116,8 @@ func (s *oidcUserStore) save() {
 	_ = os.WriteFile(s.path, data, 0600)
 }
 
-// handleOIDCUsers serves GET /api/users/oidc (list) and
-// PATCH /api/users/oidc (update role).
+// handleOIDCUsers serves GET /api/users/oidc (list),
+// PATCH /api/users/oidc (update role), and DELETE /api/users/oidc (remove user).
 func (s *Server) handleOIDCUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -124,6 +138,31 @@ func (s *Server) handleOIDCUsers(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
 		}
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		return
+	}
+
+	if r.Method == http.MethodDelete {
+		var body struct {
+			Email string `json:"email"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Email == "" {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		if s.oidcUsers == nil || !s.oidcUsers.delete(body.Email) {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		// Invalidate any live sessions belonging to the deleted user.
+		s.sessions.Range(func(key, value any) bool {
+			info := value.(sessionInfo)
+			if info.AuthMethod == "oidc" && info.Username == body.Email {
+				s.sessions.Delete(key)
+			}
+			return true
+		})
+		slog.Info("SSO user deleted", "email", body.Email, "component", "OIDC")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 		return
 	}

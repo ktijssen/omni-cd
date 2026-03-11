@@ -24,6 +24,7 @@ type loginBucket struct {
 	mu          sync.Mutex
 	failures    int
 	lockedUntil time.Time
+	lastSeen    time.Time
 }
 
 // isSecure returns true when the request arrived over TLS or via an
@@ -32,19 +33,39 @@ func isSecure(r *http.Request) bool {
 	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 }
 
-// clientIP extracts the real client IP, preferring X-Forwarded-For when present.
+// clientIP extracts the real client IP. X-Forwarded-For is only trusted when
+// the connection originates from a private/loopback address (i.e. a local proxy).
 func clientIP(r *http.Request) string {
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+	remoteHost, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		remoteHost = r.RemoteAddr
+	}
+	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" && isPrivateAddr(remoteHost) {
 		if i := strings.IndexByte(fwd, ','); i >= 0 {
 			return strings.TrimSpace(fwd[:i])
 		}
 		return strings.TrimSpace(fwd)
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
+	return remoteHost
+}
+
+// isPrivateAddr reports whether addr is a loopback or RFC-1918/4193 private address.
+func isPrivateAddr(addr string) bool {
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return false
 	}
-	return host
+	for _, cidr := range []string{
+		"127.0.0.0/8", "::1/128",
+		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+		"fc00::/7",
+	} {
+		_, network, _ := net.ParseCIDR(cidr)
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // generateToken produces a cryptographically random 32-byte hex session token.
@@ -201,8 +222,32 @@ func (s *Server) requireRole(minRole string, next http.HandlerFunc) http.Handler
 
 // loginBucketFor returns the rate-limit bucket for the given IP, creating it if needed.
 func (s *Server) loginBucketFor(ip string) *loginBucket {
-	v, _ := s.loginBuckets.LoadOrStore(ip, &loginBucket{})
-	return v.(*loginBucket)
+	v, _ := s.loginBuckets.LoadOrStore(ip, &loginBucket{lastSeen: time.Now()})
+	bucket := v.(*loginBucket)
+	bucket.mu.Lock()
+	bucket.lastSeen = time.Now()
+	bucket.mu.Unlock()
+	return bucket
+}
+
+// cleanupLoginBuckets periodically removes stale rate-limit buckets to prevent
+// unbounded memory growth when many distinct IPs attempt logins.
+func (s *Server) cleanupLoginBuckets() {
+	ticker := time.NewTicker(30 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		cutoff := time.Now().Add(-30 * time.Minute)
+		s.loginBuckets.Range(func(key, value any) bool {
+			bucket := value.(*loginBucket)
+			bucket.mu.Lock()
+			stale := bucket.lastSeen.Before(cutoff)
+			bucket.mu.Unlock()
+			if stale {
+				s.loginBuckets.Delete(key)
+			}
+			return true
+		})
+	}
 }
 
 // renderLoginPage builds the full login HTML, injecting an optional error banner and the form/SSO button.
@@ -233,6 +278,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, s.renderLoginPage(""))
 
 	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MB limit
 		ip := clientIP(r)
 		bucket := s.loginBucketFor(ip)
 

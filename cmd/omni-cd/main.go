@@ -879,7 +879,7 @@ func migrateDataFiles() {
 		if _, err := os.Stat(m.new); err == nil {
 			continue // new file already exists, skip
 		}
-		if err := os.MkdirAll(filepath.Dir(m.new), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(m.new), 0750); err != nil {
 			logError("Migration: failed to create directory", "path", filepath.Dir(m.new), "error", err)
 			continue
 		}
