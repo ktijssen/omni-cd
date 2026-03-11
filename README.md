@@ -45,7 +45,7 @@ A GitOps tool for [Sidero Omni](https://www.siderolabs.com/omni/). It watches on
 docker run -d \
   -v omni-cd-data:/data \
   -p 8080:8080 \
-  ghcr.io/ktijssen/sidero-omni-cd:latest
+  ghcr.io/ktijssen/omni-cd:latest
 ```
 
 The Omni endpoint and service account key can be set via environment variables **or** configured at runtime from the **Instances** page in the web UI.
