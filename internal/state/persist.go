@@ -62,7 +62,7 @@ func (s *AppState) SaveToFile(path string) error {
 
 	s.mu.RUnlock()
 
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
 		return err
 	}
 

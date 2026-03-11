@@ -118,15 +118,21 @@ type oidcStateEntry struct {
 
 // deriveRedirectURL builds the callback URL from the incoming request when
 // no explicit redirect URL is configured. Respects X-Forwarded-Proto / Host.
+// Header values are validated to prevent header injection.
 func deriveRedirectURL(r *http.Request) string {
 	scheme := "https"
 	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
-		scheme = proto
+		// Only accept well-known scheme values to prevent injection.
+		proto = strings.ToLower(strings.TrimSpace(proto))
+		if proto == "http" || proto == "https" {
+			scheme = proto
+		}
 	} else if r.TLS == nil {
 		scheme = "http"
 	}
 	host := r.Header.Get("X-Forwarded-Host")
-	if host == "" {
+	// Reject the header if it contains control characters or path separators.
+	if host == "" || strings.ContainsAny(host, "\r\n\t /\\") {
 		host = r.Host
 	}
 	return scheme + "://" + host + "/auth/callback"
@@ -192,7 +198,7 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	entry := raw.(oidcStateEntry)
-	if time.Since(entry.CreatedAt) > 10*time.Minute {
+	if time.Since(entry.CreatedAt) > 5*time.Minute {
 		s.oidcStates.Delete(state)
 		http.Error(w, "State expired", http.StatusBadRequest)
 		return
@@ -373,7 +379,7 @@ func (s *Server) cleanupOIDCStates() {
 	defer ticker.Stop()
 	for range ticker.C {
 		s.oidcStates.Range(func(key, value any) bool {
-			if time.Since(value.(oidcStateEntry).CreatedAt) > 10*time.Minute {
+			if time.Since(value.(oidcStateEntry).CreatedAt) > 5*time.Minute {
 				s.oidcStates.Delete(key)
 			}
 			return true

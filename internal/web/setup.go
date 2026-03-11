@@ -22,6 +22,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, setupHTML)
 
 	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MB limit
 		password := r.FormValue("password")
 		confirm := r.FormValue("confirm")
 		if err := auth.ValidatePasswordStrength(password); err != nil {

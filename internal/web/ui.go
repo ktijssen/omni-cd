@@ -1213,6 +1213,18 @@ const uiHTML = `<!DOCTYPE html>
     </div>
   </div>
 </div>
+<div id="delete-oidc-user-modal" class="repo-modal-wrap">
+  <div class="repo-modal-box">
+    <div class="repo-modal-title">Delete SSO User</div>
+    <p style="font-size:13px;color:#a1a1aa;margin-bottom:4px;">Delete SSO User <span id="delete-oidc-user-email-label" style="color:#fff;font-weight:600;"></span>?</p>
+    <p style="font-size:13px;color:#71717a;margin-bottom:20px;">They will be removed from the user list and their active session will be invalidated.</p>
+    <div id="delete-oidc-user-error" style="color:#f87171;font-size:13px;min-height:18px;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn-sort btn-primary" onclick="window.__closeDeleteOIDCUser()">Cancel</button>
+      <button class="btn-sort btn-primary" onclick="window.__confirmDeleteOIDCUser()">Delete</button>
+    </div>
+  </div>
+</div>
 <div id="omni-instance-modal" class="repo-modal-wrap">
   <div class="repo-modal-box">
     <div class="repo-modal-title" id="omni-instance-modal-title">Add Omni Instance</div>
@@ -2643,7 +2655,7 @@ const uiHTML = `<!DOCTYPE html>
     }
     var repoHeader = '<div class="header">' +
       '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Repositories</h1>' +
-      (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__openRepoModal(null)" style="margin-left:auto">Add Repository</button>' : '') +
+      (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__openRepoModal(null)" style="margin-left:auto"' + ((!s.omniConfigured && !s.omniEnvLocked) ? ' disabled title="Configure an Omni instance before adding a repository"' : '') + '>Add Repository</button>' : '') +
     '</div>';
     return repoHeader + cardsHtml;
   }
@@ -2831,7 +2843,8 @@ const uiHTML = `<!DOCTYPE html>
                 '<div style="font-size:11px;color:#52525b;margin-top:2px">Last seen: ' + new Date(u.lastSeen).toLocaleString() + '</div>' +
               '</div>' +
               '<span style="font-size:12px;font-weight:600;color:' + roleColor + ';margin-right:8px;">' + roleLabel + '</span>' +
-              '<button class="btn-sort btn-primary" onclick="window.__openEditOIDCUser(\'' + escHtml(u.email).replace(/\\/g,'\\\\').replace(/\'/g,"\\'") + '\', \'' + escHtml(u.role).replace(/\\/g,'\\\\').replace(/\'/g,"\\'") + '\')">Edit</button>' +
+              '<button class="btn-sort btn-primary" onclick="window.__openEditOIDCUser(\'' + escHtml(u.email).replace(/\\/g,'\\\\').replace(/\'/g,"\\'") + '\', \'' + escHtml(u.role).replace(/\\/g,'\\\\').replace(/\'/g,"\\'") + '\')">Edit Role</button>' +
+              '<button class="btn-sort btn-primary" onclick="window.__deleteOIDCUser(\'' + escHtml(u.email).replace(/\\/g,'\\\\').replace(/\'/g,"\\'") + '\')">Delete</button>' +
             '</div>';
           }).join('');
       oidcSection = '<div style="margin-top:28px">' +
@@ -2890,6 +2903,35 @@ const uiHTML = `<!DOCTYPE html>
       });
       if (!r.ok) { errEl.textContent = 'Failed to update role'; return; }
       window.__closeEditOIDCUser();
+      _oidcUsersLoaded = false;
+      _oidcUsersData = null;
+      fetchOIDCUsers();
+    } catch(e) { errEl.textContent = 'Network error'; }
+  };
+
+  window.__deleteOIDCUser = function(email) {
+    document.getElementById('delete-oidc-user-email-label').textContent = email;
+    document.getElementById('delete-oidc-user-error').textContent = '';
+    document.getElementById('delete-oidc-user-modal').dataset.email = email;
+    document.getElementById('delete-oidc-user-modal').classList.add('show');
+  };
+
+  window.__closeDeleteOIDCUser = function() {
+    document.getElementById('delete-oidc-user-modal').classList.remove('show');
+  };
+
+  window.__confirmDeleteOIDCUser = async function() {
+    var email = document.getElementById('delete-oidc-user-modal').dataset.email;
+    var errEl = document.getElementById('delete-oidc-user-error');
+    errEl.textContent = '';
+    try {
+      var r = await fetch('/api/users/oidc', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email }),
+      });
+      if (!r.ok) { errEl.textContent = 'Failed to delete user'; return; }
+      window.__closeDeleteOIDCUser();
       _oidcUsersLoaded = false;
       _oidcUsersData = null;
       fetchOIDCUsers();

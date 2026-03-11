@@ -356,9 +356,17 @@ func (s *Server) handleExportCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sanitize cluster ID for use in Content-Disposition to prevent header injection.
+	safeID := strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f || r == '"' || r == ';' || r == '\\' {
+			return -1
+		}
+		return r
+	}, req.ID)
+
 	// Return YAML content with appropriate headers for download
 	w.Header().Set("Content-Type", "application/x-yaml")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.yaml", req.ID))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.yaml"`, safeID))
 	w.Write([]byte(yamlContent))
 }
 

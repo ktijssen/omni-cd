@@ -41,7 +41,7 @@ func (s *AppState) AddLog(level, label, message string) {
 
 // SetLogDir configures daily log file rotation. Call once after New().
 func (s *AppState) SetLogDir(dir string, retentionDays int) {
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		slog.Error("Failed to create log dir", "error", err, "component", "State")
 		return
 	}
@@ -73,7 +73,7 @@ func (s *AppState) rotateLogFile(date string) {
 		s.logFile = nil
 	}
 	path := filepath.Join(s.logDir, "omni-cd-"+date+".log")
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		slog.Error("Failed to open log file", "error", err, "component", "State")
 		return
