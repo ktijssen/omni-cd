@@ -255,14 +255,16 @@ func (s *AppState) UpdateTearingDownStatuses(allIDs []string, tearingDown map[st
 	}
 	s.mu.Lock()
 	changed := false
-	for i := range s.Clusters {
-		c := &s.Clusters[i]
+	filtered := s.Clusters[:0]
+	for _, c := range s.Clusters {
 		if c.Status == "deleting" && !omniMap[c.ID] {
-			c.Status = "outofsync"
-			c.LiveContent = ""
+			// Cluster finished deleting — remove the card entirely.
 			changed = true
+			continue
 		}
+		filtered = append(filtered, c)
 	}
+	s.Clusters = filtered
 	s.mu.Unlock()
 	if changed {
 		s.notifyChange()

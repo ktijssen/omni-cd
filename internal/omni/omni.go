@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -168,10 +169,24 @@ func Apply(file string) error {
 	if err != nil {
 		return err
 	}
-	return applyBytes(context.Background(), data)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return applyBytes(ctx, data, nil)
 }
 
-func applyBytes(ctx context.Context, data []byte) error {
+// ApplyIDs applies only the resources from file whose metadata ID is in allowedIDs.
+// If allowedIDs is nil, all resources in the file are applied (same as Apply).
+func ApplyIDs(file string, allowedIDs map[string]bool) error {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return applyBytes(ctx, data, allowedIDs)
+}
+
+func applyBytes(ctx context.Context, data []byte, allowedIDs map[string]bool) error {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	for {
 		var res resourcepb.YAMLResource
@@ -182,6 +197,9 @@ func applyBytes(ctx context.Context, data []byte) error {
 			return fmt.Errorf("failed to decode resource: %w", err)
 		}
 		r := res.Resource()
+		if allowedIDs != nil && !allowedIDs[r.Metadata().ID()] {
+			continue
+		}
 		got, err := omniState.Get(ctx, r.Metadata())
 		if cosistate.IsNotFoundError(err) {
 			if createErr := omniState.Create(ctx, r); createErr != nil {
@@ -198,54 +216,82 @@ func applyBytes(ctx context.Context, data []byte) error {
 	}
 }
 
-// MachineClassDryRun checks whether a machine class file would change the live
-// state. Returns a non-empty diff string if changes are needed, empty string if
-// already in sync, and an error if the file is invalid.
-func MachineClassDryRun(file string) (string, error) {
+// MCDryRunResult holds the per-resource result of a dry run.
+type MCDryRunResult struct {
+	Diff string // empty = in sync
+	Err  error  // non-nil = decode/API error for this resource
+}
+
+// MachineClassDryRunPerID runs a dry-run for every resource in file and returns
+// a map of resource-ID → result. Callers can then handle each ID independently.
+func MachineClassDryRunPerID(file string) (map[string]MCDryRunResult, error) {
 	data, err := os.ReadFile(file)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
+	results := map[string]MCDryRunResult{}
 	dec := yaml.NewDecoder(bytes.NewReader(data))
-	var diffParts []string
 	for {
 		var yamlRes resourcepb.YAMLResource
 		if err := dec.Decode(&yamlRes); err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return "", fmt.Errorf("failed to decode resource: %w", err)
+			return nil, fmt.Errorf("failed to decode resource: %w", err)
 		}
 		fileRes := yamlRes.Resource()
+		id := fileRes.Metadata().ID()
 		liveRes, err := omniState.Get(ctx, fileRes.Metadata())
 		if cosistate.IsNotFoundError(err) {
 			fileYAML, specErr := marshalResourceYAML(fileRes)
 			if specErr != nil {
-				diffParts = append(diffParts, fmt.Sprintf("+ new: %s %q", fileRes.Metadata().Type(), fileRes.Metadata().ID()))
+				results[id] = MCDryRunResult{Diff: fmt.Sprintf("+ new: %s %q", fileRes.Metadata().Type(), id)}
 			} else {
-				diffParts = append(diffParts, fmt.Sprintf("+ new: %s %q\n+++ desired\n%s", fileRes.Metadata().Type(), fileRes.Metadata().ID(), fileYAML))
+				results[id] = MCDryRunResult{Diff: fmt.Sprintf("+ new: %s %q\n+++ desired\n%s", fileRes.Metadata().Type(), id, fileYAML)}
 			}
 			continue
 		}
 		if err != nil {
-			return "", err
+			results[id] = MCDryRunResult{Err: err}
+			continue
 		}
 		fileSpec, e1 := marshalSpecYAML(fileRes)
 		liveSpec, e2 := marshalSpecYAML(liveRes)
 		if e1 != nil || e2 != nil {
-			// Cannot compare; assume changed.
-			diffParts = append(diffParts, fmt.Sprintf("~ changed: %s %q", fileRes.Metadata().Type(), fileRes.Metadata().ID()))
+			results[id] = MCDryRunResult{Diff: fmt.Sprintf("~ changed: %s %q", fileRes.Metadata().Type(), id)}
 			continue
 		}
 		if fileSpec != liveSpec {
-			diffParts = append(diffParts, fmt.Sprintf("~ changed: %s %q\n--- live\n%s\n+++ desired\n%s",
-				fileRes.Metadata().Type(), fileRes.Metadata().ID(), liveSpec, fileSpec))
+			results[id] = MCDryRunResult{Diff: fmt.Sprintf("~ changed: %s %q\n--- live\n%s\n+++ desired\n%s",
+				fileRes.Metadata().Type(), id, liveSpec, fileSpec)}
+		} else {
+			results[id] = MCDryRunResult{} // in sync
 		}
 	}
-	return strings.Join(diffParts, "\n"), nil
+	return results, nil
+}
+
+// MachineClassDryRun checks whether a machine class file would change the live
+// state. Returns a non-empty diff string if changes are needed, empty string if
+// already in sync, and an error if the file is invalid.
+func MachineClassDryRun(file string) (string, error) {
+	perID, err := MachineClassDryRunPerID(file)
+	if err != nil {
+		return "", err
+	}
+	var parts []string
+	for _, r := range perID {
+		if r.Err != nil {
+			return "", r.Err
+		}
+		if r.Diff != "" {
+			parts = append(parts, r.Diff)
+		}
+	}
+	return strings.Join(parts, "\n"), nil
 }
 
 // marshalResourceYAML marshals a resource (metadata + spec) to a YAML string.
@@ -377,40 +423,77 @@ func DeleteMachineClass(id string) (string, error) {
 // Cluster Templates
 // ============================================================
 
-// ClusterTemplateValidate validates a cluster template file (offline, no API access).
-func ClusterTemplateValidate(file string) error {
-	f, err := os.Open(file)
+// templateOpMu serialises all cluster-template operations that use os.Chdir,
+// because os.Chdir is process-wide and not safe for concurrent use.
+var templateOpMu sync.Mutex
+
+// withTemplateDir chdirs to the directory of file, calls fn, then restores the
+// original working directory. Must be called with templateOpMu held.
+func withTemplateDir(file string, fn func() error) error {
+	orig, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	defer f.Close() //nolint:errcheck
-	return operations.ValidateTemplate(f)
+	dir := filepath.Dir(file)
+	if err := os.Chdir(dir); err != nil {
+		return err
+	}
+	defer os.Chdir(orig) //nolint:errcheck
+	return fn()
+}
+
+// ClusterTemplateValidate validates a cluster template file (offline, no API access).
+func ClusterTemplateValidate(file string) error {
+	templateOpMu.Lock()
+	defer templateOpMu.Unlock()
+
+	return withTemplateDir(file, func() error {
+		f, err := os.Open(filepath.Base(file))
+		if err != nil {
+			return err
+		}
+		defer f.Close() //nolint:errcheck
+		return operations.ValidateTemplate(f)
+	})
 }
 
 // ClusterTemplateSync syncs a cluster template to Omni (create/update/delete resources).
 func ClusterTemplateSync(file string) error {
-	f, err := os.Open(file)
-	if err != nil {
-		return err
-	}
-	defer f.Close() //nolint:errcheck
-	return operations.SyncTemplate(context.Background(), f, io.Discard, omniState,
-		operations.SyncOptions{})
+	templateOpMu.Lock()
+	defer templateOpMu.Unlock()
+
+	return withTemplateDir(file, func() error {
+		f, err := os.Open(filepath.Base(file))
+		if err != nil {
+			return err
+		}
+		defer f.Close() //nolint:errcheck
+		return operations.SyncTemplate(context.Background(), f, io.Discard, omniState,
+			operations.SyncOptions{})
+	})
 }
 
 // ClusterTemplateDiff returns the human-readable diff for a cluster template.
 // Returns empty string if there are no changes.
 func ClusterTemplateDiff(file string) (string, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close() //nolint:errcheck
-	var buf strings.Builder
-	if err := operations.DiffTemplate(context.Background(), f, &buf, omniState); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
+	templateOpMu.Lock()
+	defer templateOpMu.Unlock()
+
+	var result string
+	err := withTemplateDir(file, func() error {
+		f, err := os.Open(filepath.Base(file))
+		if err != nil {
+			return err
+		}
+		defer f.Close() //nolint:errcheck
+		var buf strings.Builder
+		if err := operations.DiffTemplate(context.Background(), f, &buf, omniState); err != nil {
+			return err
+		}
+		result = buf.String()
+		return nil
+	})
+	return result, err
 }
 
 // ============================================================
@@ -575,9 +658,12 @@ func WatchClusters(
 	statusReady := false
 	clusterReady := false
 
-	// derivedClusterPhase returns the highest-priority phase across all MachineSets
-	// for a cluster. Priority: Destroying > ScalingDown > ScalingUp > Reconfiguring > Running.
-	derivedClusterPhase := func(clusterID string) string {
+	// derivedClusterPhase returns the operational phase string for a cluster.
+	// When the cluster itself is tearing down, MachineSetPhase_Destroying is the
+	// expected state and maps to "destroying". When the cluster is alive,
+	// MachineSetPhase_Destroying means a worker group is being removed (scale-to-zero)
+	// and is treated as "scaling-down" to avoid confusing the user.
+	derivedClusterPhase := func(clusterID string, clusterTearingDown bool) string {
 		phases, ok := msPhasesByCluster[clusterID]
 		if !ok || len(phases) == 0 {
 			return "running"
@@ -586,10 +672,16 @@ func WatchClusters(
 		for _, p := range phases {
 			switch {
 			case p == omnispec.MachineSetPhase_Destroying:
-				return "destroying" // highest priority — return immediately
-			case p == omnispec.MachineSetPhase_ScalingDown && best != omnispec.MachineSetPhase_Destroying:
+				if clusterTearingDown {
+					return "destroying"
+				}
+				// Worker group being removed — treat as scaling-down.
+				if best != omnispec.MachineSetPhase_ScalingDown {
+					best = omnispec.MachineSetPhase_ScalingDown
+				}
+			case p == omnispec.MachineSetPhase_ScalingDown && best != omnispec.MachineSetPhase_ScalingDown:
 				best = p
-			case p == omnispec.MachineSetPhase_ScalingUp && best != omnispec.MachineSetPhase_Destroying && best != omnispec.MachineSetPhase_ScalingDown:
+			case p == omnispec.MachineSetPhase_ScalingUp && best != omnispec.MachineSetPhase_ScalingDown:
 				best = p
 			case p == omnispec.MachineSetPhase_Reconfiguring && best == omnispec.MachineSetPhase_Running:
 				best = p
@@ -621,7 +713,7 @@ func WatchClusters(
 		}
 		statuses := make(map[string]ClusterStatus, len(statusCache))
 		for k, v := range statusCache {
-			v.Phase = derivedClusterPhase(k)
+			v.Phase = derivedClusterPhase(k, td[k])
 			statuses[k] = v
 		}
 		onUpdate(statuses, allIDs, td)
