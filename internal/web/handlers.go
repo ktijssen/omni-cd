@@ -668,6 +668,30 @@ func (s *Server) handleTestOmniInstance(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+// handleRefreshOmniConnection re-checks connectivity and refreshes the Omni version in state.
+func (s *Server) handleRefreshOmniConnection(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.appState.IsOmniConfigured() {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "omni instance not configured"})
+		return
+	}
+	if err := omni.CheckConnectivity(); err != nil {
+		s.appState.SetOmniHealth("failed", err.Error())
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	s.appState.SetOmniHealth("healthy", "")
+	omniVersion := omni.GetOmniVersion()
+	s.appState.SetVersions(omniVersion)
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "version": omniVersion})
+}
+
 // handleLogFiles returns a JSON list of available daily log files, newest first.
 func (s *Server) handleLogFiles(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

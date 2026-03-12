@@ -64,17 +64,17 @@ tasks:
   fmt:
     desc: Format Go code
     cmds:
-      - go fmt ./...
+      - go fmt ./cmd/... ./internal/...
 
   vet:
     desc: Run go vet
     cmds:
-      - go vet ./...
+      - go vet ./cmd/... ./internal/...
 
   lint:
     desc: Run golangci-lint (requires golangci-lint)
     cmds:
-      - golangci-lint run ./...
+      - golangci-lint run ./cmd/... ./internal/...
 
   check:
     desc: Run all code quality checks
@@ -96,7 +96,7 @@ tasks:
   deps:update:
     desc: Update all dependencies
     cmds:
-      - go get -u ./...
+      - go get -u ./cmd/... ./internal/...
       - go mod tidy
 
   # Docker tasks

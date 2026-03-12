@@ -1283,6 +1283,7 @@ const uiHTML = `<!DOCTYPE html>
   var logsSearch = '';
   var logsLevelFilter = ''; // '' = all, 'INFO', 'WARN', 'ERROR'
   var logsComponentFilter = ''; // '' = all, or a specific label
+  var logsOrder = 'oldest'; // 'oldest' or 'newest'
   var currentRoute = window.location.pathname;
   var ws = null;
   var wsReconnectDelay = 1000;
@@ -2558,6 +2559,7 @@ const uiHTML = `<!DOCTYPE html>
       if (search && l.message.toLowerCase().indexOf(search) < 0 && (l.label || '').toLowerCase().indexOf(search) < 0) return false;
       return true;
     });
+    if (logsOrder === 'newest') filtered = filtered.slice().reverse();
 
     var logsHtml = filtered.length > 0
       ? filtered.map(function(l) {
@@ -2584,6 +2586,11 @@ const uiHTML = `<!DOCTYPE html>
 
     var searchInput = '<input type="text" placeholder="Search logs..." value="' + escHtml(logsSearch) + '" oninput="window.__setLogsSearch(this.value)" style="background:#18181b;border:1px solid #3f3f46;border-radius:4px;color:#e4e4e7;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;" />';
 
+    var orderSelect = '<select onchange="window.__setLogsOrder(this.value)" style="background:#18181b;border:1px solid #3f3f46;border-radius:4px;color:#e4e4e7;font-size:12px;padding:3px 8px;outline:none;font-family:inherit;cursor:pointer">' +
+      '<option value="oldest"' + (logsOrder === 'oldest' ? ' selected' : '') + '>Oldest first</option>' +
+      '<option value="newest"' + (logsOrder === 'newest' ? ' selected' : '') + '>Newest first</option>' +
+      '</select>';
+
     var clearBtn = (logsSearch || logsLevelFilter || logsComponentFilter)
       ? '<button class="btn-sort" onclick="window.__clearLogsFilters()" title="Clear filters">✕ Clear</button>'
       : '';
@@ -2598,6 +2605,7 @@ const uiHTML = `<!DOCTYPE html>
     '<div class="logs-filters">' +
       searchInput +
       componentSelect +
+      orderSelect +
       levelBtns +
       clearBtn +
       countHint +
@@ -2680,6 +2688,7 @@ const uiHTML = `<!DOCTYPE html>
             (s.omniHealth && s.omniHealth.error ? '<br><span style="color:#f87171">' + escHtml(s.omniHealth.error) + '</span>' : '') +
           '</div>' +
           (isAdmin ? '<div class="info-card-actions">' +
+            '<button class="btn-sort btn-primary" onclick="window.__refreshOmniConnection()">Refresh</button>' +
             '<button class="btn-sort btn-primary"' + disabledAttr + ' onclick="window.__openOmniInstanceModal()">Edit</button>' +
             '<button class="btn-sort btn-primary"' + disabledAttr + ' onclick="window.__deleteOmniInstance()">Delete</button>' +
           '</div>' : '') +
@@ -2797,6 +2806,15 @@ const uiHTML = `<!DOCTYPE html>
       }
     };
     render();
+  }
+
+  function refreshOmniConnection() {
+    fetch('/api/omni-instance/refresh', { method: 'POST' })
+      .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+      .then(function(res) {
+        if (!res.ok) { alert('Refresh failed: ' + (res.data.error || 'unknown error')); }
+        fetchState();
+      }).catch(function(e) { alert('Network error: ' + e.message); });
   }
 
   var _usersData = null;
@@ -4345,6 +4363,7 @@ const uiHTML = `<!DOCTYPE html>
   window.__setLogsSearch = function(v) { logsSearch = v; render(); };
   window.__setLogsLevel = function(v) { logsLevelFilter = logsLevelFilter === v ? '' : v; render(); };
   window.__setLogsComponent = function(v) { logsComponentFilter = v; render(); };
+  window.__setLogsOrder = function(v) { logsOrder = v; render(); };
   window.__clearLogsFilters = function() { logsSearch = ''; logsLevelFilter = ''; logsComponentFilter = ''; render(); };
   // ── Repo CRUD ──────────────────────────────────────────────────────────────
   var _repoModalIsEdit = false;
@@ -4496,6 +4515,7 @@ const uiHTML = `<!DOCTYPE html>
   window.__saveOmniInstance       = saveOmniInstance;
   window.__testOmniInstance       = testOmniInstance;
   window.__deleteOmniInstance     = deleteOmniInstance;
+  window.__refreshOmniConnection  = refreshOmniConnection;
 
   window.__openRepoModal  = openRepoModal;
   window.__closeRepoModal = closeRepoModal;
