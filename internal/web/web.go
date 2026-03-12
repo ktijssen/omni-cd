@@ -140,6 +140,7 @@ func (s *Server) Start() {
 	mux.HandleFunc("/api/set-mc-autosync", s.requireRole("admin", s.handleSetMCAutoSync))
 	mux.HandleFunc("/api/omni-instance", s.requireRole("admin", s.handleOmniInstance))
 	mux.HandleFunc("/api/omni-instance/test", s.requireRole("admin", s.handleTestOmniInstance))
+	mux.HandleFunc("/api/omni-instance/refresh", s.requireRole("admin", s.handleRefreshOmniConnection))
 	mux.HandleFunc("/api/users", s.requireRole("admin", s.handleUsers))
 	mux.HandleFunc("/api/users/change-password", s.requireRole("admin", s.handleChangePassword))
 	mux.HandleFunc("/api/users/update-profile", s.requireRole("admin", s.handleUpdateProfile))

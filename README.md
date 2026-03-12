@@ -37,6 +37,20 @@ A GitOps tool for [Sidero Omni](https://www.siderolabs.com/omni/). It watches on
 
 ---
 
+## Prerequisites
+
+### Omni Service Account
+
+Omni CD requires a service account with at least the **Operator** role to manage MachineClasses and Clusters.
+
+1. In your Omni instance, go to **Settings → Service Accounts**
+2. Create a new service account and assign it the **Operator** role (or higher)
+3. Copy the generated key — you will need it during setup
+
+> The **Operator** role is the minimum required. The **Admin** role is also supported but grants broader access than necessary.
+
+---
+
 ## Installation
 
 ### Docker (recommended)
@@ -224,6 +238,7 @@ Reconciler log stream with filtering and export:
 - **Level filter** — toggle INFO / WARN / ERROR (and DEBUG when `LOG_LEVEL=DEBUG`)
 - **Component filter** — narrow logs to a specific component
 - **Text search** — filter by message content
+- **Order** — display logs oldest first (default) or newest first
 - **Download Today's Logs** — download the current day's log file as JSONL
 - **Show Logs** — browse all stored daily log files with individual download buttons
 
@@ -256,6 +271,7 @@ Logs are written to daily rotating files under `/data/logs/` and are re-loaded i
 | `GET` | `/api/omni-instance` | Get current Omni instance config |
 | `POST` | `/api/omni-instance` | Save Omni instance config |
 | `POST` | `/api/omni-instance/test` | Test Omni connection |
+| `POST` | `/api/omni-instance/refresh` | Re-check connectivity and refresh version in state |
 | `DELETE` | `/api/omni-instance` | Remove stored Omni instance config |
 | `GET` | `/api/logs/files` | List available daily log files |
 | `GET` | `/api/logs/download?date=YYYY-MM-DD` | Download a specific day's log file |
