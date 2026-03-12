@@ -319,7 +319,7 @@ const uiHTML = `<!DOCTYPE html>
     margin-right: 8px;
   }
   .btn-force-sync:hover { border-color: #fb923c; background: rgba(251, 146, 60, 0.1); }
-  .btn-sort { background: none; border: 1px solid #3f3f46; color: #71717a; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .btn-sort { background: none; border: 1px solid #3f3f46; color: #71717a; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: 'SF Mono', 'Fira Code', monospace; white-space: nowrap; }
   .btn-sort:hover { border-color: #a1a1aa; color: #a1a1aa; }
   .btn-sort:disabled { opacity: 0.4; cursor: not-allowed; }
   .btn-sort:disabled:hover { border-color: #3f3f46; color: #71717a; }
@@ -340,11 +340,11 @@ const uiHTML = `<!DOCTYPE html>
   .breadcrumb-current { color:#fff; font-family:'SF Mono','Fira Code',monospace; font-size:16px; font-weight:600; }
   .panel-nav-link { cursor: pointer; transition: color 0.15s; }
   .panel-nav-link:hover { color: #FB326E; }
-  .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; padding: 16px 0; }
+  .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; padding: 16px 0; }
   .cluster-card { background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; overflow: hidden; display: flex; }
   .cluster-card.clickable { cursor: pointer; }
   .cluster-card.clickable:hover { border-color: #71717a; }
-  .cluster-card-actions { display: flex; gap: 6px; padding: 2px 0 0; margin-top: auto; }
+  .cluster-card-actions { display: flex; gap: 6px; padding: 2px 0 0; margin-top: auto; flex-wrap: nowrap; }
   .btn-sort.sync:hover    { border-color: #fb923c; color: #fb923c; background: rgba(251,146,60,0.08); }
   .btn-sort.refresh:hover { border-color: #22d3ee; color: #22d3ee; background: rgba(34,211,238,0.08); }
   .btn-sort.danger:hover  { border-color: #f87171; color: #f87171; background: rgba(248,113,113,0.08); }
@@ -643,7 +643,7 @@ const uiHTML = `<!DOCTYPE html>
   .drawer-body::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
 
   /* Machine classes grid */
-  .mc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .mc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; }
   .mc-card { background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; overflow: hidden; display: flex; }
   .mc-card.clickable { cursor: pointer; }
   .mc-card.clickable:hover { border-color: #71717a; }
@@ -1612,7 +1612,7 @@ const uiHTML = `<!DOCTYPE html>
         ? '<button class="btn-sort btn-primary" onclick="window.__syncCluster(\'' + cluster.id + '\', event)">&#8645; Sync</button>'
         : '') +
       (isAdmin && cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'
-        ? '<button class="btn-sort btn-primary auto-sync ' + (cluster.autoSync === false ? '' : 'active') + '" onclick="window.__setClusterAutoSync(\'' + cluster.id + '\', ' + (cluster.autoSync === false ? 'true' : 'false') + ', event)">' + (cluster.autoSync === false ? '○ Auto-Sync' : '○ Auto-Sync') + '</button>'
+        ? '<button class="btn-sort btn-primary auto-sync ' + (cluster.autoSync === false ? '' : 'active') + '" onclick="window.__setClusterAutoSync(\'' + cluster.id + '\', ' + (cluster.autoSync === false ? 'true' : 'false') + ', event)">' + (cluster.autoSync === false ? '○ Auto-Sync: Off' : '● Auto-Sync: On') + '</button>'
         : '') +
       (isAdmin && cluster.status !== 'deleting' && cluster.status !== 'unmanaged'
         ? '<button class="btn-sort btn-primary" onclick="window.__deleteCluster(\'' + cluster.id + '\', event)">&#10005; Delete</button>'
@@ -3178,7 +3178,10 @@ const uiHTML = `<!DOCTYPE html>
                   '<div class="cluster-card-actions">' +
                     (isAdmin ? '<button class="btn-sort" onclick="window.__refreshSingleMC(\'' + m.id + '\', event);event.stopPropagation()" title="Refresh this machine class from Git">\u21bb Refresh</button>' : '') +
                     (isAdmin ? '<button class="btn-sort" onclick="window.__syncMachineClass(\'' + m.id + '\', event);event.stopPropagation()" title="Force sync this machine class from Git">\u21c5 Sync</button>' : '') +
-                    (isAdmin ? '<button class="btn-sort btn-primary auto-sync ' + (m.autoSync === true ? 'active' : '') + '" onclick="window.__setMCAutoSync(\'' + m.id + '\', ' + (m.autoSync === true ? 'false' : 'true') + ', event);event.stopPropagation()" title="Toggle per-machine-class auto sync">\u25cb Auto-Sync</button>' : '') +
+                    (isAdmin ? '<button class="btn-sort btn-primary auto-sync ' + (m.autoSync === true ? 'active' : '') + '" onclick="window.__setMCAutoSync(\'' + m.id + '\', ' + (m.autoSync === true ? 'false' : 'true') + ', event);event.stopPropagation()" title="Toggle per-machine-class auto sync">' + (m.autoSync === true ? '● Auto-Sync: On' : '○ Auto-Sync: Off') + '</button>' : '') +
+                    (isAdmin ? (usedByClusters.length > 0
+                      ? '<button class="btn-sort btn-primary" disabled title="Cannot delete \u2014 in use by: ' + usedByClusters.join(', ') + '">\u2715 Delete</button>'
+                      : '<button class="btn-sort btn-primary" onclick="window.__deleteMachineClass(\'' + m.id + '\', event);event.stopPropagation()" title="Delete this machine class from Omni">\u2715 Delete</button>') : '') +
                   '</div>' +
                 '</div>') +
             '</div>' +
@@ -3235,8 +3238,6 @@ const uiHTML = `<!DOCTYPE html>
     var countReady = 0, countNotReady = 0;
     var countScalingUp = 0, countScalingDown = 0, countDestroying = 0, countReconfiguring = 0;
     clusters.forEach(function(c) {
-      var st = c.status || '';
-      if (st === 'unmanaged') return;  // excluded from health bar
       var phase = c.clusterPhase || '';
       if (phase === 'scaling-up')    { countScalingUp++;     return; }
       if (phase === 'scaling-down')  { countScalingDown++;   return; }
@@ -3374,7 +3375,7 @@ const uiHTML = `<!DOCTYPE html>
             (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__refreshCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Re-read live state from Omni">↺ Refresh</button>' : '') +
             (isAdmin && c.status !== 'deleting' && (c.status === 'unmanaged' || c.status === 'orphaned') ? '<button class="btn-sort btn-primary" onclick="window.__exportCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Export cluster as YAML template">↓ Export</button>' : '') +
             (isAdmin && c.status !== 'deleting' && c.status !== 'unmanaged' && c.status !== 'orphaned' ? '<button class="btn-sort btn-primary" onclick="window.__syncCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Force sync this cluster from Git">⇅ Sync</button>' : '') +
-            (isAdmin && c.status !== 'deleting' && c.status !== 'unmanaged' && c.status !== 'orphaned' ? '<button class="btn-sort btn-primary auto-sync ' + (c.autoSync === false ? '' : 'active') + '" onclick="window.__setClusterAutoSync(\'' + c.id + '\', ' + (c.autoSync === false ? 'true' : 'false') + ', event);event.stopPropagation()" title="Toggle per-cluster auto sync">' + (c.autoSync === false ? '○ Auto-Sync' : '○ Auto-Sync') + '</button>' : '') +
+            (isAdmin && c.status !== 'deleting' && c.status !== 'unmanaged' && c.status !== 'orphaned' ? '<button class="btn-sort btn-primary auto-sync ' + (c.autoSync === false ? '' : 'active') + '" onclick="window.__setClusterAutoSync(\'' + c.id + '\', ' + (c.autoSync === false ? 'true' : 'false') + ', event);event.stopPropagation()" title="Toggle per-cluster auto sync">' + (c.autoSync === false ? '○ Auto-Sync: Off' : '● Auto-Sync: On') + '</button>' : '') +
             (isAdmin && c.status !== 'deleting' && c.status !== 'unmanaged' ? '<button class="btn-sort btn-primary" onclick="window.__deleteCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Delete this cluster from Omni">\u2715 Delete</button>' : '') +
           '</div>' +
         '</div>' +

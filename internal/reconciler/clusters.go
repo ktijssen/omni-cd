@@ -431,7 +431,7 @@ func (r *Reconciler) RefreshSingleCluster(dir, id string) {
 		// No git template — check if this is an unmanaged cluster and refresh its live data.
 		if omni.IsClusterTemplateManaged(id) {
 			r.logWarn("No template found for managed cluster", "component", "Clusters", "cluster", id)
-			r.state.UpsertClusterStatus(id, "outofsync")
+			r.state.UpsertClusterStatus(id, "orphaned")
 			return
 		}
 		// Unmanaged cluster — populate live info.
@@ -711,39 +711,28 @@ func (r *Reconciler) DeleteSingleCluster(id string) {
 		return
 	}
 
-	if isOrphaned {
-		// Register this cluster as pending-delete so reconcile passes and watcher
-		// callbacks don't re-add it to the UI while Omni processes the deletion.
-		r.pendingDeletes.Store(id, true)
-		defer r.pendingDeletes.Delete(id)
-
-		// Remove orphaned clusters from the UI immediately so the user gets an
-		// instant response. The Omni delete runs below; if it fails the cluster
-		// will reappear on the next reconcile as "orphaned" again.
-		r.logInfo("Removing orphaned cluster from state immediately", "component", "Clusters", "cluster", id)
-		r.state.RemoveCluster(id)
-		r.state.Save()
-	} else {
-		r.state.UpdateClusterStatus(id, "deleting")
-	}
+	// Mark as deleting immediately so the card shows the deleting state.
+	// The watcher removes the card once Omni confirms the cluster is gone.
+	r.state.UpdateClusterStatus(id, "deleting")
+	r.state.Save()
 
 	r.logWarn("Deleting cluster", "component", "Clusters", "cluster", id)
 
 	if err := omni.DeleteCluster(id); err != nil {
 		r.logError("Cluster delete failed", "component", "Clusters", "cluster", id, "error", err)
-		if !isOrphaned {
+		// Restore the previous status on failure.
+		if isOrphaned {
+			r.state.UpdateClusterStatus(id, "orphaned")
+		} else {
 			r.state.UpdateClusterStatus(id, "outofsync")
 		}
+		r.state.Save()
 		return
 	}
 
-	r.logInfo("Cluster deleted from Omni", "component", "Clusters", "cluster", id)
-	if !isOrphaned {
-		// For git-managed clusters the template still exists. Keep the 'deleting'
-		// status so any concurrent refresh cannot flip it back to outofsync.
-		// collectUnmanagedClusters will drop it once Omni confirms it is gone.
-		r.state.Save()
-	}
+	r.logInfo("Cluster delete initiated in Omni", "component", "Clusters", "cluster", id)
+	// Keep 'deleting' status — the watcher's UpdateTearingDownStatuses will
+	// remove the card once the cluster disappears from Omni's live list.
 }
 
 // DeleteClusters deletes clusters from Omni that no longer exist in Git.

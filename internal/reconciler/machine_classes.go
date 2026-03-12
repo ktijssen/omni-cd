@@ -129,12 +129,12 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 		}
 		ids = nonDupIDs
 		provisionType := detectProvisionType(file)
-
-		diffOutput, dryRunErr := omni.MachineClassDryRun(file)
 		fileContent := readFileContent(file)
 
-		// Validation failure — always fail regardless of applyChanges.
+		// Per-ID dry run so each resource gets its own diff/status independently.
+		perIDResults, dryRunErr := omni.MachineClassDryRunPerID(file)
 		if dryRunErr != nil {
+			// File-level decode error — fail all IDs in the file.
 			r.logError("Machine class validation failed", "component", "MachineClasses", "ids", strings.Join(ids, ", "), "error", dryRunErr)
 			for _, id := range ids {
 				liveContent := allLiveStates[id]
@@ -155,10 +155,28 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 			continue
 		}
 
-		// No diff — always success.
-		if diffOutput == "" || strings.Contains(diffOutput, "no changes") {
-			r.logDebug("Machine classes up to date", "component", "MachineClasses", "ids", strings.Join(ids, ", "))
-			for _, id := range ids {
+		// Bucket each ID: API error → failed; no diff → in-sync; diff → needs apply decision.
+		var idsToApply, idsToSkip []string
+		for _, id := range ids {
+			res := perIDResults[id]
+			if res.Err != nil {
+				liveContent := allLiveStates[id]
+				if liveContent == "" {
+					liveContent, _ = omni.GetLiveMachineClass(id)
+				}
+				resources = append(resources, state.ResourceInfo{
+					ID:            id,
+					Type:          "MachineClass",
+					Status:        "failed",
+					ProvisionType: provisionType,
+					FileContent:   fileContent,
+					LiveContent:   liveContent,
+					Error:         res.Err.Error(),
+				})
+				failed++
+				continue
+			}
+			if res.Diff == "" {
 				liveContent := allLiveStates[id]
 				if liveContent == "" {
 					liveContent, _ = omni.GetLiveMachineClass(id)
@@ -171,27 +189,31 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 					FileContent:   fileContent,
 					LiveContent:   liveContent,
 				})
+				inSync++
+				continue
 			}
-			inSync += len(ids)
-			continue
+			// Has a diff — decide whether to apply.
+			if applyChanges {
+				idForced := forceMCIDs != nil && forceMCIDs[id]
+				if idForced || r.state.GetMachineClassAutoSync(id) {
+					idsToApply = append(idsToApply, id)
+				} else {
+					idsToSkip = append(idsToSkip, id)
+				}
+			} else {
+				idsToSkip = append(idsToSkip, id)
+			}
 		}
 
-		// There is a diff. Check per-MC auto-sync preference (#8).
-		// All IDs in this file share the same physical template, so use the
-		// first ID's setting as representative for the file.
-		// forceMCIDs bypasses the auto-sync gate for explicitly requested syncs.
-		// force=true (e.g. repo added, Sync button) also applies MCs whose AutoSync
-		// has never been explicitly set (nil), so a newly added repo's MCs are applied
-		// immediately without requiring the user to enable AutoSync for each one.
-		mcForced := forceMCIDs != nil && forceMCIDs[ids[0]]
-		mcAutoSyncEnabled := !applyChanges || r.state.GetMachineClassAutoSync(ids[0]) || mcForced ||
-			(force && !r.state.IsMachineClassAutoSyncExplicitlyDisabled(ids[0]))
-
-		shouldApply := applyChanges && mcAutoSyncEnabled
-		if shouldApply {
-			if err := omni.Apply(file); err != nil {
-				r.logError("Machine class apply failed", "component", "MachineClasses", "ids", strings.Join(ids, ", "), "error", err)
-				for _, id := range ids {
+		if len(idsToApply) > 0 {
+			applyFilter := map[string]bool{}
+			for _, id := range idsToApply {
+				applyFilter[id] = true
+			}
+			// Only apply the specific IDs that were selected — not the entire file.
+			if err := omni.ApplyIDs(file, applyFilter); err != nil {
+				r.logError("Machine class apply failed", "component", "MachineClasses", "ids", strings.Join(idsToApply, ", "), "error", err)
+				for _, id := range idsToApply {
 					liveContent := allLiveStates[id]
 					if liveContent == "" {
 						liveContent, _ = omni.GetLiveMachineClass(id)
@@ -201,16 +223,16 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 						Type:          "MachineClass",
 						Status:        "failed",
 						ProvisionType: provisionType,
-						Diff:          diffOutput,
+						Diff:          perIDResults[id].Diff,
 						FileContent:   fileContent,
 						LiveContent:   liveContent,
 						Error:         err.Error(),
 					})
 				}
-				failed += len(ids)
+				failed += len(idsToApply)
 			} else {
-				r.logInfo("Machine classes applied", "component", "MachineClasses", "ids", strings.Join(ids, ", "))
-				for _, id := range ids {
+				r.logInfo("Machine classes applied", "component", "MachineClasses", "ids", strings.Join(idsToApply, ", "))
+				for _, id := range idsToApply {
 					liveContent := allLiveStates[id]
 					if liveContent == "" {
 						liveContent, _ = omni.GetLiveMachineClass(id)
@@ -220,21 +242,23 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 						Type:          "MachineClass",
 						Status:        "success",
 						ProvisionType: provisionType,
-						Diff:          diffOutput,
+						Diff:          perIDResults[id].Diff,
 						FileContent:   fileContent,
 						LiveContent:   liveContent,
 					})
 				}
-				applied += len(ids)
+				applied += len(idsToApply)
 			}
-		} else {
-			// applyChanges=false (diff-only refresh) or auto-sync disabled for this MC.
+		}
+		// IDs not selected for apply (auto-sync off, not forced) stay outofsync.
+		skipped := idsToSkip
+		if len(skipped) > 0 {
 			if applyChanges {
-				r.logWarn("Machine class out of sync (auto-sync disabled)", "component", "MachineClasses", "ids", strings.Join(ids, ", "))
+				r.logWarn("Machine class out of sync (auto-sync disabled)", "component", "MachineClasses", "ids", strings.Join(skipped, ", "))
 			} else {
-				r.logWarn("Machine class out of sync (refresh only, skipping apply)", "component", "MachineClasses", "ids", strings.Join(ids, ", "))
+				r.logWarn("Machine class out of sync (refresh only, skipping apply)", "component", "MachineClasses", "ids", strings.Join(skipped, ", "))
 			}
-			for _, id := range ids {
+			for _, id := range skipped {
 				liveContent := allLiveStates[id]
 				if liveContent == "" {
 					liveContent, _ = omni.GetLiveMachineClass(id)
@@ -244,12 +268,12 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 					Type:          "MachineClass",
 					Status:        "outofsync",
 					ProvisionType: provisionType,
-					Diff:          diffOutput,
+					Diff:          perIDResults[id].Diff,
 					FileContent:   fileContent,
 					LiveContent:   liveContent,
 				})
 			}
-			outOfSync += len(ids)
+			outOfSync += len(skipped)
 		}
 	}
 
