@@ -209,6 +209,10 @@ func main() {
 
 	rec := reconciler.New(appState)
 
+	// refreshClusterMu serialises single-cluster refresh goroutines so that
+	// concurrent SyncAll() calls cannot race with each other.
+	var refreshClusterMu sync.Mutex
+
 	// latestClusterDirs / latestMCDirs hold the most recently reconciled dirs.
 	// Updated each reconcile so watchers can trigger targeted refreshes without
 	// a full git pull.
@@ -446,6 +450,11 @@ func main() {
 		case clusterID := <-triggerRefreshCluster:
 			logInfo("Cluster refresh triggered", "trigger", "web UI", "cluster", clusterID)
 			go func(id string) {
+				if !refreshClusterMu.TryLock() {
+					logInfo("Cluster refresh already in progress, skipping", "cluster", id)
+					return
+				}
+				defer refreshClusterMu.Unlock()
 				for _, r := range buildMultiClient().SyncAll() {
 					if r.Err != nil {
 						logError("Git sync failed during cluster refresh", "repo", r.Name, "error", r.Err)

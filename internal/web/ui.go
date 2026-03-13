@@ -340,7 +340,7 @@ const uiHTML = `<!DOCTYPE html>
   .breadcrumb-current { color:#fff; font-family:'SF Mono','Fira Code',monospace; font-size:16px; font-weight:600; }
   .panel-nav-link { cursor: pointer; transition: color 0.15s; }
   .panel-nav-link:hover { color: #FB326E; }
-  .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; padding: 16px 0; }
+  .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 16px; padding: 16px 0; }
   .cluster-card { background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; overflow: hidden; display: flex; }
   .cluster-card.clickable { cursor: pointer; }
   .cluster-card.clickable:hover { border-color: #71717a; }
@@ -366,7 +366,7 @@ const uiHTML = `<!DOCTYPE html>
   .cluster-card[data-phase="reconfiguring"] .cluster-card-accent { background: #a78bfa; }
   .cluster-health-bar-wrap { padding: 0 0 16px; display: flex; align-items: center; gap: 12px; }
   .cluster-health-bar { flex: 1; height: 8px; border-radius: 4px; background: #3f3f46; overflow: hidden; display: flex; }
-  .cluster-health-bar-seg { height: 100%; cursor: pointer; transition: width 0.3s, opacity 0.15s; opacity: 0.85; }
+  .cluster-health-bar-seg { height: 100%; cursor: pointer; transition: width 0.3s, opacity 0.15s; opacity: 0.85; border-right: 2px solid rgba(27,27,29,0.7); }
   .cluster-health-bar-seg:hover { opacity: 1; }
   .cluster-health-bar.has-filter .cluster-health-bar-seg { opacity: 0.3; }
   .cluster-health-bar.has-filter .cluster-health-bar-seg.active { opacity: 1; }
@@ -643,7 +643,7 @@ const uiHTML = `<!DOCTYPE html>
   .drawer-body::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
 
   /* Machine classes grid */
-  .mc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; }
+  .mc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 12px; }
   .mc-card { background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; overflow: hidden; display: flex; }
   .mc-card.clickable { cursor: pointer; }
   .mc-card.clickable:hover { border-color: #71717a; }
@@ -1313,6 +1313,7 @@ const uiHTML = `<!DOCTYPE html>
   var clusterDetailId = (function() { var m = currentRoute.match(/^\/clusters\/(.+)$/); return m ? decodeURIComponent(m[1]) : null; })();
   var clusterDetailTab = 'graph';
   var clusterDetailTabExplicit = false;
+  var clusterRefreshPending = false;
 
   function showClusterModal(id) {
     if (!state || !state.clusters) return;
@@ -1604,8 +1605,10 @@ const uiHTML = `<!DOCTYPE html>
         ? '<pre style="margin:0;padding:24px;white-space:pre-wrap;">' + formatDiff(cluster.diff) + '</pre>'
         : '<div style="color:#71717a;text-align:center;padding:40px;">' + (cluster.status === 'unmanaged' ? 'No diff — this cluster has no template in Git.' : 'No diff available') + '</div>';
     }
+    var omniEndpoint = (s && s.omniEndpoint) || '';
     var clusterActions = '<div class="cluster-card-actions" style="padding:10px 0 10px 24px">' +
-      (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__refreshCurrentCluster()">&#8635; Refresh</button>' : '') +
+      (omniEndpoint ? '<a class="btn-sort btn-primary" href="' + escHtml(omniEndpoint.replace(/\/$/, '') + '/clusters/' + cluster.id) + '" target="_blank">&#8599; Show in Omni</a>' : '') +
+      (isAdmin ? '<button class="btn-sort btn-primary" ' + (clusterRefreshPending ? 'disabled' : '') + ' onclick="window.__refreshCurrentCluster()">&#8635; ' + (clusterRefreshPending ? 'Refreshing...' : 'Refresh') + '</button>' : '') +
       (isAdmin && cluster.status !== 'deleting' && (cluster.status === 'unmanaged' || cluster.status === 'orphaned')
         ? '<button class="btn-sort btn-primary" onclick="window.__exportCluster(\'' + cluster.id + '\', event)">&#8595; Export</button>'
         : '') +
@@ -1631,7 +1634,9 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   async function refreshCurrentCluster() {
-    if (!clusterDetailId) return;
+    if (!clusterDetailId || clusterRefreshPending) return;
+    clusterRefreshPending = true;
+    render();
     try {
       var r = await fetch('/api/refresh-cluster', {
         method: 'POST',
@@ -1639,8 +1644,18 @@ const uiHTML = `<!DOCTYPE html>
         body: JSON.stringify({ id: clusterDetailId })
       });
       var d = await r.json();
-      if (d.status === 'already running') alert('Refresh already in progress');
+      if (!r.ok || d.status === 'already running') {
+        clusterRefreshPending = false;
+        render();
+        alert('Refresh already in progress');
+        return;
+      }
+      // Backend refresh is async — reset the pending flag after a few seconds
+      // or when the next state update comes in (whichever is first)
+      setTimeout(function() { clusterRefreshPending = false; render(); }, 5000);
     } catch(e) {
+      clusterRefreshPending = false;
+      render();
       alert('Failed to refresh cluster');
     }
   }
@@ -3452,8 +3467,7 @@ const uiHTML = `<!DOCTYPE html>
     return clusterHeader + healthBar + clusterToolbar +
       (clusters.length > 0
         ? '<div class="cluster-grid">' + cards + '</div>' +
-          (clusterPageSize > 0 && displayClusters.length > clusterPageSize ? renderPaginationSized(displayClusters, clusterPage, 'window.__changeClusterPage', clusterPageSize) : '') +
-          healthBar + bottomBar
+          (clusterPageSize > 0 && displayClusters.length > clusterPageSize ? renderPaginationSized(displayClusters, clusterPage, 'window.__changeClusterPage', clusterPageSize) : '')
         : '<div style="padding:24px;color:#52525b">No clusters found</div>');
   }
 
