@@ -1310,10 +1310,11 @@ const uiHTML = `<!DOCTYPE html>
   var currentModal = null;
   var confirmModal = null;
   var confirmInput = '';
+  var syncErrorModal = null; // holds { error: '...' } when open
   var clusterDetailId = (function() { var m = currentRoute.match(/^\/clusters\/(.+)$/); return m ? decodeURIComponent(m[1]) : null; })();
   var clusterDetailTab = 'graph';
   var clusterDetailTabExplicit = false;
-  var clusterRefreshPending = false;
+  var clusterActionPending = {}; // clusterId -> 'refresh' | 'sync'
 
   function showClusterModal(id) {
     if (!state || !state.clusters) return;
@@ -1495,7 +1496,14 @@ const uiHTML = `<!DOCTYPE html>
         ? '<span style="color:#52525b">&#x2014;</span>'
         : repoDisconnected
           ? '<span style="color:#f87171">Failed</span>'
-          : formatLastSync(lastSyncTime));
+          : formatLastSync(lastSyncTime)) + sep +
+      si('Last Sync Result', cluster.status === 'unmanaged'
+        ? '<span style="color:#52525b">&#x2014;</span>'
+        : !cluster.lastSyncResult
+          ? '<span style="color:#52525b">&#x2014;</span>'
+          : cluster.lastSyncResult === 'ok'
+            ? '<span style="color:#4ade80">&#x2713; Sync OK</span>'
+            : '<span style="color:#f87171">&#x2717; Sync Failed</span>&nbsp;<button class="btn-sort" style="font-size:10px;padding:1px 6px;margin-left:4px" onclick="event.stopPropagation();window.__showSyncErrorModal()">Details</button>');
   }
 
   function setClusterDetailTab(tab) {
@@ -1582,13 +1590,10 @@ const uiHTML = `<!DOCTYPE html>
     else if (cluster.status === 'syncing')                                 { statusText = '● syncing';     statusColor = '#2dd4bf'; }
     else if (cluster.status === 'success' || cluster.status === 'applied') { statusText = '● synced';      statusColor = '#4ade80'; }
     var isRunning = s.lastReconcile && s.lastReconcile.status === 'running';
-    var hasError = cluster.error && cluster.error.length > 0;
     var tabs = ['graph', 'live', 'diff'];
-    if (hasError) tabs.unshift('error');
-    var defaultTab = hasError ? 'error' : 'graph';
-    if (!clusterDetailTabExplicit || tabs.indexOf(clusterDetailTab) < 0) clusterDetailTab = defaultTab;
+    if (!clusterDetailTabExplicit || tabs.indexOf(clusterDetailTab) < 0) clusterDetailTab = 'graph';
     var modal = { id: cluster.id, fileContent: cluster.fileContent || '', liveContent: cluster.liveContent || '', diff: cluster.diff || '', error: cluster.error || '', activeTab: clusterDetailTab, type: 'cluster' };
-    var tabLabels = { error: 'Error', graph: 'Graph', live: 'Live', diff: 'Diff' };
+    var tabLabels = { graph: 'Graph', live: 'Live', diff: 'Diff' };
     var tabsHtml = tabs.map(function(t) {
       return '<button class="cluster-detail-tab' + (clusterDetailTab === t ? ' active' : '') + '" data-tab="' + t + '" onclick="window.__setClusterDetailTab(\'' + t + '\')">' + (tabLabels[t] || t) + '</button>';
     }).join('');
@@ -1596,8 +1601,6 @@ const uiHTML = `<!DOCTYPE html>
     var bodyContent;
     if (clusterDetailTab === 'graph') {
       bodyContent = renderClusterGraph(modal);
-    } else if (clusterDetailTab === 'error') {
-      bodyContent = '<div style="padding:24px;color:#f87171;white-space:pre-wrap;">' + escHtml(cluster.error || '') + '</div>';
     } else if (clusterDetailTab === 'live') {
       bodyContent = renderClusterLiveContent(cluster.liveContent);
     } else {
@@ -1608,12 +1611,12 @@ const uiHTML = `<!DOCTYPE html>
     var omniEndpoint = (s && s.omniEndpoint) || '';
     var clusterActions = '<div class="cluster-card-actions" style="padding:10px 0 10px 24px">' +
       (omniEndpoint ? '<a class="btn-sort btn-primary" href="' + escHtml(omniEndpoint.replace(/\/$/, '') + '/clusters/' + cluster.id) + '" target="_blank">&#8599; Show in Omni</a>' : '') +
-      (isAdmin ? '<button class="btn-sort btn-primary" ' + (clusterRefreshPending ? 'disabled' : '') + ' onclick="window.__refreshCurrentCluster()">&#8635; ' + (clusterRefreshPending ? 'Refreshing...' : 'Refresh') + '</button>' : '') +
+      (isAdmin ? '<button class="btn-sort btn-primary" ' + (clusterActionPending[cluster.id] ? 'disabled' : '') + ' onclick="window.__refreshCurrentCluster()">&#8635; ' + (clusterActionPending[cluster.id] === 'refresh' ? 'Refreshing...' : 'Refresh') + '</button>' : '') +
       (isAdmin && cluster.status !== 'deleting' && (cluster.status === 'unmanaged' || cluster.status === 'orphaned')
         ? '<button class="btn-sort btn-primary" onclick="window.__exportCluster(\'' + cluster.id + '\', event)">&#8595; Export</button>'
         : '') +
       (isAdmin && cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'
-        ? '<button class="btn-sort btn-primary" onclick="window.__syncCluster(\'' + cluster.id + '\', event)">&#8645; Sync</button>'
+        ? '<button class="btn-sort btn-primary" ' + (clusterActionPending[cluster.id] ? 'disabled' : '') + ' onclick="window.__syncCluster(\'' + cluster.id + '\', event)">&#8645; ' + (clusterActionPending[cluster.id] === 'sync' ? 'Syncing...' : 'Sync') + '</button>'
         : '') +
       (isAdmin && cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'
         ? '<button class="btn-sort btn-primary auto-sync ' + (cluster.autoSync === false ? '' : 'active') + '" onclick="window.__setClusterAutoSync(\'' + cluster.id + '\', ' + (cluster.autoSync === false ? 'true' : 'false') + ', event)">' + (cluster.autoSync === false ? '○ Auto-Sync: Off' : '● Auto-Sync: On') + '</button>'
@@ -1634,8 +1637,8 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   async function refreshCurrentCluster() {
-    if (!clusterDetailId || clusterRefreshPending) return;
-    clusterRefreshPending = true;
+    if (!clusterDetailId || clusterActionPending[clusterDetailId]) return;
+    clusterActionPending[clusterDetailId] = 'refresh';
     render();
     try {
       var r = await fetch('/api/refresh-cluster', {
@@ -1645,16 +1648,16 @@ const uiHTML = `<!DOCTYPE html>
       });
       var d = await r.json();
       if (!r.ok || d.status === 'already running') {
-        clusterRefreshPending = false;
+        delete clusterActionPending[clusterDetailId];
         render();
         alert('Refresh already in progress');
         return;
       }
       // Backend refresh is async — reset the pending flag after a few seconds
       // or when the next state update comes in (whichever is first)
-      setTimeout(function() { clusterRefreshPending = false; render(); }, 5000);
+      setTimeout(function() { delete clusterActionPending[clusterDetailId]; render(); }, 5000);
     } catch(e) {
-      clusterRefreshPending = false;
+      delete clusterActionPending[clusterDetailId];
       render();
       alert('Failed to refresh cluster');
     }
@@ -2241,6 +2244,9 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   async function doForceSync(clusterId) {
+    if (clusterActionPending[clusterId]) return;
+    clusterActionPending[clusterId] = 'sync';
+    render();
     try {
       // First, set the cluster ID to force sync
       await fetch('/api/force-cluster', {
@@ -2253,19 +2259,29 @@ const uiHTML = `<!DOCTYPE html>
       var r = await fetch('/api/reconcile', { method: 'POST' });
       var d = await r.json();
       if (d.status === 'blocked') {
+        delete clusterActionPending[clusterId];
+        render();
         alert('Sync blocked: ' + d.reason);
       } else if (d.status === 'already running') {
+        delete clusterActionPending[clusterId];
+        render();
         alert('Reconcile already in progress');
       } else {
         fetchState();
+        setTimeout(function() { delete clusterActionPending[clusterId]; render(); }, 8000);
       }
     } catch(e) {
+      delete clusterActionPending[clusterId];
+      render();
       alert('Failed to trigger sync');
     }
   }
 
   async function refreshCluster(clusterId, event) {
     event.stopPropagation();
+    if (clusterActionPending[clusterId]) return;
+    clusterActionPending[clusterId] = 'refresh';
+    render();
     try {
       var r = await fetch('/api/refresh-cluster', {
         method: 'POST',
@@ -2274,9 +2290,15 @@ const uiHTML = `<!DOCTYPE html>
       });
       var d = await r.json();
       if (d.status === 'already running') {
+        delete clusterActionPending[clusterId];
+        render();
         alert('Refresh already in progress');
+        return;
       }
+      setTimeout(function() { delete clusterActionPending[clusterId]; render(); }, 5000);
     } catch(e) {
+      delete clusterActionPending[clusterId];
+      render();
       alert('Failed to refresh cluster');
     }
   }
@@ -3405,9 +3427,9 @@ const uiHTML = `<!DOCTYPE html>
           sectionsHtml +
           '<div class="cluster-card-divider" style="margin-top:8px"></div>' +
           '<div class="cluster-card-actions">' +
-            (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__refreshCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Re-read live state from Omni">↺ Refresh</button>' : '') +
+            (isAdmin ? '<button class="btn-sort btn-primary" ' + (clusterActionPending[c.id] ? 'disabled' : '') + ' onclick="window.__refreshCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Re-read live state from Omni">↺ ' + (clusterActionPending[c.id] === 'refresh' ? 'Refreshing...' : 'Refresh') + '</button>' : '') +
             (isAdmin && c.status !== 'deleting' && (c.status === 'unmanaged' || c.status === 'orphaned') ? '<button class="btn-sort btn-primary" onclick="window.__exportCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Export cluster as YAML template">↓ Export</button>' : '') +
-            (isAdmin && c.status !== 'deleting' && c.status !== 'unmanaged' && c.status !== 'orphaned' ? '<button class="btn-sort btn-primary" onclick="window.__syncCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Force sync this cluster from Git">⇅ Sync</button>' : '') +
+            (isAdmin && c.status !== 'deleting' && c.status !== 'unmanaged' && c.status !== 'orphaned' ? '<button class="btn-sort btn-primary" ' + (clusterActionPending[c.id] ? 'disabled' : '') + ' onclick="window.__syncCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Force sync this cluster from Git">⇅ ' + (clusterActionPending[c.id] === 'sync' ? 'Syncing...' : 'Sync') + '</button>' : '') +
             (isAdmin && c.status !== 'deleting' && c.status !== 'unmanaged' && c.status !== 'orphaned' ? '<button class="btn-sort btn-primary auto-sync ' + (c.autoSync === false ? '' : 'active') + '" onclick="window.__setClusterAutoSync(\'' + c.id + '\', ' + (c.autoSync === false ? 'true' : 'false') + ', event);event.stopPropagation()" title="Toggle per-cluster auto sync">' + (c.autoSync === false ? '○ Auto-Sync: Off' : '● Auto-Sync: On') + '</button>' : '') +
             (isAdmin && c.status !== 'deleting' && c.status !== 'unmanaged' ? '<button class="btn-sort btn-primary" onclick="window.__deleteCluster(\'' + c.id + '\', event);event.stopPropagation()" title="Delete this cluster from Omni">\u2715 Delete</button>' : '') +
           '</div>' +
@@ -3539,6 +3561,12 @@ const uiHTML = `<!DOCTYPE html>
 
     // Stable graph ID — used for fold-key namespacing and zoom buttons
     var graphId = 'g' + modal.id.replace(/[^a-zA-Z0-9]/g, '_');
+    // Inline any saved transform so the element is painted in the correct
+    // position immediately — prevents the top-left → centre slide on re-render.
+    var savedT = window.__graphTransforms && window.__graphTransforms[graphId];
+    var inlineTransform = savedT
+      ? 'transform:translate(' + savedT.tx.toFixed(1) + 'px,' + savedT.ty.toFixed(1) + 'px) scale(' + savedT.z + ');'
+      : '';
 
     // Layout constants
     var NH = 100, NW = 220, NW_MACH = 330, EW = 60;
@@ -3871,12 +3899,12 @@ const uiHTML = `<!DOCTYPE html>
         '<button class="cluster-graph-zoom-btn" title="Expand all" onclick="window.__graphExpandAll(\'' + graphId + '\')">&#8990;</button>' +
         '<span class="graph-toolbar-sep"></span>' +
         '<button class="cluster-graph-zoom-btn" onclick="window.__graphZoom(\'out\',\'' + graphId + '\')">&#8722;</button>' +
-        '<span class="graph-zoom-level">100%</span>' +
+        '<span class="graph-zoom-level">' + (savedT ? Math.round(savedT.z * 100) + '%' : '100%') + '</span>' +
         '<button class="cluster-graph-zoom-btn" onclick="window.__graphZoom(\'reset\',\'' + graphId + '\')">&#8635;</button>' +
         '<button class="cluster-graph-zoom-btn" onclick="window.__graphZoom(\'in\',\'' + graphId + '\')">&#43;</button>' +
       '</div>' +
       '<div class="cluster-graph-canvas" onwheel="window.__graphZoomWheel(event,this)" onmousedown="window.__graphDragStart(event,this)" onmousemove="window.__graphDragMove(event,this)" onmouseup="window.__graphDragEnd(this)" onmouseleave="window.__graphDragEnd(this)">' +
-        '<div id="' + graphId + '" class="cluster-graph-inner" style="align-items:flex-start;gap:0;">' +
+        '<div id="' + graphId + '" class="cluster-graph-inner" style="align-items:flex-start;gap:0;' + inlineTransform + '">' +
           wrapColCompact(col1Nodes, COL1_GAP) + edge1 +
           wrapCol(col2Nodes) + edge2 +
           col3segment +
@@ -3926,6 +3954,17 @@ const uiHTML = `<!DOCTYPE html>
             '<button class="btn-sort btn-primary" onclick="window.__closeConfirmModal()">Cancel</button>' +
             '<button id="confirm-ok-btn" class="btn-sort btn-primary" ' + (confirmModal && confirmModal.requireInput && confirmInput !== confirmModal.requireInput ? 'disabled' : '') + ' onclick="window.__confirmAction()">OK</button>' +
           '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="modal ' + (syncErrorModal ? 'show' : '') + '" onclick="if(event.target === this) window.__closeSyncErrorModal()">' +
+      '<div class="modal-content confirm-modal" onclick="event.stopPropagation()">' +
+        '<div class="modal-header">' +
+          '<div class="modal-title">Sync Error</div>' +
+          '<button class="modal-close" onclick="window.__closeSyncErrorModal()">&times;</button>' +
+        '</div>' +
+        '<div class="modal-body confirm-body">' +
+          '<pre style="margin:0;white-space:pre-wrap;color:#f87171;font-size:12px;font-family:\'SF Mono\',\'Fira Code\',monospace">' + escHtml(syncErrorModal ? syncErrorModal.error : '') + '</pre>' +
         '</div>' +
       '</div>' +
     '</div>' +
@@ -3985,6 +4024,17 @@ const uiHTML = `<!DOCTYPE html>
 
   function closeLogsModal() {
     logsModal = false;
+    render();
+  }
+
+  function showSyncErrorModal() {
+    var cluster = state.clusters.find(function(c) { return c.id === clusterDetailId; });
+    syncErrorModal = { error: cluster ? (cluster.lastSyncError || '') : '' };
+    render();
+  }
+
+  function closeSyncErrorModal() {
+    syncErrorModal = null;
     render();
   }
 
@@ -4370,6 +4420,8 @@ const uiHTML = `<!DOCTYPE html>
   window.__hideClustersView = hideClustersView;
   window.__showLogsModal = showLogsModal;
   window.__closeLogsModal = closeLogsModal;
+  window.__showSyncErrorModal = showSyncErrorModal;
+  window.__closeSyncErrorModal = closeSyncErrorModal;
   window.__downloadTodaysLogs  = downloadTodaysLogs;
   window.__openLogFilesModal   = openLogFilesModal;
   window.__closeLogFilesModal  = closeLogFilesModal;

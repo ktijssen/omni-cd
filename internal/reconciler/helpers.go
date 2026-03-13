@@ -3,6 +3,7 @@ package reconciler
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"omni-cd/internal/omni"
@@ -118,36 +119,105 @@ func hydratePoolMachines(clusterID string, cp state.NodeGroup, workers []state.N
 		if uuids, ok := msNodes[msID]; ok {
 			cp.Machines = uuids
 		} else {
-			// Fallback: find the key that has the CP role label by scanning for
-			// any key prefixed with clusterID- that isn't a worker key.
+			// Fallback: case-insensitive name match, then any control-plane key.
+			cpNameLower := strings.ToLower(cp.Name)
 			for k, v := range msNodes {
-				if strings.HasPrefix(k, clusterID+"-") && strings.Contains(k, "control-plane") {
-					cp.Machines = v
+				if strings.HasPrefix(k, clusterID+"-") {
+					suffix := strings.TrimPrefix(k, clusterID+"-")
+					if strings.ToLower(suffix) == cpNameLower {
+						cp.Machines = v
+						break
+					}
+				}
+			}
+			if len(cp.Machines) == 0 {
+				for k, v := range msNodes {
+					if strings.HasPrefix(k, clusterID+"-") && strings.Contains(k, "control-plane") {
+						cp.Machines = v
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Collect all non-CP machineset keys for this cluster, sorted for
+	// deterministic positional assignment when names are absent.
+	var workerKeys []string
+	for k := range msNodes {
+		if strings.HasPrefix(k, clusterID+"-") && !strings.Contains(k, "control-plane") {
+			workerKeys = append(workerKeys, k)
+		}
+	}
+	sort.Strings(workerKeys)
+
+	usedKeys := make(map[string]bool)
+
+	// Pass 1: assign by name — exact key, then case-insensitive suffix match.
+	for i, wg := range workers {
+		if len(workers[i].Machines) > 0 {
+			continue
+		}
+		msID := clusterID + "-" + wg.Name
+		if uuids, ok := msNodes[msID]; ok {
+			workers[i].Machines = uuids
+			usedKeys[msID] = true
+			continue
+		}
+		if wg.Name == "" {
+			continue
+		}
+		nameLower := strings.ToLower(wg.Name)
+		for _, k := range workerKeys {
+			if !usedKeys[k] {
+				suffix := strings.TrimPrefix(k, clusterID+"-")
+				if strings.ToLower(suffix) == nameLower {
+					workers[i].Machines = msNodes[k]
+					usedKeys[k] = true
 					break
 				}
 			}
 		}
 	}
 
-	for i, wg := range workers {
-		if len(workers[i].Machines) == 0 {
-			msID := clusterID + "-" + wg.Name
-			if uuids, ok := msNodes[msID]; ok {
-				workers[i].Machines = uuids
-			} else {
-				// Fallback: find a key prefixed with clusterID- that contains
-				// the worker group name (or any worker-role key if only one group).
-				for k, v := range msNodes {
-					if strings.HasPrefix(k, clusterID+"-") && !strings.Contains(k, "control-plane") {
-						suffix := strings.TrimPrefix(k, clusterID+"-")
-						if suffix == wg.Name || wg.Name == "" || wg.Name == suffix {
-							workers[i].Machines = v
-							break
-						}
-					}
-				}
+	// Pass 2: distribute remaining (unmatched) machinesets to workers that
+	// still have no machines — covers unnamed pool-based worker groups.
+	ri := 0
+	for i := range workers {
+		if len(workers[i].Machines) > 0 {
+			continue
+		}
+		for ri < len(workerKeys) {
+			k := workerKeys[ri]
+			ri++
+			if !usedKeys[k] {
+				workers[i].Machines = msNodes[k]
+				usedKeys[k] = true
+				break
 			}
 		}
+	}
+
+	// Deduplicate UUIDs across groups — CP takes priority, then workers in
+	// order. Prevents the same machine appearing in multiple machinesets.
+	seen := make(map[string]bool)
+	filtered := cp.Machines[:0:0]
+	for _, id := range cp.Machines {
+		if !seen[id] {
+			seen[id] = true
+			filtered = append(filtered, id)
+		}
+	}
+	cp.Machines = filtered
+	for i := range workers {
+		wFiltered := workers[i].Machines[:0:0]
+		for _, id := range workers[i].Machines {
+			if !seen[id] {
+				seen[id] = true
+				wFiltered = append(wFiltered, id)
+			}
+		}
+		workers[i].Machines = wFiltered
 	}
 
 	// For manually-assigned clusters (no machineallocation count in YAML), derive

@@ -103,6 +103,10 @@ type ResourceInfo struct {
 	MachineExtensions map[string][]string `json:"machineExtensions,omitempty"`
 	// Machine UUID -> hostname (populated for clusters with individual machines)
 	MachineHostnames map[string]string `json:"machineHostnames,omitempty"`
+	// LastSyncResult is the outcome of the most recent sync attempt: "ok" or "failed".
+	LastSyncResult string `json:"lastSyncResult,omitempty"`
+	// LastSyncError holds the error message from the most recent failed sync attempt.
+	LastSyncError string `json:"lastSyncError,omitempty"`
 	// AutoSync controls whether this resource is automatically applied during reconcile.
 	AutoSync *bool `json:"autoSync,omitempty"`
 	// RepoName is the name of the git repo this resource was sourced from.
