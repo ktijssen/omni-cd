@@ -1560,7 +1560,7 @@ const uiHTML = `<!DOCTYPE html>
             '<div class="detail-strip-value"><span style="color:#52525b">&#x2014;</span></div>' +
           '</div>';
         }
-        var sha = clusterRepo && clusterRepo.shortSha ? ' to ' + escHtml(clusterRepo.shortSha) : '';
+        var sha = cluster.lastSyncSHA ? ' to ' + escHtml(cluster.lastSyncSHA) : '';
         var resultBadge = cluster.lastSyncResult === 'ok'
           ? '<span style="color:#4ade80">&#x2713; Sync OK</span>' + (sha ? '<span style="color:#a1a1aa">' + sha + '</span>' : '')
           : '<span style="color:#f87171">&#x2717; Sync Failed</span>&nbsp;<button class="btn-sort" style="font-size:10px;padding:1px 6px;margin-left:4px" onclick="event.stopPropagation();window.__showSyncErrorModal()">Details</button>';
@@ -1581,9 +1581,7 @@ const uiHTML = `<!DOCTYPE html>
           return rel + ' (' + dt.toString().replace(/\s*\(.*\)$/, '') + ')';
         }
         var verb = cluster.lastSyncResult === 'ok' ? 'Succeeded ' : 'Failed ';
-        var dateStr = repoDisconnected
-          ? '<span style="color:#f87171">Repo error</span>'
-          : lastSyncTime ? escHtml(verb + relTime(lastSyncTime)) : '';
+        var dateStr = cluster.lastSyncTime ? escHtml(verb + relTime(cluster.lastSyncTime)) : '';
         return '<div class="detail-strip-item" style="min-width:140px">' +
           '<div class="detail-strip-label">Last Sync Result</div>' +
           '<div class="detail-strip-value">' + resultBadge + '</div>' +
@@ -3525,7 +3523,7 @@ const uiHTML = `<!DOCTYPE html>
             '<span class="cluster-card-meta-label">K8s</span>' +
             '<span class="cluster-card-meta-value">' + escHtml(c.kubernetesVersion || '—') + '</span>' +
           '</div>' +
-          (c.repoName ? '<div class="cluster-card-meta-pair cluster-card-meta-full"><span class="cluster-card-meta-label">Repo</span><span class="cluster-card-meta-value">' + escHtml(c.repoName) + '</span></div>' : '') +
+          '<div class="cluster-card-meta-pair cluster-card-meta-full"><span class="cluster-card-meta-label">Repo</span><span class="cluster-card-meta-value">' + escHtml(c.repoName || '—') + '</span></div>' +
         '</div>';
       return '<div class="cluster-card clickable" data-status="' + (c.status || 'idle') + '"' + cardHealth + cardPhase + ' onclick="window.__navToCluster(\'' + c.id + '\')">' +
         '<div class="cluster-card-accent"></div>' +

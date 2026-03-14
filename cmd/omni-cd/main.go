@@ -796,7 +796,7 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 		// 2. Cluster templates — per-cluster AutoSync controls apply vs diff-only
 		for _, r := range okResults {
 			rc := repoByName[r.Name]
-			rec.ApplyClusters(r.RepoDir+"/"+rc.ClustersPath, forceClusterIDs, crossRepoDuplicates)
+			rec.ApplyClusters(r.RepoDir+"/"+rc.ClustersPath, forceClusterIDs, crossRepoDuplicates, r.Info.ShortSHA)
 		}
 
 		// Checkpoint: persist state immediately after all clusters have been

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"omni-cd/internal/omni"
 	"omni-cd/internal/state"
@@ -22,7 +23,7 @@ import (
 // so it is not consumed/cleared on the first repo and lost for subsequent ones.
 // crossRepoDuplicates maps cluster IDs that are defined in >1 repo to a description
 // of the conflicting repo names; those clusters are marked outofsync and skipped.
-func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, crossRepoDuplicates map[string]string) {
+func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, crossRepoDuplicates map[string]string, repoSHA string) {
 	// Derive the repo name from the work-dir convention /tmp/repo-<name>/...
 	repoName := repoNameFromDir(dir)
 
@@ -274,6 +275,8 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 					Error:             err.Error(),
 					LastSyncResult:    "failed",
 					LastSyncError:     err.Error(),
+					LastSyncTime:      time.Now().UTC(),
+					LastSyncSHA:       repoSHA,
 					TalosVersion:      talos,
 					KubernetesVersion: k8s,
 					ControlPlane:      cp,
@@ -306,6 +309,8 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 					MachineExtensions: machExts,
 					MachineHostnames:  extractHostnames(allHostnames, cp, wk),
 					LastSyncResult:    "ok",
+					LastSyncTime:      time.Now().UTC(),
+					LastSyncSHA:       repoSHA,
 				})
 				synced++
 				mu.Unlock()
@@ -347,6 +352,13 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 	// First, update existing clusters
 	for _, existingCluster := range existing {
 		if updated, found := updatedMap[existingCluster.ID]; found {
+			// Preserve last sync result/time/SHA if this refresh didn't actually sync
+			if updated.LastSyncResult == "" {
+				updated.LastSyncResult = existingCluster.LastSyncResult
+				updated.LastSyncError = existingCluster.LastSyncError
+				updated.LastSyncTime = existingCluster.LastSyncTime
+				updated.LastSyncSHA = existingCluster.LastSyncSHA
+			}
 			// This cluster was processed, use the new state
 			final = append(final, updated)
 			processedIDs[updated.ID] = true
@@ -514,10 +526,14 @@ func (r *Reconciler) RefreshSingleCluster(dir, id string) {
 	// underlying issue is resolved.
 	lastSyncResult := ""
 	lastSyncError := ""
+	var lastSyncTime time.Time
+	lastSyncSHA := ""
 	for _, c := range r.state.GetClusters() {
 		if c.ID == id {
 			lastSyncResult = c.LastSyncResult
 			lastSyncError = c.LastSyncError
+			lastSyncTime = c.LastSyncTime
+			lastSyncSHA = c.LastSyncSHA
 			if status == "outofsync" && c.Status == "failed" && c.LastSyncError != "" {
 				status = "failed"
 				r.logWarn("Preserving failed status from previous sync error", "component", "Clusters", "cluster", id)
@@ -535,6 +551,8 @@ func (r *Reconciler) RefreshSingleCluster(dir, id string) {
 		LiveContent:       liveContent,
 		LastSyncResult:    lastSyncResult,
 		LastSyncError:     lastSyncError,
+		LastSyncTime:      lastSyncTime,
+		LastSyncSHA:       lastSyncSHA,
 		TalosVersion:      talos,
 		KubernetesVersion: k8s,
 		ControlPlane:      cp,

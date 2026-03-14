@@ -109,6 +109,10 @@ type ResourceInfo struct {
 	LastSyncResult string `json:"lastSyncResult,omitempty"`
 	// LastSyncError holds the error message from the most recent failed sync attempt.
 	LastSyncError string `json:"lastSyncError,omitempty"`
+	// LastSyncTime is the timestamp of the most recent sync attempt.
+	LastSyncTime time.Time `json:"lastSyncTime,omitempty"`
+	// LastSyncSHA is the git SHA that was applied during the most recent sync attempt.
+	LastSyncSHA string `json:"lastSyncSHA,omitempty"`
 	// AutoSync controls whether this resource is automatically applied during reconcile.
 	AutoSync *bool `json:"autoSync,omitempty"`
 	// RepoName is the name of the git repo this resource was sourced from.
