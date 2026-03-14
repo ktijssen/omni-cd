@@ -30,8 +30,10 @@ import (
 // ============================================================
 
 var (
-	omniClient *client.Client //nolint:unused
-	omniState  cosistate.State
+	omniClient           *client.Client //nolint:unused
+	omniState            cosistate.State
+	omniEndpoint         string
+	omniServiceAccountKey string
 )
 
 // clusterSnapshot caches the latest cluster IDs and tearing-down set from
@@ -109,12 +111,22 @@ func Init(endpoint, serviceAccountKey string) error {
 	}
 	omniClient = c
 	omniState = c.Omni().State()
+	omniEndpoint = endpoint
+	omniServiceAccountKey = serviceAccountKey
 	return nil
 }
 
 // ============================================================
 // Connectivity
 // ============================================================
+
+// Ping verifies Omni is reachable by opening a fresh connection each time,
+// bypassing the cached omniState. Use this for health polling so that
+// connectivity loss is detected even when the persistent gRPC client has
+// stale cached state.
+func Ping() error {
+	return TestConnectivity(omniEndpoint, omniServiceAccountKey)
+}
 
 // CheckConnectivity verifies that the Omni API is reachable by reading the
 // SysVersion resource.

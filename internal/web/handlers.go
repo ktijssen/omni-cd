@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"omni-cd/internal/config"
+	"omni-cd/internal/git"
 	"omni-cd/internal/omni"
 	"omni-cd/internal/omniinstance"
 )
@@ -539,6 +540,45 @@ func (s *Server) signalRepoChange() {
 	case s.triggerRepoChange <- struct{}{}:
 	default:
 	}
+}
+
+// handleTestRepo tests connectivity for a given repo URL/branch/token without
+// persisting anything. Used by the "Test Connection" button in the UI.
+func (s *Server) handleTestRepo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		URL    string `json:"url"`
+		Branch string `json:"branch"`
+		Token  string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	req.URL = strings.TrimSpace(req.URL)
+	if req.URL == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "url is required"})
+		return
+	}
+	if req.Branch == "" {
+		req.Branch = "main"
+	}
+
+	if err := git.TestConnection(req.URL, req.Branch, req.Token); err != nil {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 // handleOmniInstance handles GET and POST for the Omni instance configuration.

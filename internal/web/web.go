@@ -133,6 +133,7 @@ func (s *Server) Start() {
 	mux.HandleFunc("/api/set-cluster-autosync", s.requireRole("admin", s.handleSetClusterAutoSync))
 	mux.HandleFunc("/api/export-cluster", s.requireRole("admin", s.handleExportCluster))
 	mux.HandleFunc("/api/repos", s.requireRole("admin", s.handleRepos))
+	mux.HandleFunc("/api/repos/test", s.requireRole("admin", s.handleTestRepo))
 	mux.HandleFunc("/api/refresh-mc", s.requireRole("admin", s.handleRefreshMC))
 	mux.HandleFunc("/api/refresh-single-mc", s.requireRole("admin", s.handleRefreshSingleMC))
 	mux.HandleFunc("/api/delete-machineclass", s.requireRole("admin", s.handleDeleteMachineClass))
@@ -284,6 +285,9 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 	}
 	if len(snapshot.LastReconcile.Status) > 0 {
 		hash = hash*31 + uint64(snapshot.LastReconcile.Status[0])
+	}
+	for _, b := range []byte(snapshot.OmniHealth.Status) {
+		hash = hash*31 + uint64(b)
 	}
 	hash = hash*31 + uint64(len(snapshot.Git.SHA))
 	// Include per-resource statuses so a status-only change is detected.

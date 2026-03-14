@@ -30,6 +30,7 @@ const (
 type OmniHealth struct {
 	Status    string    `json:"status"`
 	LastCheck time.Time `json:"lastCheck"`
+	DownSince time.Time `json:"downSince,omitempty"`
 	Error     string    `json:"error,omitempty"`
 }
 
@@ -51,6 +52,7 @@ type GitInfo struct {
 	SHA           string    `json:"sha"`
 	ShortSHA      string    `json:"shortSha"`
 	CommitMessage string    `json:"commitMessage"`
+	CommitAuthor  string    `json:"commitAuthor,omitempty"`
 	LastSync      time.Time `json:"lastSync"`
 	SyncError     string    `json:"syncError,omitempty"`
 }
@@ -224,9 +226,16 @@ func (s *AppState) SetVersions(omniVersion string) {
 // SetOmniHealth updates the Omni connectivity health status.
 func (s *AppState) SetOmniHealth(status, errMsg string) {
 	s.mu.Lock()
+	downSince := s.OmniHealth.DownSince
+	if status == "failed" && downSince.IsZero() {
+		downSince = time.Now().UTC()
+	} else if status != "failed" {
+		downSince = time.Time{}
+	}
 	s.OmniHealth = OmniHealth{
 		Status:    status,
 		LastCheck: time.Now().UTC(),
+		DownSince: downSince,
 		Error:     errMsg,
 	}
 	s.mu.Unlock()

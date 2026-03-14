@@ -94,6 +94,7 @@ func (c *Client) Sync() (bool, error) {
 	}
 
 	msg := c.commitMessage()
+	author := c.commitAuthor()
 
 	// Update shared state with git info
 	c.state.UpdateGit(state.GitInfo{
@@ -101,6 +102,7 @@ func (c *Client) Sync() (bool, error) {
 		SHA:           current,
 		ShortSHA:      short(current),
 		CommitMessage: msg,
+		CommitAuthor:  author,
 		Branch:        c.repoConfig.Branch,
 		Repo:          c.repoConfig.URL,
 		LastSync:      time.Now().UTC(),
@@ -133,11 +135,20 @@ func (c *Client) headSHA() (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// commitMessage returns the commit message of HEAD.
+// commitMessage returns the subject line of the HEAD commit.
 func (c *Client) commitMessage() string {
 	out, err := exec.Command("git", "-C", c.workDir, "log", "-1", "--format=%s").Output()
 	if err != nil {
 		return "(unknown)"
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// commitAuthor returns the author name of the HEAD commit.
+func (c *Client) commitAuthor() string {
+	out, err := exec.Command("git", "-C", c.workDir, "log", "-1", "--format=%an").Output()
+	if err != nil {
+		return ""
 	}
 	return strings.TrimSpace(string(out))
 }
@@ -180,12 +191,14 @@ func (m *MultiClient) SyncAll() []RepoSyncResult {
 	for _, c := range m.clients {
 		changed, err := c.Sync()
 		info := state.GitInfo{
-			Name:     c.repoConfig.Name,
-			SHA:      c.lastSHA,
-			ShortSHA: short(c.lastSHA),
-			Branch:   c.repoConfig.Branch,
-			Repo:     c.repoConfig.URL,
-			LastSync: time.Now().UTC(),
+			Name:          c.repoConfig.Name,
+			SHA:           c.lastSHA,
+			ShortSHA:      short(c.lastSHA),
+			CommitMessage: c.commitMessage(),
+			CommitAuthor:  c.commitAuthor(),
+			Branch:        c.repoConfig.Branch,
+			Repo:          c.repoConfig.URL,
+			LastSync:      time.Now().UTC(),
 		}
 		if err != nil {
 			info.SyncError = err.Error()
@@ -224,6 +237,47 @@ func (m *MultiClient) AllRepoDirs() []string {
 		dirs[i] = c.workDir
 	}
 	return dirs
+}
+
+// TestConnection verifies that the given repo URL, branch, and optional token
+// are reachable by running git ls-remote. No local files are written.
+func TestConnection(repoURL, branch, token string) error {
+	if branch == "" {
+		branch = "main"
+	}
+	cmd := exec.Command("git", "ls-remote", "--heads", repoURL, "refs/heads/"+branch)
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+
+	if token != "" {
+		u, err := url.Parse(repoURL)
+		if err != nil {
+			return fmt.Errorf("invalid repo URL: %w", err)
+		}
+		tmpHome, err := os.MkdirTemp("", "git-auth-*")
+		if err != nil {
+			return fmt.Errorf("failed to create credentials dir: %w", err)
+		}
+		defer os.RemoveAll(tmpHome)
+		netrc := fmt.Sprintf("machine %s login token password %s\n", u.Hostname(), token)
+		if err := os.WriteFile(filepath.Join(tmpHome, ".netrc"), []byte(netrc), 0600); err != nil {
+			return fmt.Errorf("failed to write git credentials: %w", err)
+		}
+		cmd.Env = append(os.Environ(), "HOME="+tmpHome, "GIT_TERMINAL_PROMPT=0")
+	}
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			msg = err.Error()
+		}
+		msg = strings.TrimPrefix(msg, "fatal: ")
+		return fmt.Errorf("%s", msg)
+	}
+	if strings.TrimSpace(string(out)) == "" {
+		return fmt.Errorf("branch %q not found in repository", branch)
+	}
+	return nil
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

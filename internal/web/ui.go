@@ -382,11 +382,16 @@ const uiHTML = `<!DOCTYPE html>
   .cluster-health-bar-seg--reconfiguring { background: #a78bfa; }
   .cluster-health-summary { font-size: 12px; color: #71717a; white-space: nowrap; }
   .cluster-card-body { flex: 1; padding: 12px 14px; min-width: 0; display: flex; flex-direction: column; }
-  .cluster-card-header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+  .cluster-card-header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
   .cluster-card-title { font-size: 15px; font-weight: 600; color: #fff; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cluster-card-title.clickable { color: inherit; }
-  .cluster-card-status { font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+  .cluster-card-status { font-size: 12px; color: #a1a1aa; white-space: nowrap; flex-shrink: 0; }
   .cluster-card-versions { font-size: 11px; color: #71717a; margin-bottom: 10px; }
+  .cluster-card-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 12px; margin: 0; padding: 8px 0; }
+  .cluster-card-meta-pair { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
+  .cluster-card-meta-label { font-size: 12px; color: #a1a1aa; flex-shrink: 0; min-width: 42px; }
+  .cluster-card-meta-value { font-size: 12px; color: #e4e4e7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .cluster-card-meta-full { grid-column: 1 / -1; }
   .cluster-card-divider { height: 1px; background: #3f3f46; margin-bottom: 8px; }
   .cluster-pool-row { display: flex; align-items: baseline; gap: 8px; font-size: 12px; padding: 2px 0; }
   .cluster-pool-row-label { color: #a1a1aa; width: 88px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -677,8 +682,8 @@ const uiHTML = `<!DOCTYPE html>
   .page-size-btn:hover:not(.active) { border-color: #71717a; color: #e4e4e7; }
   .page-size-btn.active { background: #3f3f46; border-color: #52525b; color: #fff; }
   .mc-info-row { display: flex; gap: 8px; font-size: 12px; padding: 1px 0; }
-  .mc-info-label { color: #71717a; min-width: 74px; flex-shrink: 0; }
-  .mc-info-value { color: #e4e4e7; font-weight: 500; }
+  .mc-info-label { color: #a1a1aa; min-width: 74px; flex-shrink: 0; }
+  .mc-info-value { color: #e4e4e7; }
 
   /* Modal */
   .modal {
@@ -1056,9 +1061,9 @@ const uiHTML = `<!DOCTYPE html>
   .cluster-detail-header-wrap .header { margin-bottom:0; }
   .cluster-detail-page { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
   .cluster-detail-strip { display:flex; align-items:stretch; flex-shrink:0; border-bottom:1px solid #27272a; background:#27272a; overflow-x:auto; }
-  .detail-strip-item { display:flex; flex-direction:column; justify-content:center; align-items:flex-start; padding:10px 20px; min-width:80px; }
+  .detail-strip-item { display:flex; flex-direction:column; justify-content:flex-start; align-items:flex-start; padding:10px 20px; min-width:80px; }
   .detail-strip-sep { width:1px; background:#3f3f46; flex-shrink:0; }
-  .detail-strip-label { font-size:10px; text-transform:uppercase; letter-spacing:0.08em; color:#71717a; margin-bottom:3px; white-space:nowrap; }
+  .detail-strip-label { font-size:10px; text-transform:uppercase; letter-spacing:0.08em; color:#71717a; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid #3f3f46; white-space:nowrap; align-self:stretch; }
   .detail-strip-value { font-size:13px; font-weight:600; color:#e4e4e7; white-space:nowrap; }
   .cluster-detail-tabs-bar { display:flex; gap:0; flex-shrink:0; border-bottom:1px solid #27272a; padding:0 16px; background:#1b1b1d; align-items:center; }
   .cluster-detail-tab { background:none; border:none; color:#a1a1aa; padding:10px 14px; font-size:13px; font-weight:500; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.15s; }
@@ -1070,6 +1075,26 @@ const uiHTML = `<!DOCTYPE html>
   .cluster-detail-body::-webkit-scrollbar { width:8px; }
   .cluster-detail-body::-webkit-scrollbar-track { background:#1b1b1d; }
   .cluster-detail-body::-webkit-scrollbar-thumb { background:#3f3f46; border-radius:4px; }
+
+  /* Omni connectivity alert bar */
+  .omni-alert-bar {
+    display: none;
+    width: 100%;
+    background: #7c2d12;
+    border-bottom: 1px solid #9a3412;
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #fed7aa;
+    z-index: 100;
+    box-sizing: border-box;
+    gap: 8px;
+    align-items: center;
+  }
+  .omni-alert-bar.visible { display: flex; }
+  .omni-alert-bar-icon { font-size: 15px; flex-shrink: 0; }
+  .omni-alert-bar-msg { flex: 1; }
+  .omni-alert-bar-link { color: #fb923c; text-decoration: underline; cursor: pointer; font-size: 12px; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -1077,6 +1102,11 @@ const uiHTML = `<!DOCTYPE html>
   <div class="loading-spinner-large"></div>
   <div class="loading-overlay-title"><img src="{{OMNI_LOGO_URI}}" alt="Omni" style="width:24px;height:24px;vertical-align:middle;margin-right:8px;">OmniCD is starting up...</div>
   <div class="loading-overlay-sub">This may take a moment</div>
+</div>
+<div class="omni-alert-bar" id="omni-alert-bar">
+  <span class="omni-alert-bar-icon">&#9888;</span>
+  <span class="omni-alert-bar-msg" id="omni-alert-bar-msg">Omni is unreachable</span>
+  <a class="omni-alert-bar-link" href="/instances">View details</a>
 </div>
 <div class="layout">
   <nav class="sidebar" id="sidebar"></nav>
@@ -1119,8 +1149,10 @@ const uiHTML = `<!DOCTYPE html>
       <input class="repo-form-input" id="rm-mc" type="text" placeholder="machineclasses" />
     </div>
     <div class="repo-form-error" id="repo-form-error" style="display:none"></div>
+    <div id="repo-test-result" style="display:none;font-size:12px;margin-bottom:8px;padding:6px 10px;border-radius:6px;"></div>
     <div class="repo-form-actions">
       <button class="btn-sort btn-primary" onclick="window.__closeRepoModal()">Cancel</button>
+      <button class="btn-sort btn-primary" id="repo-test-btn" onclick="window.__testRepoConnection()">Test Connection</button>
       <button class="btn-sort btn-primary" id="repo-save-btn" onclick="window.__saveRepo()">Save</button>
     </div>
   </div>
@@ -1483,27 +1515,81 @@ const uiHTML = `<!DOCTYPE html>
     return phaseRow +
       si('Cluster', cpBadge(cluster.clusterReady)) + sep +
       si('Controlplane', cpBadge(cluster.controlplaneReady)) + sep +
-      si('Kubernetes API', cpBadge(cluster.kubernetesApiReady)) + sep +
+      si('K8S API', cpBadge(cluster.kubernetesApiReady)) + sep +
       si('ETCD', statusBadge(cluster.etcdStatus)) + sep +
       si('Wireguard', statusBadge(cluster.wireGuardStatus)) + sep +
       si('Machines', machinesVal) + sep +
-      si('Sync', cluster.status === 'unmanaged'
-        ? '<span style="color:#52525b">&#x2014;</span>'
-        : repoDisconnected
-          ? '<span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span>'
-          : syncBadge(cluster.status)) + sep +
-      si('Last Sync', cluster.status === 'unmanaged'
-        ? '<span style="color:#52525b">&#x2014;</span>'
-        : repoDisconnected
-          ? '<span style="color:#f87171">Failed</span>'
-          : formatLastSync(lastSyncTime)) + sep +
-      si('Last Sync Result', cluster.status === 'unmanaged'
-        ? '<span style="color:#52525b">&#x2014;</span>'
-        : !cluster.lastSyncResult
-          ? '<span style="color:#52525b">&#x2014;</span>'
-          : cluster.lastSyncResult === 'ok'
-            ? '<span style="color:#4ade80">&#x2713; Sync OK</span>'
-            : '<span style="color:#f87171">&#x2717; Sync Failed</span>&nbsp;<button class="btn-sort" style="font-size:10px;padding:1px 6px;margin-left:4px" onclick="event.stopPropagation();window.__showSyncErrorModal()">Details</button>');
+      (function() {
+        var sub = 'style="font-size:11px;color:#71717a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px"';
+        if (cluster.status === 'unmanaged') {
+          return '<div class="detail-strip-item" style="min-width:160px">' +
+            '<div class="detail-strip-label">Sync Status</div>' +
+            '<div class="detail-strip-value"><span style="color:#52525b">&#x2014;</span></div>' +
+          '</div>';
+        }
+        if (repoDisconnected) {
+          return '<div class="detail-strip-item" style="min-width:160px">' +
+            '<div class="detail-strip-label">Sync Status</div>' +
+            '<div class="detail-strip-value"><span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span></div>' +
+          '</div>';
+        }
+        var branchSha = clusterRepo
+          ? (clusterRepo.branch ? escHtml(clusterRepo.branch) + (clusterRepo.shortSha ? ' (' + escHtml(clusterRepo.shortSha) + ')' : '') : '')
+          : '';
+        var author  = clusterRepo && clusterRepo.commitAuthor  ? escHtml(clusterRepo.commitAuthor)  : '';
+        var message = clusterRepo && clusterRepo.commitMessage ? escHtml(clusterRepo.commitMessage) : '';
+        return '<div class="detail-strip-item" style="min-width:160px">' +
+          '<div class="detail-strip-label">Sync Status</div>' +
+          '<div class="detail-strip-value">' + syncBadge(cluster.status) + '</div>' +
+          (branchSha ? '<div ' + sub + '>' + branchSha + '</div>' : '') +
+          (author    ? '<div ' + sub + '>Author: ' + author + '</div>' : '') +
+          (message   ? '<div ' + sub + '>Message: ' + message + '</div>' : '') +
+        '</div>';
+      })() + sep +
+      (function() {
+        var sub = 'style="font-size:11px;color:#71717a;margin-top:2px;white-space:nowrap"';
+        if (cluster.status === 'unmanaged') {
+          return '<div class="detail-strip-item" style="min-width:140px">' +
+            '<div class="detail-strip-label">Last Sync Result</div>' +
+            '<div class="detail-strip-value"><span style="color:#52525b">&#x2014;</span></div>' +
+          '</div>';
+        }
+        if (!cluster.lastSyncResult) {
+          return '<div class="detail-strip-item" style="min-width:140px">' +
+            '<div class="detail-strip-label">Last Sync Result</div>' +
+            '<div class="detail-strip-value"><span style="color:#52525b">&#x2014;</span></div>' +
+          '</div>';
+        }
+        var sha = clusterRepo && clusterRepo.shortSha ? ' to ' + escHtml(clusterRepo.shortSha) : '';
+        var resultBadge = cluster.lastSyncResult === 'ok'
+          ? '<span style="color:#4ade80">&#x2713; Sync OK</span>' + (sha ? '<span style="color:#a1a1aa">' + sha + '</span>' : '')
+          : '<span style="color:#f87171">&#x2717; Sync Failed</span>&nbsp;<button class="btn-sort" style="font-size:10px;padding:1px 6px;margin-left:4px" onclick="event.stopPropagation();window.__showSyncErrorModal()">Details</button>';
+        function relTime(d) {
+          if (!d) return '';
+          var dt = new Date(d);
+          if (isNaN(dt.getTime())) return '';
+          var s = Math.floor((Date.now() - dt.getTime()) / 1000);
+          var rel;
+          if (s < 10)         rel = 'a few seconds ago';
+          else if (s < 60)    rel = s + ' seconds ago';
+          else if (s < 120)   rel = '1 minute ago';
+          else if (s < 3600)  rel = Math.floor(s / 60) + ' minutes ago';
+          else if (s < 7200)  rel = '1 hour ago';
+          else if (s < 86400) rel = Math.floor(s / 3600) + ' hours ago';
+          else if (s < 172800) rel = '1 day ago';
+          else                rel = Math.floor(s / 86400) + ' days ago';
+          return rel + ' (' + dt.toString().replace(/\s*\(.*\)$/, '') + ')';
+        }
+        var verb = cluster.lastSyncResult === 'ok' ? 'Succeeded ' : 'Failed ';
+        var dateStr = repoDisconnected
+          ? '<span style="color:#f87171">Repo error</span>'
+          : lastSyncTime ? escHtml(verb + relTime(lastSyncTime)) : '';
+        return '<div class="detail-strip-item" style="min-width:140px">' +
+          '<div class="detail-strip-label">Last Sync Result</div>' +
+          '<div class="detail-strip-value">' + resultBadge + '</div>' +
+          '<div ' + sub + '>' + dateStr + '</div>' +
+        '</div>';
+      })();
   }
 
   function setClusterDetailTab(tab) {
@@ -1610,7 +1696,7 @@ const uiHTML = `<!DOCTYPE html>
     }
     var omniEndpoint = (s && s.omniEndpoint) || '';
     var clusterActions = '<div class="cluster-card-actions" style="padding:10px 0 10px 24px">' +
-      (omniEndpoint ? '<a class="btn-sort btn-primary" href="' + escHtml(omniEndpoint.replace(/\/$/, '') + '/clusters/' + cluster.id) + '" target="_blank">&#8599; Show in Omni</a>' : '') +
+      (omniEndpoint ? '<a class="btn-sort btn-primary" href="' + escHtml(omniEndpoint.replace(/\/$/, '') + '/clusters/' + cluster.id) + '" target="_blank">&#8599; Open in Omni</a>' : '') +
       (isAdmin ? '<button class="btn-sort btn-primary" ' + (clusterActionPending[cluster.id] ? 'disabled' : '') + ' onclick="window.__refreshCurrentCluster()">&#8635; ' + (clusterActionPending[cluster.id] === 'refresh' ? 'Refreshing...' : 'Refresh') + '</button>' : '') +
       (isAdmin && cluster.status !== 'deleting' && (cluster.status === 'unmanaged' || cluster.status === 'orphaned')
         ? '<button class="btn-sort btn-primary" onclick="window.__exportCluster(\'' + cluster.id + '\', event)">&#8595; Export</button>'
@@ -2720,8 +2806,7 @@ const uiHTML = `<!DOCTYPE html>
           '</div>' +
           '<div class="info-card-value">' + (s.omniEndpoint ? '<a href="' + escHtml(s.omniEndpoint) + '" target="_blank" style="color:#FB326E;text-decoration:none">' + escHtml(s.omniEndpoint) + '</a>' : '<span style="color:#71717a">Not configured</span>') + '</div>' +
           '<div class="info-card-sub">' +
-            (s.omniConfigured ? 'Version: <b style="color:#a1a1aa">' + escHtml(s.omniVersion || '?') + '</b><br>' : '') +
-            (s.omniConfigured ? 'Last check: ' + ago(s.omniHealth && s.omniHealth.lastCheck) : '') +
+            (s.omniConfigured ? 'Version: <b style="color:#a1a1aa">' + escHtml(s.omniVersion || '?') + '</b>' : '') +
             (s.omniHealth && s.omniHealth.error ? '<br><span style="color:#f87171">' + escHtml(s.omniHealth.error) + '</span>' : '') +
           '</div>' +
           (isAdmin ? '<div class="info-card-actions">' +
@@ -2847,11 +2932,8 @@ const uiHTML = `<!DOCTYPE html>
 
   function refreshOmniConnection() {
     fetch('/api/omni-instance/refresh', { method: 'POST' })
-      .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
-      .then(function(res) {
-        if (!res.ok) { alert('Refresh failed: ' + (res.data.error || 'unknown error')); }
-        fetchState();
-      }).catch(function(e) { alert('Network error: ' + e.message); });
+      .then(function() { fetchState(); })
+      .catch(function() { fetchState(); });
   }
 
   var _usersData = null;
@@ -3208,9 +3290,10 @@ const uiHTML = `<!DOCTYPE html>
             '<div class="mc-card-accent"></div>' +
             '<div class="mc-card-header">' +
               '<div class="mc-card-title-row">' +
-                '<span class="mc-card-name">' +
-                  m.id +
-                '</span>' +
+                '<div style="display:flex;align-items:center;gap:12px;min-width:0;">' +
+                  '<span class="mc-card-name">' + m.id + '</span>' +
+                  ((s.omniEndpoint) ? '<a class="btn-sort btn-primary" style="font-size:10px;padding:1px 6px;text-decoration:none;flex-shrink:0" href="' + escHtml(s.omniEndpoint.replace(/\/$/, '') + '/machine-classes/' + m.id) + '" target="_blank" onclick="event.stopPropagation()" title="Open in Omni">&#8599; Open in Omni</a>' : '') +
+                '</div>' +
                 (mcStatusText ? '<span class="mc-card-status" style="color:' + mcStatusColor + ';">' + mcStatusText + '</span>' : '') +
               '</div>' +
               '<div class="mc-card-divider"></div>' +
@@ -3382,19 +3465,28 @@ const uiHTML = `<!DOCTYPE html>
           '<div class="cluster-pool-row-mc">' + (sec.mc ? escHtml(sec.mc) : '<span style="color:#3f3f46">—</span>') + '</div>' +
         '</div>';
       }).join('');
-      var statusText = '', statusColor = '#71717a';
-      if (c.status === 'unmanaged')                              { statusText = 'unmanaged';      statusColor = '#52525b'; }
-      else if (c.status === 'outofsync')                         { statusText = '● out of sync';  statusColor = '#fb923c'; }
-      else if (c.status === 'orphaned')                          { statusText = '● orphaned';     statusColor = '#a78bfa'; }
-      else if (c.status === 'failed')                            { statusText = '● failed';       statusColor = '#f87171'; }
-      else if (c.status === 'syncing')                           { statusText = '● syncing';      statusColor = '#2dd4bf'; }
-      else if (c.status === 'success' || c.status === 'applied') { statusText = '● synced';       statusColor = '#4ade80'; }
-      // Override: if the cluster's repo is failing to sync, show refreshing
+      // Management badge (header)
+      var mgmtBadge, mgmtColor;
+      if (c.status === 'unmanaged')      { mgmtBadge = 'unmanaged'; mgmtColor = '#52525b'; }
+      else if (c.status === 'orphaned')  { mgmtBadge = 'orphaned';  mgmtColor = '#a78bfa'; }
+      else                               { mgmtBadge = 'managed';   mgmtColor = '#71717a'; }
+
+      // Sync row value
+      var syncText, syncColor;
+      if (c.status === 'unmanaged' || c.status === 'orphaned') { syncText = '—'; syncColor = '#52525b'; }
+      else if (c.status === 'outofsync')                        { syncText = '● out of sync'; syncColor = '#fb923c'; }
+      else if (c.status === 'failed')                           { syncText = '● failed';       syncColor = '#f87171'; }
+      else if (c.status === 'syncing')                          { syncText = '● syncing';      syncColor = '#2dd4bf'; }
+      else if (c.status === 'success' || c.status === 'applied'){ syncText = '● synced';       syncColor = '#4ade80'; }
+      else                                                       { syncText = '—';              syncColor = '#52525b'; }
+      // Override: repo failing to sync
       if (c.repoName && repoSyncErrors[c.repoName] && c.status !== 'unmanaged') {
-        statusText = '<span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span>';
-        statusColor = '#2dd4bf';
+        syncText = '<span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span> syncing';
+        syncColor = '#2dd4bf';
       }
-      var healthText = '', healthColor = '';
+
+      // Health row value
+      var healthText, healthColor;
       var phase = c.clusterPhase || '';
       if (phase === 'scaling-up')        { healthText = '↑ scaling up';    healthColor = '#60a5fa'; }
       else if (phase === 'scaling-down')  { healthText = '↓ scaling down';  healthColor = '#f59e0b'; }
@@ -3404,25 +3496,49 @@ const uiHTML = `<!DOCTYPE html>
         healthText = '✓ ready'; healthColor = '#4ade80';
       } else if (c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready') {
         healthText = '✗ not ready'; healthColor = '#f87171';
+      } else {
+        healthText = '—'; healthColor = '#52525b';
       }
+
       var cardHealth = ((c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready')) ? ' data-health="not-ready"' : '';
       var activePhases = ['scaling-up','scaling-down','destroying','reconfiguring'];
       var cardPhase = (c.clusterPhase && activePhases.indexOf(c.clusterPhase) >= 0) ? ' data-phase="' + c.clusterPhase + '"' : '';
+      var omniEndpointC = (s && s.omniEndpoint) || '';
+      var omniBtn = omniEndpointC
+        ? '<a class="btn-sort btn-primary" style="font-size:10px;padding:1px 6px;text-decoration:none" href="' + escHtml(omniEndpointC.replace(/\/$/, '') + '/clusters/' + c.id) + '" target="_blank" onclick="event.stopPropagation()" title="Open in Omni">&#8599; Open in Omni</a>'
+        : '';
+      var metaHtml =
+        '<div class="cluster-card-meta">' +
+          '<div class="cluster-card-meta-pair">' +
+            '<span class="cluster-card-meta-label">Sync</span>' +
+            '<span class="cluster-card-meta-value" style="color:' + syncColor + '">' + syncText + '</span>' +
+          '</div>' +
+          '<div class="cluster-card-meta-pair">' +
+            '<span class="cluster-card-meta-label">Health</span>' +
+            '<span class="cluster-card-meta-value" style="color:' + healthColor + '">' + healthText + '</span>' +
+          '</div>' +
+          '<div class="cluster-card-meta-pair">' +
+            '<span class="cluster-card-meta-label">Talos</span>' +
+            '<span class="cluster-card-meta-value">' + escHtml(c.talosVersion || '—') + '</span>' +
+          '</div>' +
+          '<div class="cluster-card-meta-pair">' +
+            '<span class="cluster-card-meta-label">K8s</span>' +
+            '<span class="cluster-card-meta-value">' + escHtml(c.kubernetesVersion || '—') + '</span>' +
+          '</div>' +
+          (c.repoName ? '<div class="cluster-card-meta-pair cluster-card-meta-full"><span class="cluster-card-meta-label">Repo</span><span class="cluster-card-meta-value">' + escHtml(c.repoName) + '</span></div>' : '') +
+        '</div>';
       return '<div class="cluster-card clickable" data-status="' + (c.status || 'idle') + '"' + cardHealth + cardPhase + ' onclick="window.__navToCluster(\'' + c.id + '\')">' +
         '<div class="cluster-card-accent"></div>' +
         '<div class="cluster-card-body">' +
           '<div class="cluster-card-header">' +
-            '<span class="cluster-card-title">' +
-              c.id +
-            '</span>' +
-            '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
-              (statusText ? '<span class="cluster-card-status" style="color:' + statusColor + ';">' + statusText + '</span>' : '') +
+            '<div style="display:flex;align-items:center;gap:12px;min-width:0;">' +
+              '<span class="cluster-card-title">' + escHtml(c.id) + '</span>' +
+              omniBtn +
             '</div>' +
+            '<span class="cluster-card-status" style="color:' + mgmtColor + ';flex-shrink:0;">' + mgmtBadge + '</span>' +
           '</div>' +
-          '<div class="cluster-card-versions">' +
-            'Talos ' + escHtml(c.talosVersion || '—') + ' · K8s ' + escHtml(c.kubernetesVersion || '—') +
-            (healthText ? '&ensp;<span style="color:' + healthColor + ';">' + healthText + '</span>' : '') +
-          '</div>' +
+          '<div class="cluster-card-divider"></div>' +
+          metaHtml +
           '<div class="cluster-card-divider"></div>' +
           sectionsHtml +
           '<div class="cluster-card-divider" style="margin-top:8px"></div>' +
@@ -4057,6 +4173,7 @@ const uiHTML = `<!DOCTYPE html>
     // Re-render only the main app content, leaving the modals container untouched
     if (!state) return;
     var s = state;
+    updateAlertBar(s);
     if (clusterDetailId && currentRoute.startsWith('/clusters/')) {
       // Use surgical in-place update to avoid replacing the whole page DOM
       // (which causes the graph to jump before the transform can be restored).
@@ -4309,11 +4426,32 @@ const uiHTML = `<!DOCTYPE html>
     '</div>';
   }
 
+  function updateAlertBar(s) {
+    var bar = document.getElementById('omni-alert-bar');
+    if (!bar) return;
+    var isDown = s && s.omniHealth && s.omniHealth.status === 'failed';
+    if (isDown) {
+      bar.classList.add('visible');
+      var msg = document.getElementById('omni-alert-bar-msg');
+      if (msg) {
+        var since = '';
+        if (s.omniHealth.downSince) {
+          var d = new Date(s.omniHealth.downSince);
+          since = ' since ' + d.toLocaleString();
+        }
+        msg.textContent = 'Omni is unreachable' + since;
+      }
+    } else {
+      bar.classList.remove('visible');
+    }
+  }
+
   function render() {
     if (!state) {
       return;
     }
     var s = state;
+    updateAlertBar(s);
 
     if (clusterDetailId && currentRoute.startsWith('/clusters/')) {
       app.innerHTML = renderClusterDetailPage(s);
@@ -4472,6 +4610,12 @@ const uiHTML = `<!DOCTYPE html>
     var errEl = document.getElementById('repo-form-error');
     errEl.style.display = 'none';
     errEl.textContent   = '';
+    var testResultEl = document.getElementById('repo-test-result');
+    testResultEl.style.display = 'none';
+    testResultEl.textContent   = '';
+    var testBtn = document.getElementById('repo-test-btn');
+    testBtn.disabled    = false;
+    testBtn.textContent = 'Test Connection';
     var btn = document.getElementById('repo-save-btn');
     btn.disabled    = false;
     btn.textContent = 'Save';
@@ -4537,6 +4681,56 @@ const uiHTML = `<!DOCTYPE html>
     });
   }
 
+  function testRepoConnection() {
+    var url    = document.getElementById('rm-url').value.trim();
+    var branch = document.getElementById('rm-branch').value.trim() || 'main';
+    var setTokenCb = document.getElementById('rm-set-token');
+    var tokenInput = document.getElementById('rm-token');
+    var resultEl = document.getElementById('repo-test-result');
+    var btn = document.getElementById('repo-test-btn');
+    if (!url) {
+      resultEl.textContent = 'Enter a URL first.';
+      resultEl.style.background = '#3f1515';
+      resultEl.style.color = '#f87171';
+      resultEl.style.display = '';
+      return;
+    }
+    var body = { url: url, branch: branch };
+    if (setTokenCb.checked && tokenInput.value) {
+      body.token = tokenInput.value;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Testing…';
+    resultEl.style.display = 'none';
+    fetch('/api/repos/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function(r) {
+      btn.disabled = false;
+      btn.textContent = 'Test Connection';
+      return r.json().then(function(data) {
+        if (r.ok) {
+          resultEl.textContent = '✓ Connected — branch "' + branch + '" found';
+          resultEl.style.background = '#052e16';
+          resultEl.style.color = '#4ade80';
+        } else {
+          resultEl.textContent = '✗ ' + (data.error || ('Error ' + r.status));
+          resultEl.style.background = '#3f1515';
+          resultEl.style.color = '#f87171';
+        }
+        resultEl.style.display = '';
+      });
+    }).catch(function(e) {
+      btn.disabled = false;
+      btn.textContent = 'Test Connection';
+      resultEl.textContent = '✗ Network error: ' + e.message;
+      resultEl.style.background = '#3f1515';
+      resultEl.style.color = '#f87171';
+      resultEl.style.display = '';
+    });
+  }
+
   function deleteRepo(name) {
     confirmInput = '';
     var s = state || {};
@@ -4583,10 +4777,11 @@ const uiHTML = `<!DOCTYPE html>
   window.__deleteOmniInstance     = deleteOmniInstance;
   window.__refreshOmniConnection  = refreshOmniConnection;
 
-  window.__openRepoModal  = openRepoModal;
-  window.__closeRepoModal = closeRepoModal;
-  window.__saveRepo       = saveRepo;
-  window.__deleteRepo     = deleteRepo;
+  window.__openRepoModal       = openRepoModal;
+  window.__closeRepoModal      = closeRepoModal;
+  window.__saveRepo            = saveRepo;
+  window.__testRepoConnection  = testRepoConnection;
+  window.__deleteRepo          = deleteRepo;
 
   // ── End Repo CRUD ───────────────────────────────────────────────────────────
   window.__showMachineClassModal = showMachineClassModal;
