@@ -79,23 +79,27 @@ func Load() (*Config, error) {
 	authDisabled, _ := strconv.ParseBool(os.Getenv("AUTH_DISABLED"))
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
 
+	oidcEnabled, _ := strconv.ParseBool(getEnv("OIDC_ENABLED", "false"))
+
 	var oidcCfg *OIDCConfig
-	if issuer := os.Getenv("OIDC_ISSUER_URL"); issuer != "" {
-		if clientID := os.Getenv("OIDC_CLIENT_ID"); clientID != "" {
-			insecure, _ := strconv.ParseBool(os.Getenv("OIDC_INSECURE"))
-			oidcCfg = &OIDCConfig{
-				IssuerURL:    issuer,
-				ClientID:     clientID,
-				ClientSecret: os.Getenv("OIDC_CLIENT_SECRET"),
-				RedirectURL:  os.Getenv("OIDC_REDIRECT_URL"),
-				Scopes:       splitCSV(os.Getenv("OIDC_SCOPES")),
-				GroupsClaim:  os.Getenv("OIDC_GROUPS_CLAIM"),
-				AdminGroups:  splitCSV(os.Getenv("OIDC_ADMIN_GROUPS")),
-				AdminEmails:  splitCSV(os.Getenv("OIDC_ADMIN_EMAILS")),
-				ViewerGroups: splitCSV(os.Getenv("OIDC_VIEWER_GROUPS")),
-				ViewerEmails: splitCSV(os.Getenv("OIDC_VIEWER_EMAILS")),
-				DefaultRole:  os.Getenv("OIDC_DEFAULT_ROLE"),
-				Insecure:     insecure,
+	if oidcEnabled {
+		if issuer := os.Getenv("OIDC_ISSUER_URL"); issuer != "" {
+			if clientID := os.Getenv("OIDC_CLIENT_ID"); clientID != "" {
+				insecure, _ := strconv.ParseBool(os.Getenv("OIDC_INSECURE"))
+				oidcCfg = &OIDCConfig{
+					IssuerURL:    issuer,
+					ClientID:     clientID,
+					ClientSecret: os.Getenv("OIDC_CLIENT_SECRET"),
+					RedirectURL:  os.Getenv("OIDC_REDIRECT_URL"),
+					Scopes:       splitCSV(os.Getenv("OIDC_SCOPES")),
+					GroupsClaim:  os.Getenv("OIDC_GROUPS_CLAIM"),
+					AdminGroups:  splitCSV(os.Getenv("OIDC_ADMIN_GROUPS")),
+					AdminEmails:  splitCSV(os.Getenv("OIDC_ADMIN_EMAILS")),
+					ViewerGroups: splitCSV(os.Getenv("OIDC_VIEWER_GROUPS")),
+					ViewerEmails: splitCSV(os.Getenv("OIDC_VIEWER_EMAILS")),
+					DefaultRole:  os.Getenv("OIDC_DEFAULT_ROLE"),
+					Insecure:     insecure,
+				}
 			}
 		}
 	}

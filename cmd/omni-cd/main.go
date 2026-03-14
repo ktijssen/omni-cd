@@ -164,18 +164,22 @@ func main() {
 	if configured {
 		if err := omni.Init(effectiveEndpoint, effectiveKey); err != nil {
 			if cfg.OmniEnvLocked {
-				fmt.Fprintf(os.Stderr, "Failed to initialise Omni client: %v\n", err)
-				os.Exit(1)
+				logError("Failed to initialise Omni client, retrying in background", "error", err)
+				appState.SetOmniHealth("failed", err.Error())
+				go retryOmniConnect(effectiveEndpoint, effectiveKey, appState, triggerOmniConfigured)
+			} else {
+				logError("Failed to initialise Omni client, waiting for UI configuration", "error", err)
 			}
-			logError("Failed to initialise Omni client, waiting for UI configuration", "error", err)
 			configured = false
 		} else if err := omni.CheckConnectivity(); err != nil {
 			if cfg.OmniEnvLocked {
-				fmt.Fprintf(os.Stderr, "Omni authentication failed: %v\n", err)
-				os.Exit(1)
+				logError("Omni temporarily unavailable, retrying in background", "error", err)
+				appState.SetOmniHealth("failed", err.Error())
+				go retryOmniConnect(effectiveEndpoint, effectiveKey, appState, triggerOmniConfigured)
+			} else {
+				logError("Omni connectivity check failed, waiting for UI configuration", "error", err)
+				appState.SetOmniHealth("failed", err.Error())
 			}
-			logError("Omni connectivity check failed, waiting for UI configuration", "error", err)
-			appState.SetOmniHealth("failed", err.Error())
 			configured = false
 		} else {
 			logInfo("Omni authenticated successfully")
@@ -189,7 +193,8 @@ func main() {
 		logInfo("Omni not configured — waiting for configuration via UI")
 		select {
 		case <-triggerOmniConfigured:
-			// omni.Init was already called by the save handler.
+			// omni.Init was already called by the save handler (UI flow) or by
+			// retryOmniConnect (env-locked retry flow).
 			loadOmniStartupData()
 		case <-stop:
 			logInfo("Shutting down gracefully")
@@ -208,6 +213,10 @@ func main() {
 	}
 
 	rec := reconciler.New(appState)
+
+	// refreshClusterMu serialises single-cluster refresh goroutines so that
+	// concurrent SyncAll() calls cannot race with each other.
+	var refreshClusterMu sync.Mutex
 
 	// latestClusterDirs / latestMCDirs hold the most recently reconciled dirs.
 	// Updated each reconcile so watchers can trigger targeted refreshes without
@@ -260,6 +269,21 @@ func main() {
 			}
 		}()
 
+		// Dedicated health-check: poll CheckConnectivity frequently when Omni is
+		// up (10s) so outages are detected quickly, and less often when it is
+		// already down (3m) to avoid hammering an unavailable endpoint.
+		go func() {
+			for {
+				if err := omni.Ping(); err != nil {
+					appState.SetOmniHealth("failed", err.Error())
+					time.Sleep(3 * time.Minute)
+				} else {
+					appState.SetOmniHealth("healthy", "")
+					time.Sleep(10 * time.Second)
+				}
+			}
+		}()
+
 		// Shared debounce for cluster config changes from any Omni watch source.
 		var pendingMu sync.Mutex
 		pending := make(map[string]bool)
@@ -275,6 +299,18 @@ func main() {
 			pendingMu.Unlock()
 
 			dirs := getClusterDirs()
+
+			// No repos configured — trigger a soft reconcile so CollectUnmanagedClusters
+			// can detect clusters created or modified directly in Omni.
+			if len(dirs) == 0 {
+				logInfo("Omni cluster change detected, triggering reconcile (no repos configured)")
+				select {
+				case triggerSoft <- struct{}{}:
+				default:
+				}
+				return
+			}
+
 			anySynced := false
 			for _, id := range ids {
 				if appState.GetClusterAutoSync(id) {
@@ -322,10 +358,20 @@ func main() {
 		// WatchClusters: real-time ClusterStatus + ControlPlaneStatus + Cluster phases.
 		// Cluster Updated events are forwarded to addPending so config changes made
 		// in Omni trigger a targeted refresh without a second Cluster gRPC stream.
+		// Stream failures/recoveries update omniHealth directly — but only once
+		// omniConfigured is true (i.e. past startup) to avoid racing with the
+		// initial doReconcile which is the authoritative source during startup.
 		go func() {
+			connected := false
 			for {
 				ctx, cancel := context.WithCancel(context.Background())
 				err := omni.WatchClusters(ctx, func(statuses map[string]omni.ClusterStatus, allIDs []string, tearingDown map[string]bool) {
+					if !connected {
+						connected = true
+						if appState.IsOmniConfigured() {
+							appState.SetOmniHealth("healthy", "")
+						}
+					}
 					omni.CacheClusterSnapshot(allIDs, tearingDown)
 					changed := appState.UpdateClusterReadyStatuses(statuses)
 					changed = appState.UpdateTearingDownStatuses(allIDs, tearingDown) || changed
@@ -335,6 +381,10 @@ func main() {
 				}, addPending)
 				cancel()
 				if err != nil {
+					if connected && appState.IsOmniConfigured() {
+						appState.SetOmniHealth("failed", err.Error())
+					}
+					connected = false
 					logError("Cluster watch failed, retrying in 5s", "error", err)
 				}
 				time.Sleep(5 * time.Second)
@@ -446,6 +496,11 @@ func main() {
 		case clusterID := <-triggerRefreshCluster:
 			logInfo("Cluster refresh triggered", "trigger", "web UI", "cluster", clusterID)
 			go func(id string) {
+				if !refreshClusterMu.TryLock() {
+					logInfo("Cluster refresh already in progress, skipping", "cluster", id)
+					return
+				}
+				defer refreshClusterMu.Unlock()
 				for _, r := range buildMultiClient().SyncAll() {
 					if r.Err != nil {
 						logError("Git sync failed during cluster refresh", "repo", r.Name, "error", r.Err)
@@ -741,7 +796,7 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 		// 2. Cluster templates — per-cluster AutoSync controls apply vs diff-only
 		for _, r := range okResults {
 			rc := repoByName[r.Name]
-			rec.ApplyClusters(r.RepoDir+"/"+rc.ClustersPath, forceClusterIDs, crossRepoDuplicates)
+			rec.ApplyClusters(r.RepoDir+"/"+rc.ClustersPath, forceClusterIDs, crossRepoDuplicates, r.Info.ShortSHA)
 		}
 
 		// Checkpoint: persist state immediately after all clusters have been
@@ -861,6 +916,34 @@ func formatLogMessage(level, msg string, attrs ...any) string {
 	}
 
 	return strings.Join(jsonParts, ",") + "}"
+}
+
+// retryOmniConnect retries Init+CheckConnectivity every 10 seconds until Omni
+// is reachable, then signals main() to proceed via triggerOmniConfigured.
+// It is only used for the env-locked startup path where the app must not exit
+// just because Omni is temporarily unavailable.
+func retryOmniConnect(endpoint, key string, appState *state.AppState, trigger chan struct{}) {
+	for {
+		time.Sleep(10 * time.Second)
+		if err := omni.Init(endpoint, key); err != nil {
+			logError("Omni init retry failed", "error", err)
+			appState.SetOmniHealth("failed", err.Error())
+			continue
+		}
+		if err := omni.CheckConnectivity(); err != nil {
+			logError("Omni connectivity retry failed", "error", err)
+			appState.SetOmniHealth("failed", err.Error())
+			continue
+		}
+		logInfo("Omni connectivity restored")
+		appState.SetOmniConfigured(true)
+		appState.SetOmniHealth("healthy", "")
+		select {
+		case trigger <- struct{}{}:
+		default:
+		}
+		return
+	}
 }
 
 // migrateDataFiles moves files from the old flat /data/ layout to the new

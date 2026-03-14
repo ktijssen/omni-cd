@@ -19,6 +19,8 @@ type transientClusterFields struct {
 	WireGuardStatus    string
 	LastBackupTime     time.Time
 	BackupEnabled      bool
+	LastSyncResult     string
+	LastSyncError      string
 }
 
 // GetClusters returns a copy of the current cluster list.
@@ -49,6 +51,8 @@ func (s *AppState) SetClusters(resources []ResourceInfo) {
 			WireGuardStatus:    c.WireGuardStatus,
 			LastBackupTime:     c.LastBackupTime,
 			BackupEnabled:      c.BackupEnabled,
+			LastSyncResult:     c.LastSyncResult,
+			LastSyncError:      c.LastSyncError,
 		}
 		autoSyncMap[c.ID] = c.AutoSync
 		statusMap[c.ID] = c.Status
@@ -65,6 +69,10 @@ func (s *AppState) SetClusters(resources []ResourceInfo) {
 			resources[i].WireGuardStatus = f.WireGuardStatus
 			resources[i].LastBackupTime = f.LastBackupTime
 			resources[i].BackupEnabled = f.BackupEnabled
+			if resources[i].LastSyncResult == "" {
+				resources[i].LastSyncResult = f.LastSyncResult
+				resources[i].LastSyncError = f.LastSyncError
+			}
 			if statusMap[resources[i].ID] == "deleting" {
 				resources[i].Status = "deleting"
 			}
@@ -160,6 +168,10 @@ func (s *AppState) UpsertClusterInfo(id string, info ResourceInfo) {
 			info.LastBackupTime = s.Clusters[i].LastBackupTime
 			info.BackupEnabled = s.Clusters[i].BackupEnabled
 			info.AutoSync = s.Clusters[i].AutoSync
+			if info.LastSyncResult == "" {
+				info.LastSyncResult = s.Clusters[i].LastSyncResult
+				info.LastSyncError = s.Clusters[i].LastSyncError
+			}
 			if info.RepoName == "" {
 				info.RepoName = s.Clusters[i].RepoName
 			}

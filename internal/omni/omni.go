@@ -30,8 +30,10 @@ import (
 // ============================================================
 
 var (
-	omniClient *client.Client //nolint:unused
-	omniState  cosistate.State
+	omniClient           *client.Client //nolint:unused
+	omniState            cosistate.State
+	omniEndpoint         string
+	omniServiceAccountKey string
 )
 
 // clusterSnapshot caches the latest cluster IDs and tearing-down set from
@@ -109,12 +111,22 @@ func Init(endpoint, serviceAccountKey string) error {
 	}
 	omniClient = c
 	omniState = c.Omni().State()
+	omniEndpoint = endpoint
+	omniServiceAccountKey = serviceAccountKey
 	return nil
 }
 
 // ============================================================
 // Connectivity
 // ============================================================
+
+// Ping verifies Omni is reachable by opening a fresh connection each time,
+// bypassing the cached omniState. Use this for health polling so that
+// connectivity loss is detected even when the persistent gRPC client has
+// stale cached state.
+func Ping() error {
+	return TestConnectivity(omniEndpoint, omniServiceAccountKey)
+}
 
 // CheckConnectivity verifies that the Omni API is reachable by reading the
 // SysVersion resource.
@@ -1267,9 +1279,14 @@ func parseResourceFormat(yamlContent string) ClusterTemplateInfo {
 		machineSetID string
 		extensions   []string
 	}
+	type machExtEntry struct {
+		machineID  string
+		extensions []string
+	}
 
 	var msEntries []msEntry
 	var extEntries []extEntry
+	var machExtEntries []machExtEntry
 
 	for _, doc := range strings.Split(yamlContent, "\n---") {
 		doc = strings.TrimSpace(doc)
@@ -1277,7 +1294,7 @@ func parseResourceFormat(yamlContent string) ClusterTemplateInfo {
 			continue
 		}
 
-		var docType, docID, clusterID, machineSetID string
+		var docType, docID, clusterID, machineSetID, clusterMachineID string
 		var isCP, isWorker bool
 		var machineClass string
 		var machineCount int
@@ -1354,6 +1371,8 @@ func parseResourceFormat(yamlContent string) ClusterTemplateInfo {
 						isWorker = true
 					case strings.HasPrefix(trimmed, "omni.sidero.dev/machine-set:"):
 						machineSetID = strings.TrimSpace(strings.TrimPrefix(trimmed, "omni.sidero.dev/machine-set:"))
+					case strings.HasPrefix(trimmed, "omni.sidero.dev/cluster-machine:"):
+						clusterMachineID = strings.TrimSpace(strings.TrimPrefix(trimmed, "omni.sidero.dev/cluster-machine:"))
 					}
 				case "machineallocation":
 					switch {
@@ -1389,6 +1408,11 @@ func parseResourceFormat(yamlContent string) ClusterTemplateInfo {
 					machineSetID: machineSetID,
 					extensions:   extensions,
 				})
+			} else if clusterMachineID != "" {
+				machExtEntries = append(machExtEntries, machExtEntry{
+					machineID:  clusterMachineID,
+					extensions: extensions,
+				})
 			}
 		}
 	}
@@ -1422,5 +1446,12 @@ func parseResourceFormat(yamlContent string) ClusterTemplateInfo {
 		}
 	}
 
+
+	if len(machExtEntries) > 0 {
+		info.MachineExtensions = make(map[string][]string)
+		for _, e := range machExtEntries {
+			info.MachineExtensions[e.machineID] = e.extensions
+		}
+	}
 	return info
 }

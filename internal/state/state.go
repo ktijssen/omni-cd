@@ -30,6 +30,7 @@ const (
 type OmniHealth struct {
 	Status    string    `json:"status"`
 	LastCheck time.Time `json:"lastCheck"`
+	DownSince time.Time `json:"downSince,omitempty"`
 	Error     string    `json:"error,omitempty"`
 }
 
@@ -51,6 +52,7 @@ type GitInfo struct {
 	SHA           string    `json:"sha"`
 	ShortSHA      string    `json:"shortSha"`
 	CommitMessage string    `json:"commitMessage"`
+	CommitAuthor  string    `json:"commitAuthor,omitempty"`
 	LastSync      time.Time `json:"lastSync"`
 	SyncError     string    `json:"syncError,omitempty"`
 }
@@ -103,6 +105,14 @@ type ResourceInfo struct {
 	MachineExtensions map[string][]string `json:"machineExtensions,omitempty"`
 	// Machine UUID -> hostname (populated for clusters with individual machines)
 	MachineHostnames map[string]string `json:"machineHostnames,omitempty"`
+	// LastSyncResult is the outcome of the most recent sync attempt: "ok" or "failed".
+	LastSyncResult string `json:"lastSyncResult,omitempty"`
+	// LastSyncError holds the error message from the most recent failed sync attempt.
+	LastSyncError string `json:"lastSyncError,omitempty"`
+	// LastSyncTime is the timestamp of the most recent sync attempt.
+	LastSyncTime time.Time `json:"lastSyncTime,omitempty"`
+	// LastSyncSHA is the git SHA that was applied during the most recent sync attempt.
+	LastSyncSHA string `json:"lastSyncSHA,omitempty"`
 	// AutoSync controls whether this resource is automatically applied during reconcile.
 	AutoSync *bool `json:"autoSync,omitempty"`
 	// RepoName is the name of the git repo this resource was sourced from.
@@ -220,9 +230,16 @@ func (s *AppState) SetVersions(omniVersion string) {
 // SetOmniHealth updates the Omni connectivity health status.
 func (s *AppState) SetOmniHealth(status, errMsg string) {
 	s.mu.Lock()
+	downSince := s.OmniHealth.DownSince
+	if status == "failed" && downSince.IsZero() {
+		downSince = time.Now().UTC()
+	} else if status != "failed" {
+		downSince = time.Time{}
+	}
 	s.OmniHealth = OmniHealth{
 		Status:    status,
 		LastCheck: time.Now().UTC(),
+		DownSince: downSince,
 		Error:     errMsg,
 	}
 	s.mu.Unlock()

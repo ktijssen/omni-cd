@@ -254,9 +254,9 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 		skipped := idsToSkip
 		if len(skipped) > 0 {
 			if applyChanges {
-				r.logWarn("Machine class out of sync (auto-sync disabled)", "component", "MachineClasses", "ids", strings.Join(skipped, ", "))
+				r.logInfo("Machine class out of sync (auto-sync disabled)", "component", "MachineClasses", "ids", strings.Join(skipped, ", "))
 			} else {
-				r.logWarn("Machine class out of sync (refresh only, skipping apply)", "component", "MachineClasses", "ids", strings.Join(skipped, ", "))
+				r.logInfo("Machine class out of sync (refresh only, skipping apply)", "component", "MachineClasses", "ids", strings.Join(skipped, ", "))
 			}
 			for _, id := range skipped {
 				liveContent := allLiveStates[id]
