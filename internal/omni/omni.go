@@ -1043,6 +1043,28 @@ func GetAllLiveClusters() (map[string]string, error) {
 	return resultMap, nil
 }
 
+// GetMachineClassCreatedAt returns the creation timestamp from the MachineClass resource metadata.
+func GetMachineClassCreatedAt(id string) time.Time {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	mc, err := safe.StateGet[*omniapi.MachineClass](ctx, omniState, omniapi.NewMachineClass(id).Metadata())
+	if err != nil {
+		return time.Time{}
+	}
+	return mc.Metadata().Created()
+}
+
+// GetClusterCreatedAt returns the creation timestamp from the Cluster resource metadata.
+func GetClusterCreatedAt(id string) time.Time {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cluster, err := safe.StateGet[*omniapi.Cluster](ctx, omniState, omniapi.NewCluster(id).Metadata())
+	if err != nil {
+		return time.Time{}
+	}
+	return cluster.Metadata().Created()
+}
+
 // IsClusterTearingDown returns true if the cluster resource in Omni is currently
 // in the tearingdown phase (i.e. a delete is in progress on Omni's side).
 // Returns false if the cluster no longer exists or an error occurs.

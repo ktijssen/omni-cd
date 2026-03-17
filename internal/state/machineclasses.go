@@ -1,5 +1,7 @@
 package state
 
+import "time"
+
 // SetMachineClasses replaces the machine class list.
 func (s *AppState) SetMachineClasses(resources []ResourceInfo) {
 	s.mu.Lock()
@@ -18,22 +20,40 @@ func (s *AppState) GetMachineClasses() []ResourceInfo {
 }
 
 // MergeMachineClasses updates or inserts resources by ID without removing
-// entries not present in the slice.
+// entries not present in the slice. Preserves AutoSync, LastSync*, SyncStatusSince,
+// and CreatedAt from existing state when the incoming resource does not set them.
 func (s *AppState) MergeMachineClasses(resources []ResourceInfo) {
 	s.mu.Lock()
-	autoSyncMap := make(map[string]*bool, len(s.MachineClasses))
-	for _, mc := range s.MachineClasses {
-		autoSyncMap[mc.ID] = mc.AutoSync
-	}
 	existing := make(map[string]int, len(s.MachineClasses))
 	for i, mc := range s.MachineClasses {
 		existing[mc.ID] = i
 	}
 	for _, res := range resources {
-		if prev, had := autoSyncMap[res.ID]; had {
-			res.AutoSync = prev
-		}
 		if idx, ok := existing[res.ID]; ok {
+			prev := s.MachineClasses[idx]
+			// Preserve AutoSync preference.
+			res.AutoSync = prev.AutoSync
+			// Preserve last-sync fields when this pass didn't produce a sync result.
+			if res.LastSyncResult == "" {
+				res.LastSyncResult = prev.LastSyncResult
+				res.LastSyncError = prev.LastSyncError
+				res.LastSyncTime = prev.LastSyncTime
+				res.LastSyncSHA = prev.LastSyncSHA
+				res.LastSyncAuthor = prev.LastSyncAuthor
+				res.LastSyncMessage = prev.LastSyncMessage
+			}
+			// Preserve CreatedAt if the incoming resource doesn't set it.
+			if res.CreatedAt.IsZero() {
+				res.CreatedAt = prev.CreatedAt
+			}
+			// Carry forward SyncStatusSince when staying outofsync.
+			if res.Status == "outofsync" {
+				if prev.Status == "outofsync" && !prev.SyncStatusSince.IsZero() {
+					res.SyncStatusSince = prev.SyncStatusSince
+				} else if res.SyncStatusSince.IsZero() {
+					res.SyncStatusSince = time.Now().UTC()
+				}
+			}
 			s.MachineClasses[idx] = res
 		} else {
 			s.MachineClasses = append(s.MachineClasses, res)

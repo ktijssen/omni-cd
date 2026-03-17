@@ -113,6 +113,14 @@ type ResourceInfo struct {
 	LastSyncTime time.Time `json:"lastSyncTime,omitempty"`
 	// LastSyncSHA is the git SHA that was applied during the most recent sync attempt.
 	LastSyncSHA string `json:"lastSyncSHA,omitempty"`
+	// LastSyncAuthor is the commit author at the time of the most recent sync attempt.
+	LastSyncAuthor string `json:"lastSyncAuthor,omitempty"`
+	// LastSyncMessage is the commit message at the time of the most recent sync attempt.
+	LastSyncMessage string `json:"lastSyncMessage,omitempty"`
+	// SyncStatusSince is the timestamp when the cluster first entered the outofsync state.
+	SyncStatusSince time.Time `json:"syncStatusSince,omitempty"`
+	// CreatedAt is the timestamp when the cluster resource was created in Omni.
+	CreatedAt time.Time `json:"createdAt,omitempty"`
 	// AutoSync controls whether this resource is automatically applied during reconcile.
 	AutoSync *bool `json:"autoSync,omitempty"`
 	// RepoName is the name of the git repo this resource was sourced from.

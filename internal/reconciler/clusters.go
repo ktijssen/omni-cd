@@ -23,7 +23,7 @@ import (
 // so it is not consumed/cleared on the first repo and lost for subsequent ones.
 // crossRepoDuplicates maps cluster IDs that are defined in >1 repo to a description
 // of the conflicting repo names; those clusters are marked outofsync and skipped.
-func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, crossRepoDuplicates map[string]string, repoSHA string) {
+func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, crossRepoDuplicates map[string]string, repoSHA, repoAuthor, repoMessage string) {
 	// Derive the repo name from the work-dir convention /tmp/repo-<name>/...
 	repoName := repoNameFromDir(dir)
 
@@ -277,6 +277,8 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 					LastSyncError:     err.Error(),
 					LastSyncTime:      time.Now().UTC(),
 					LastSyncSHA:       repoSHA,
+					LastSyncAuthor:    repoAuthor,
+					LastSyncMessage:   repoMessage,
 					TalosVersion:      talos,
 					KubernetesVersion: k8s,
 					ControlPlane:      cp,
@@ -311,6 +313,8 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 					LastSyncResult:    "ok",
 					LastSyncTime:      time.Now().UTC(),
 					LastSyncSHA:       repoSHA,
+					LastSyncAuthor:    repoAuthor,
+					LastSyncMessage:   repoMessage,
 				})
 				synced++
 				mu.Unlock()
@@ -358,6 +362,19 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 				updated.LastSyncError = existingCluster.LastSyncError
 				updated.LastSyncTime = existingCluster.LastSyncTime
 				updated.LastSyncSHA = existingCluster.LastSyncSHA
+				updated.LastSyncAuthor = existingCluster.LastSyncAuthor
+				updated.LastSyncMessage = existingCluster.LastSyncMessage
+			}
+			if updated.CreatedAt.IsZero() {
+				updated.CreatedAt = omni.GetClusterCreatedAt(updated.ID)
+			}
+			// Track when the cluster entered outofsync — preserve if already set, stamp if newly entered
+			if updated.Status == "outofsync" {
+				if existingCluster.Status == "outofsync" && !existingCluster.SyncStatusSince.IsZero() {
+					updated.SyncStatusSince = existingCluster.SyncStatusSince
+				} else {
+					updated.SyncStatusSince = time.Now().UTC()
+				}
 			}
 			// This cluster was processed, use the new state
 			final = append(final, updated)
@@ -528,12 +545,20 @@ func (r *Reconciler) RefreshSingleCluster(dir, id string) {
 	lastSyncError := ""
 	var lastSyncTime time.Time
 	lastSyncSHA := ""
+	lastSyncAuthor := ""
+	lastSyncMessage := ""
+	var syncStatusSince time.Time
 	for _, c := range r.state.GetClusters() {
 		if c.ID == id {
 			lastSyncResult = c.LastSyncResult
 			lastSyncError = c.LastSyncError
 			lastSyncTime = c.LastSyncTime
 			lastSyncSHA = c.LastSyncSHA
+			lastSyncAuthor = c.LastSyncAuthor
+			lastSyncMessage = c.LastSyncMessage
+			if c.Status == "outofsync" {
+				syncStatusSince = c.SyncStatusSince
+			}
 			if status == "outofsync" && c.Status == "failed" && c.LastSyncError != "" {
 				status = "failed"
 				r.logWarn("Preserving failed status from previous sync error", "component", "Clusters", "cluster", id)
@@ -553,6 +578,17 @@ func (r *Reconciler) RefreshSingleCluster(dir, id string) {
 		LastSyncError:     lastSyncError,
 		LastSyncTime:      lastSyncTime,
 		LastSyncSHA:       lastSyncSHA,
+		LastSyncAuthor:    lastSyncAuthor,
+		LastSyncMessage:   lastSyncMessage,
+		SyncStatusSince:    func() time.Time {
+			if status != "outofsync" {
+				return time.Time{}
+			}
+			if !syncStatusSince.IsZero() {
+				return syncStatusSince
+			}
+			return time.Now().UTC()
+		}(),
 		TalosVersion:      talos,
 		KubernetesVersion: k8s,
 		ControlPlane:      cp,
@@ -560,6 +596,7 @@ func (r *Reconciler) RefreshSingleCluster(dir, id string) {
 		ClusterExtensions: clusterExts,
 		MachineExtensions: machExts,
 		MachineHostnames:  extractHostnames(allHostnames, cp, wk),
+		CreatedAt:         omni.GetClusterCreatedAt(id),
 	})
 	r.state.Save()
 }

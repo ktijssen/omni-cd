@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"omni-cd/internal/omni"
 	"omni-cd/internal/state"
@@ -19,14 +20,14 @@ import (
 // their per-MC auto-sync preference is disabled.
 // force=true means the reconcile was explicitly requested (e.g. repo added, Sync
 // button); MCs whose AutoSync has never been explicitly set (nil) are applied.
-func (r *Reconciler) ApplyMachineClasses(dir string, crossRepoDuplicates map[string]string, forceMCIDs map[string]bool, force bool) {
-	r.processMachineClasses(dir, true, crossRepoDuplicates, forceMCIDs, force)
+func (r *Reconciler) ApplyMachineClasses(dir string, crossRepoDuplicates map[string]string, forceMCIDs map[string]bool, force bool, repoSHA, repoAuthor, repoMessage string) {
+	r.processMachineClasses(dir, true, crossRepoDuplicates, forceMCIDs, force, repoSHA, repoAuthor, repoMessage)
 }
 
 // DiffMachineClasses checks all machine class YAML files for drift without
 // applying any changes. Delegates to processMachineClasses with applyChanges=false.
 func (r *Reconciler) DiffMachineClasses(dir string) {
-	r.processMachineClasses(dir, false, nil, nil, false)
+	r.processMachineClasses(dir, false, nil, nil, false, "", "", "")
 }
 
 // processMachineClasses is the shared implementation for ApplyMachineClasses and
@@ -38,7 +39,7 @@ func (r *Reconciler) DiffMachineClasses(dir string) {
 // crossRepoDuplicates (may be nil) maps MC IDs that appear in multiple repos to a
 // human-readable list of those repo names; those MCs are blocked from being applied.
 // forceMCIDs (may be nil) is a set of MC IDs to apply regardless of auto-sync setting.
-func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossRepoDuplicates map[string]string, forceMCIDs map[string]bool, force bool) {
+func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossRepoDuplicates map[string]string, forceMCIDs map[string]bool, force bool, repoSHA, repoAuthor, repoMessage string) {
 	repoName := repoNameFromDir(dir)
 
 	files, err := findYAMLFiles(dir)
@@ -136,19 +137,26 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 		if dryRunErr != nil {
 			// File-level decode error — fail all IDs in the file.
 			r.logError("Machine class validation failed", "component", "MachineClasses", "ids", strings.Join(ids, ", "), "error", dryRunErr)
+			now := time.Now().UTC()
 			for _, id := range ids {
 				liveContent := allLiveStates[id]
 				if liveContent == "" {
 					liveContent, _ = omni.GetLiveMachineClass(id)
 				}
 				resources = append(resources, state.ResourceInfo{
-					ID:            id,
-					Type:          "MachineClass",
-					Status:        "failed",
-					ProvisionType: provisionType,
-					FileContent:   fileContent,
-					LiveContent:   liveContent,
-					Error:         dryRunErr.Error(),
+					ID:              id,
+					Type:            "MachineClass",
+					Status:          "failed",
+					ProvisionType:   provisionType,
+					FileContent:     fileContent,
+					LiveContent:     liveContent,
+					Error:           dryRunErr.Error(),
+					LastSyncResult:  "failed",
+					LastSyncTime:    now,
+					LastSyncSHA:     repoSHA,
+					LastSyncAuthor:  repoAuthor,
+					LastSyncMessage: repoMessage,
+					CreatedAt:       omni.GetMachineClassCreatedAt(id),
 				})
 			}
 			failed += len(ids)
@@ -165,13 +173,19 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 					liveContent, _ = omni.GetLiveMachineClass(id)
 				}
 				resources = append(resources, state.ResourceInfo{
-					ID:            id,
-					Type:          "MachineClass",
-					Status:        "failed",
-					ProvisionType: provisionType,
-					FileContent:   fileContent,
-					LiveContent:   liveContent,
-					Error:         res.Err.Error(),
+					ID:              id,
+					Type:            "MachineClass",
+					Status:          "failed",
+					ProvisionType:   provisionType,
+					FileContent:     fileContent,
+					LiveContent:     liveContent,
+					Error:           res.Err.Error(),
+					LastSyncResult:  "failed",
+					LastSyncTime:    time.Now().UTC(),
+					LastSyncSHA:     repoSHA,
+					LastSyncAuthor:  repoAuthor,
+					LastSyncMessage: repoMessage,
+					CreatedAt:       omni.GetMachineClassCreatedAt(id),
 				})
 				failed++
 				continue
@@ -181,13 +195,30 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 				if liveContent == "" {
 					liveContent, _ = omni.GetLiveMachineClass(id)
 				}
+				// When force-synced but already in sync, still record a LastSyncTime
+				// so the UI shows a timestamp instead of "—".
+				idForced := applyChanges && forceMCIDs != nil && forceMCIDs[id]
+				syncResult, syncTime, syncSHA, syncAuthor, syncMsg := "", time.Time{}, "", "", ""
+				if idForced {
+					syncResult = "ok"
+					syncTime = time.Now().UTC()
+					syncSHA = repoSHA
+					syncAuthor = repoAuthor
+					syncMsg = repoMessage
+				}
 				resources = append(resources, state.ResourceInfo{
-					ID:            id,
-					Type:          "MachineClass",
-					Status:        "success",
-					ProvisionType: provisionType,
-					FileContent:   fileContent,
-					LiveContent:   liveContent,
+					ID:              id,
+					Type:            "MachineClass",
+					Status:          "success",
+					ProvisionType:   provisionType,
+					FileContent:     fileContent,
+					LiveContent:     liveContent,
+					LastSyncResult:  syncResult,
+					LastSyncTime:    syncTime,
+					LastSyncSHA:     syncSHA,
+					LastSyncAuthor:  syncAuthor,
+					LastSyncMessage: syncMsg,
+					CreatedAt:       omni.GetMachineClassCreatedAt(id),
 				})
 				inSync++
 				continue
@@ -213,38 +244,52 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 			// Only apply the specific IDs that were selected — not the entire file.
 			if err := omni.ApplyIDs(file, applyFilter); err != nil {
 				r.logError("Machine class apply failed", "component", "MachineClasses", "ids", strings.Join(idsToApply, ", "), "error", err)
+				now := time.Now().UTC()
 				for _, id := range idsToApply {
 					liveContent := allLiveStates[id]
 					if liveContent == "" {
 						liveContent, _ = omni.GetLiveMachineClass(id)
 					}
 					resources = append(resources, state.ResourceInfo{
-						ID:            id,
-						Type:          "MachineClass",
-						Status:        "failed",
-						ProvisionType: provisionType,
-						Diff:          perIDResults[id].Diff,
-						FileContent:   fileContent,
-						LiveContent:   liveContent,
-						Error:         err.Error(),
+						ID:              id,
+						Type:            "MachineClass",
+						Status:          "failed",
+						ProvisionType:   provisionType,
+						Diff:            perIDResults[id].Diff,
+						FileContent:     fileContent,
+						LiveContent:     liveContent,
+						Error:           err.Error(),
+						LastSyncResult:  "failed",
+						LastSyncTime:    now,
+						LastSyncSHA:     repoSHA,
+						LastSyncAuthor:  repoAuthor,
+						LastSyncMessage: repoMessage,
+						CreatedAt:       omni.GetMachineClassCreatedAt(id),
 					})
 				}
 				failed += len(idsToApply)
 			} else {
 				r.logInfo("Machine classes applied", "component", "MachineClasses", "ids", strings.Join(idsToApply, ", "))
+				now := time.Now().UTC()
 				for _, id := range idsToApply {
 					liveContent := allLiveStates[id]
 					if liveContent == "" {
 						liveContent, _ = omni.GetLiveMachineClass(id)
 					}
 					resources = append(resources, state.ResourceInfo{
-						ID:            id,
-						Type:          "MachineClass",
-						Status:        "success",
-						ProvisionType: provisionType,
-						Diff:          perIDResults[id].Diff,
-						FileContent:   fileContent,
-						LiveContent:   liveContent,
+						ID:              id,
+						Type:            "MachineClass",
+						Status:          "success",
+						ProvisionType:   provisionType,
+						Diff:            perIDResults[id].Diff,
+						FileContent:     fileContent,
+						LiveContent:     liveContent,
+						LastSyncResult:  "ok",
+						LastSyncTime:    now,
+						LastSyncSHA:     repoSHA,
+						LastSyncAuthor:  repoAuthor,
+						LastSyncMessage: repoMessage,
+						CreatedAt:       omni.GetMachineClassCreatedAt(id),
 					})
 				}
 				applied += len(idsToApply)
@@ -271,6 +316,7 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 					Diff:          perIDResults[id].Diff,
 					FileContent:   fileContent,
 					LiveContent:   liveContent,
+					CreatedAt:     omni.GetMachineClassCreatedAt(id),
 				})
 			}
 			outOfSync += len(skipped)
@@ -467,6 +513,7 @@ func (r *Reconciler) CollectUnmanagedMachineClasses(dirs []string, allLiveStates
 				Status:        "unmanaged",
 				ProvisionType: detectProvisionTypeFromString(liveContent),
 				LiveContent:   liveContent,
+				CreatedAt:     omni.GetMachineClassCreatedAt(id),
 			})
 		}
 	}

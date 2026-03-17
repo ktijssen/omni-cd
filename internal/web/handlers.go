@@ -612,6 +612,9 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 		s.appState.SetOmniEndpoint("")
 		s.appState.SetHasStoredKey(false)
 		s.appState.SetOmniConfigured(false)
+		s.appState.SetClusters(nil)
+		s.appState.SetMachineClasses(nil)
+		s.appState.Save()
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 		return
 	}
@@ -665,9 +668,15 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 	s.appState.SetHasStoredKey(true)
 	s.appState.SetOmniConfigured(true)
 
-	// Signal main() to start the reconciler (non-blocking — already running is fine).
+	// Signal main() to start the reconciler for the first time (non-blocking).
 	select {
 	case s.triggerOmniConfigured <- struct{}{}:
+	default:
+	}
+	// Trigger a hard reconcile in case the reconciler is already running
+	// (e.g. instance was removed and re-added).
+	select {
+	case s.triggerHard <- struct{}{}:
 	default:
 	}
 
