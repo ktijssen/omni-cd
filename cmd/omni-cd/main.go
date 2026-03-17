@@ -433,7 +433,7 @@ func main() {
 							// intentional — this is a reactive apply, not a full reconcile.
 							dirs := getMCDirs()
 							for _, dir := range dirs {
-								go rec.ApplyMachineClasses(dir, nil, nil, false)
+								go rec.ApplyMachineClasses(dir, nil, nil, false, "", "", "")
 							}
 						}
 					}
@@ -790,13 +790,13 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 		// 1. Machine classes must exist before clusters can reference them
 		for _, r := range okResults {
 			rc := repoByName[r.Name]
-			rec.ApplyMachineClasses(r.RepoDir+"/"+rc.MCPath, crossRepoDuplicatesMC, forceMCIDs, force)
+			rec.ApplyMachineClasses(r.RepoDir+"/"+rc.MCPath, crossRepoDuplicatesMC, forceMCIDs, force, r.Info.SHA, r.Info.CommitAuthor, r.Info.CommitMessage)
 		}
 
 		// 2. Cluster templates — per-cluster AutoSync controls apply vs diff-only
 		for _, r := range okResults {
 			rc := repoByName[r.Name]
-			rec.ApplyClusters(r.RepoDir+"/"+rc.ClustersPath, forceClusterIDs, crossRepoDuplicates, r.Info.ShortSHA)
+			rec.ApplyClusters(r.RepoDir+"/"+rc.ClustersPath, forceClusterIDs, crossRepoDuplicates, r.Info.SHA, r.Info.CommitAuthor, r.Info.CommitMessage)
 		}
 
 		// Checkpoint: persist state immediately after all clusters have been

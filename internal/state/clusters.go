@@ -21,6 +21,12 @@ type transientClusterFields struct {
 	BackupEnabled      bool
 	LastSyncResult     string
 	LastSyncError      string
+	LastSyncTime       time.Time
+	LastSyncSHA        string
+	LastSyncAuthor     string
+	LastSyncMessage    string
+	SyncStatusSince    time.Time
+	CreatedAt          time.Time
 }
 
 // GetClusters returns a copy of the current cluster list.
@@ -53,6 +59,12 @@ func (s *AppState) SetClusters(resources []ResourceInfo) {
 			BackupEnabled:      c.BackupEnabled,
 			LastSyncResult:     c.LastSyncResult,
 			LastSyncError:      c.LastSyncError,
+			LastSyncTime:       c.LastSyncTime,
+			LastSyncSHA:        c.LastSyncSHA,
+			LastSyncAuthor:     c.LastSyncAuthor,
+			LastSyncMessage:    c.LastSyncMessage,
+			SyncStatusSince:    c.SyncStatusSince,
+			CreatedAt:          c.CreatedAt,
 		}
 		autoSyncMap[c.ID] = c.AutoSync
 		statusMap[c.ID] = c.Status
@@ -72,6 +84,16 @@ func (s *AppState) SetClusters(resources []ResourceInfo) {
 			if resources[i].LastSyncResult == "" {
 				resources[i].LastSyncResult = f.LastSyncResult
 				resources[i].LastSyncError = f.LastSyncError
+				resources[i].LastSyncTime = f.LastSyncTime
+				resources[i].LastSyncSHA = f.LastSyncSHA
+				resources[i].LastSyncAuthor = f.LastSyncAuthor
+				resources[i].LastSyncMessage = f.LastSyncMessage
+			}
+			if resources[i].SyncStatusSince.IsZero() {
+				resources[i].SyncStatusSince = f.SyncStatusSince
+			}
+			if resources[i].CreatedAt.IsZero() {
+				resources[i].CreatedAt = f.CreatedAt
 			}
 			if statusMap[resources[i].ID] == "deleting" {
 				resources[i].Status = "deleting"
@@ -171,6 +193,16 @@ func (s *AppState) UpsertClusterInfo(id string, info ResourceInfo) {
 			if info.LastSyncResult == "" {
 				info.LastSyncResult = s.Clusters[i].LastSyncResult
 				info.LastSyncError = s.Clusters[i].LastSyncError
+				info.LastSyncTime = s.Clusters[i].LastSyncTime
+				info.LastSyncSHA = s.Clusters[i].LastSyncSHA
+				info.LastSyncAuthor = s.Clusters[i].LastSyncAuthor
+				info.LastSyncMessage = s.Clusters[i].LastSyncMessage
+			}
+			if info.SyncStatusSince.IsZero() {
+				info.SyncStatusSince = s.Clusters[i].SyncStatusSince
+			}
+			if info.CreatedAt.IsZero() {
+				info.CreatedAt = s.Clusters[i].CreatedAt
 			}
 			if info.RepoName == "" {
 				info.RepoName = s.Clusters[i].RepoName

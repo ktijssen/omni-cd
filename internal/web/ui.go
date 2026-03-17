@@ -387,9 +387,9 @@ const uiHTML = `<!DOCTYPE html>
   .cluster-card-title.clickable { color: inherit; }
   .cluster-card-status { font-size: 12px; color: #a1a1aa; white-space: nowrap; flex-shrink: 0; }
   .cluster-card-versions { font-size: 11px; color: #71717a; margin-bottom: 10px; }
-  .cluster-card-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 12px; margin: 0; padding: 8px 0; }
+  .cluster-card-meta { display: grid; grid-template-columns: 1fr; gap: 3px; margin: 0; padding: 8px 0; }
   .cluster-card-meta-pair { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
-  .cluster-card-meta-label { font-size: 12px; color: #a1a1aa; flex-shrink: 0; min-width: 42px; }
+  .cluster-card-meta-label { font-size: 12px; color: #a1a1aa; flex-shrink: 0; min-width: 120px; }
   .cluster-card-meta-value { font-size: 12px; color: #e4e4e7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .cluster-card-meta-full { grid-column: 1 / -1; }
   .cluster-card-divider { height: 1px; background: #3f3f46; margin-bottom: 8px; }
@@ -1061,10 +1061,10 @@ const uiHTML = `<!DOCTYPE html>
   .cluster-detail-header-wrap .header { margin-bottom:0; }
   .cluster-detail-page { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
   .cluster-detail-strip { display:flex; align-items:stretch; flex-shrink:0; border-bottom:1px solid #27272a; background:#27272a; overflow-x:auto; }
-  .detail-strip-item { display:flex; flex-direction:column; justify-content:flex-start; align-items:flex-start; padding:10px 20px; min-width:80px; }
+  .detail-strip-item { display:flex; flex-direction:column; justify-content:flex-start; align-items:flex-start; padding:10px 12px; min-width:max-content; overflow:hidden; }
   .detail-strip-sep { width:1px; background:#3f3f46; flex-shrink:0; }
   .detail-strip-label { font-size:10px; text-transform:uppercase; letter-spacing:0.08em; color:#71717a; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid #3f3f46; white-space:nowrap; align-self:stretch; }
-  .detail-strip-value { font-size:13px; font-weight:600; color:#e4e4e7; white-space:nowrap; }
+  .detail-strip-value { font-size:13px; font-weight:600; color:#e4e4e7; white-space:nowrap; width:100%; overflow:hidden; text-overflow:ellipsis; }
   .cluster-detail-tabs-bar { display:flex; gap:0; flex-shrink:0; border-bottom:1px solid #27272a; padding:0 16px; background:#1b1b1d; align-items:center; }
   .cluster-detail-tab { background:none; border:none; color:#a1a1aa; padding:10px 14px; font-size:13px; font-weight:500; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.15s; }
   .cluster-detail-tab:hover { color:#e4e4e7; }
@@ -1336,7 +1336,41 @@ const uiHTML = `<!DOCTYPE html>
     if (s < 5) return 'just now';
     if (s < 60) return s + 's ago';
     if (s < 3600) return Math.floor(s / 60) + 'm ago';
-    return Math.floor(s / 3600) + 'h ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    var days = Math.floor(s / 86400);
+    if (days < 365) return (days < 31 ? days + 'd ago' : Math.floor(days / 30) + 'mo ago');
+    return Math.floor(days / 365) + 'y ago';
+  }
+
+  function isZeroTime(d) {
+    if (!d) return true;
+    var dt = new Date(d);
+    if (isNaN(dt.getTime())) return true;
+    return dt.getFullYear() <= 1;
+  }
+  function fmtDateTime(d) {
+    if (isZeroTime(d)) return '—';
+    var dt = new Date(d);
+    var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+    return dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate()) +
+      ' ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+  }
+
+  function relTime(d) {
+    if (!d) return '';
+    var dt = new Date(d);
+    if (isNaN(dt.getTime())) return '';
+    var s = Math.floor((Date.now() - dt.getTime()) / 1000);
+    var rel;
+    if (s < 10)          rel = 'a few seconds ago';
+    else if (s < 60)     rel = s + ' seconds ago';
+    else if (s < 120)    rel = '1 minute ago';
+    else if (s < 3600)   rel = Math.floor(s / 60) + ' minutes ago';
+    else if (s < 7200)   rel = '1 hour ago';
+    else if (s < 86400)  rel = Math.floor(s / 3600) + ' hours ago';
+    else if (s < 172800) rel = '1 day ago';
+    else { var days = Math.floor(s / 86400); rel = days < 31 ? days + ' days ago' : (days < 365 ? Math.floor(days / 30) + ' months ago' : Math.floor(days / 365) + ' years ago'); }
+    return rel + ' (' + dt.toString().replace(/\s*\(.*\)$/, '') + ')';
   }
 
   var currentModal = null;
@@ -1520,7 +1554,7 @@ const uiHTML = `<!DOCTYPE html>
       si('Wireguard', statusBadge(cluster.wireGuardStatus)) + sep +
       si('Machines', machinesVal) + sep +
       (function() {
-        var sub = 'style="font-size:11px;color:#71717a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px"';
+        var sub = 'style="font-size:11px;color:#71717a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%"';
         if (cluster.status === 'unmanaged') {
           return '<div class="detail-strip-item" style="min-width:160px">' +
             '<div class="detail-strip-label">Sync Status</div>' +
@@ -1533,17 +1567,39 @@ const uiHTML = `<!DOCTYPE html>
             '<div class="detail-strip-value"><span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span></div>' +
           '</div>';
         }
-        var branchSha = clusterRepo
+        var repoUrl    = clusterRepo && clusterRepo.repo ? clusterRepo.repo : '';
+        var branchSha  = clusterRepo
           ? (clusterRepo.branch ? escHtml(clusterRepo.branch) + (clusterRepo.shortSha ? ' (' + escHtml(clusterRepo.shortSha) + ')' : '') : '')
+          : '';
+        var commitUrl  = repoUrl && clusterRepo.sha ? escHtml(repoUrl.replace(/\/+$/, '') + '/commit/' + clusterRepo.sha) : '';
+        var branchShaLink = branchSha
+          ? (commitUrl ? '<a href="' + commitUrl + '" target="_blank" rel="noopener" style="color:#FB326E;text-decoration:none" onclick="event.stopPropagation()">' + branchSha + '</a>' : '<span style="color:#FB326E">' + branchSha + '</span>')
           : '';
         var author  = clusterRepo && clusterRepo.commitAuthor  ? escHtml(clusterRepo.commitAuthor)  : '';
         var message = clusterRepo && clusterRepo.commitMessage ? escHtml(clusterRepo.commitMessage) : '';
-        return '<div class="detail-strip-item" style="min-width:160px">' +
+        var syncStatusBadge = branchShaLink
+          ? syncBadge(cluster.status) + ' from ' + branchShaLink
+          : syncBadge(cluster.status);
+        var sinceLine = '';
+        var sinceStr = '';
+        if (cluster.status === 'outofsync' && cluster.syncStatusSince) {
+          sinceStr = relTime(cluster.syncStatusSince);
+          sinceLine = '<div ' + sub + '>Since: ' + escHtml(sinceStr) + '</div>';
+        } else if ((cluster.status === 'success' || cluster.status === 'applied') && cluster.lastSyncTime) {
+          sinceStr = relTime(cluster.lastSyncTime);
+          sinceLine = '<div ' + sub + '>Since: ' + escHtml(sinceStr) + '</div>';
+        }
+        var tooltipParts = [];
+        if (sinceStr)  tooltipParts.push('Since: ' + sinceStr);
+        if (author)    tooltipParts.push('Author: ' + author);
+        if (message)   tooltipParts.push('Message: ' + message);
+        var tooltip = tooltipParts.length ? ' title="' + tooltipParts.join('\n') + '"' : '';
+        return '<div class="detail-strip-item" style="min-width:160px"' + tooltip + '>' +
           '<div class="detail-strip-label">Sync Status</div>' +
-          '<div class="detail-strip-value">' + syncBadge(cluster.status) + '</div>' +
-          (branchSha ? '<div ' + sub + '>' + branchSha + '</div>' : '') +
-          (author    ? '<div ' + sub + '>Author: ' + author + '</div>' : '') +
-          (message   ? '<div ' + sub + '>Message: ' + message + '</div>' : '') +
+          '<div class="detail-strip-value">' + syncStatusBadge + '</div>' +
+          sinceLine +
+          (author  ? '<div ' + sub + '>Author: ' + author + '</div>' : '') +
+          (message ? '<div ' + sub + ' style="font-size:11px;color:#71717a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: ' + message + '</div>' : '') +
         '</div>';
       })() + sep +
       (function() {
@@ -1560,32 +1616,29 @@ const uiHTML = `<!DOCTYPE html>
             '<div class="detail-strip-value"><span style="color:#52525b">&#x2014;</span></div>' +
           '</div>';
         }
-        var sha = cluster.lastSyncSHA ? ' to ' + escHtml(cluster.lastSyncSHA) : '';
+        var lastSyncRepoUrl = clusterRepo && clusterRepo.repo ? clusterRepo.repo.replace(/\/+$/, '') : '';
+        var shortSyncSHA = cluster.lastSyncSHA ? cluster.lastSyncSHA.slice(0, 8) : '';
+        var shaLink = shortSyncSHA
+          ? (' to ' + (lastSyncRepoUrl ? '<a href="' + escHtml(lastSyncRepoUrl + '/commit/' + cluster.lastSyncSHA) + '" target="_blank" rel="noopener" style="color:#FB326E;text-decoration:none" onclick="event.stopPropagation()">' + escHtml(shortSyncSHA) + '</a>' : '<span style="color:#FB326E">' + escHtml(shortSyncSHA) + '</span>'))
+          : '';
         var resultBadge = cluster.lastSyncResult === 'ok'
-          ? '<span style="color:#4ade80">&#x2713; Sync OK</span>' + (sha ? '<span style="color:#a1a1aa">' + sha + '</span>' : '')
+          ? '<span style="color:#4ade80">&#x2713; Sync OK</span>' + shaLink
           : '<span style="color:#f87171">&#x2717; Sync Failed</span>&nbsp;<button class="btn-sort" style="font-size:10px;padding:1px 6px;margin-left:4px" onclick="event.stopPropagation();window.__showSyncErrorModal()">Details</button>';
-        function relTime(d) {
-          if (!d) return '';
-          var dt = new Date(d);
-          if (isNaN(dt.getTime())) return '';
-          var s = Math.floor((Date.now() - dt.getTime()) / 1000);
-          var rel;
-          if (s < 10)         rel = 'a few seconds ago';
-          else if (s < 60)    rel = s + ' seconds ago';
-          else if (s < 120)   rel = '1 minute ago';
-          else if (s < 3600)  rel = Math.floor(s / 60) + ' minutes ago';
-          else if (s < 7200)  rel = '1 hour ago';
-          else if (s < 86400) rel = Math.floor(s / 3600) + ' hours ago';
-          else if (s < 172800) rel = '1 day ago';
-          else                rel = Math.floor(s / 86400) + ' days ago';
-          return rel + ' (' + dt.toString().replace(/\s*\(.*\)$/, '') + ')';
-        }
         var verb = cluster.lastSyncResult === 'ok' ? 'Succeeded ' : 'Failed ';
-        var dateStr = cluster.lastSyncTime ? escHtml(verb + relTime(cluster.lastSyncTime)) : '';
-        return '<div class="detail-strip-item" style="min-width:140px">' +
+        var dateStr = cluster.lastSyncTime ? (verb + relTime(cluster.lastSyncTime)) : '';
+        var author  = cluster.lastSyncAuthor  ? escHtml(cluster.lastSyncAuthor)  : '';
+        var message = cluster.lastSyncMessage ? escHtml(cluster.lastSyncMessage) : '';
+        var tooltipParts = [];
+        if (dateStr)  tooltipParts.push(dateStr);
+        if (author)   tooltipParts.push('Author: ' + author);
+        if (message)  tooltipParts.push('Message: ' + message);
+        var tooltip = tooltipParts.length ? ' title="' + tooltipParts.join('\n') + '"' : '';
+        return '<div class="detail-strip-item" style="min-width:140px"' + tooltip + '>' +
           '<div class="detail-strip-label">Last Sync Result</div>' +
           '<div class="detail-strip-value">' + resultBadge + '</div>' +
-          '<div ' + sub + '>' + dateStr + '</div>' +
+          (dateStr  ? '<div ' + sub + '>' + escHtml(dateStr) + '</div>' : '') +
+          (author   ? '<div ' + sub + '>Author: ' + author + '</div>' : '') +
+          (message  ? '<div ' + sub + ' style="font-size:11px;color:#71717a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: ' + message + '</div>' : '') +
         '</div>';
       })();
   }
@@ -1677,7 +1730,7 @@ const uiHTML = `<!DOCTYPE html>
     var tabs = ['graph', 'live', 'diff'];
     if (!clusterDetailTabExplicit || tabs.indexOf(clusterDetailTab) < 0) clusterDetailTab = 'graph';
     var modal = { id: cluster.id, fileContent: cluster.fileContent || '', liveContent: cluster.liveContent || '', diff: cluster.diff || '', error: cluster.error || '', activeTab: clusterDetailTab, type: 'cluster' };
-    var tabLabels = { graph: 'Graph', live: 'Live', diff: 'Diff' };
+    var tabLabels = { graph: 'Topology', live: 'Live', diff: 'Diff' };
     var tabsHtml = tabs.map(function(t) {
       return '<button class="cluster-detail-tab' + (clusterDetailTab === t ? ' active' : '') + '" data-tab="' + t + '" onclick="window.__setClusterDetailTab(\'' + t + '\')">' + (tabLabels[t] || t) + '</button>';
     }).join('');
@@ -2758,7 +2811,11 @@ const uiHTML = `<!DOCTYPE html>
         var r = repos.find(function(x) { return x.name === name; }) || {};
         var repoHealth = r.name ? getRepoHealth(r, s) : { status: 'idle', label: 'Not synced' };
         var url = r.repo || rc.url || '';
+        var branch = r.branch || rc.branch || 'main';
         var safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var safeUrl = url.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var safeBranch = branch.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var cardId = 'repo-test-result-' + name.replace(/[^a-zA-Z0-9]/g, '_');
         return '<div class="info-card">' +
           '<div class="info-card-header">' +
             '<span class="info-card-title">' + escHtml(name) + '</span>' +
@@ -2768,13 +2825,15 @@ const uiHTML = `<!DOCTYPE html>
             (url ? '<a href="' + escHtml(url) + '" target="_blank" style="color:#FB326E;text-decoration:none">' + escHtml(url) + '</a>' : '—') +
           '</div>' +
           '<div class="info-card-sub">' +
-            'Branch: <b style="color:#a1a1aa">' + escHtml(r.branch || rc.branch || '—') + '</b>' +
+            'Branch: <b style="color:#a1a1aa">' + escHtml(branch) + '</b>' +
             (r.shortSha ? ' &nbsp;&middot;&nbsp; SHA <b style="color:#a1a1aa">' + r.shortSha + '</b>' : '') +
             (rc.hasToken ? ' &nbsp;&middot;&nbsp; <span style="color:#4ade80;font-size:11px">&#128273; token set</span>' : '') + '<br>' +
             (r.commitMessage ? escHtml(r.commitMessage) + '<br>' : '') +
             (r.lastSync ? 'Last sync: ' + ago(r.lastSync) : '<span style="color:#52525b">Never synced</span>') +
           '</div>' +
+          (function() { var tr = _repoTestResults[name]; return tr ? '<div id="' + cardId + '" style="display:;font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;background:' + (tr.ok ? '#052e16' : '#3f1515') + ';color:' + (tr.ok ? '#4ade80' : '#f87171') + '">' + escHtml(tr.text) + '</div>' : '<div id="' + cardId + '" style="display:none;font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;"></div>'; })() +
           (isAdmin ? '<div class="info-card-actions">' +
+            '<button class="btn-sort btn-primary" id="repo-test-card-btn-' + escHtml(name) + '" onclick="window.__testRepoCardConnection(\'' + safeName + '\',\'' + safeUrl + '\',\'' + safeBranch + '\')">Test Connection</button>' +
             '<button class="btn-sort btn-primary" onclick="window.__openRepoModal(\'' + safeName + '\')">Edit</button>' +
             '<button class="btn-sort btn-primary" onclick="window.__deleteRepo(\'' + safeName + '\')">Delete</button>' +
           '</div>' : '') +
@@ -2807,8 +2866,9 @@ const uiHTML = `<!DOCTYPE html>
             (s.omniConfigured ? 'Version: <b style="color:#a1a1aa">' + escHtml(s.omniVersion || '?') + '</b>' : '') +
             (s.omniHealth && s.omniHealth.error ? '<br><span style="color:#f87171">' + escHtml(s.omniHealth.error) + '</span>' : '') +
           '</div>' +
+          (function() { var tr = _omniTestResult; return tr ? '<div id="omni-test-card-result" style="display:;font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;background:' + (tr.ok ? '#052e16' : '#3f1515') + ';color:' + (tr.ok ? '#4ade80' : '#f87171') + '">' + escHtml(tr.text) + '</div>' : '<div id="omni-test-card-result" style="display:none;font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;"></div>'; })() +
           (isAdmin ? '<div class="info-card-actions">' +
-            '<button class="btn-sort btn-primary" onclick="window.__refreshOmniConnection()">Refresh</button>' +
+            '<button class="btn-sort btn-primary" id="omni-test-card-btn" onclick="window.__refreshOmniConnection()">Test Connection</button>' +
             '<button class="btn-sort btn-primary"' + disabledAttr + ' onclick="window.__openOmniInstanceModal()">Edit</button>' +
             '<button class="btn-sort btn-primary"' + disabledAttr + ' onclick="window.__deleteOmniInstance()">Delete</button>' +
           '</div>' : '') +
@@ -2912,9 +2972,12 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   function deleteOmniInstance() {
+    var endpoint = (state && state.omniEndpoint) || '';
     confirmModal = {
-      message: 'Delete the Omni instance configuration?',
-      confirmText: 'Delete',
+      title: 'Delete Omni Instance',
+      message: 'This will remove the Omni instance configuration and clear all clusters and machine classes. Type the endpoint URL to confirm:',
+      requireInput: endpoint,
+      inputPrompt: endpoint || 'endpoint URL',
       onConfirm: function() {
         confirmModal = null;
         render();
@@ -2929,10 +2992,46 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   function refreshOmniConnection() {
+    var btn      = document.getElementById('omni-test-card-btn');
+    var resultEl = document.getElementById('omni-test-card-result');
+    _omniTestResult = null;
+    if (btn) { btn.disabled = true; btn.textContent = 'Testing…'; }
+    if (resultEl) resultEl.style.display = 'none';
+    function storeOmniResult(text, ok) {
+      _omniTestResult = { text: text, ok: ok };
+      setTimeout(function() { _omniTestResult = null; renderMainOnly(); }, 5000);
+    }
     fetch('/api/omni-instance/refresh', { method: 'POST' })
-      .then(function() { fetchState(); })
-      .catch(function() { fetchState(); });
+      .then(function(r) {
+        return r.json().then(function(d) {
+          var text = r.ok ? '✓ Connection successful' : '✗ ' + (d.error || 'Test failed');
+          storeOmniResult(text, r.ok);
+          if (resultEl) {
+            resultEl.textContent = text;
+            resultEl.style.background = r.ok ? '#052e16' : '#3f1515';
+            resultEl.style.color      = r.ok ? '#4ade80' : '#f87171';
+            resultEl.style.display = '';
+          }
+          if (btn) { btn.disabled = false; btn.textContent = 'Test Connection'; }
+          fetchState();
+        });
+      })
+      .catch(function(e) {
+        var text = '✗ Network error: ' + e.message;
+        storeOmniResult(text, false);
+        if (resultEl) {
+          resultEl.textContent = text;
+          resultEl.style.background = '#3f1515';
+          resultEl.style.color = '#f87171';
+          resultEl.style.display = '';
+        }
+        if (btn) { btn.disabled = false; btn.textContent = 'Test Connection'; }
+        fetchState();
+      });
   }
+
+  var _repoTestResults = {};   // name → { text, ok } — persists across re-renders
+  var _omniTestResult  = null; // { text, ok } — persists across re-renders
 
   var _usersData = null;
   var _oidcUsersLoaded = false;
@@ -3200,7 +3299,6 @@ const uiHTML = `<!DOCTYPE html>
       ? pageMcs.map(function(m) {
           var mcContent = m.fileContent || m.liveContent || '';
           var spec = parseMachineClassSpec(mcContent, m.id);
-          var displayStatus = m.status === 'success' ? 'synced' : m.status;
           var hasDiff = m.diff && m.diff.length > 0;
           var hasFile = m.fileContent && m.fileContent.length > 0;
           var hasLive = m.liveContent && m.liveContent.length > 0;
@@ -3212,12 +3310,6 @@ const uiHTML = `<!DOCTYPE html>
           }
           var provisionLabel = provisionType === 'auto' ? 'Auto-Provision' : provisionType === 'manual' ? 'Manual' : 'Unknown';
           var provisionColor = provisionType === 'auto' ? '#60a5fa' : '#a1a1aa';
-          var statusDot = '';
-          if (m.status === 'success' || m.status === 'applied') statusDot = '#4ade80';
-          else if (m.status === 'failed') statusDot = '#f87171';
-          else if (m.status === 'outofsync') statusDot = '#fb923c';
-          else if (m.status === 'syncing') statusDot = '#2dd4bf';
-          else statusDot = '#52525b';
 
           var isAuto = provisionType === 'auto';
           var pd = (isAuto && spec) ? spec.providerData : {};
@@ -3227,6 +3319,7 @@ const uiHTML = `<!DOCTYPE html>
           var pdDisk     = pd.disk_size || pd.diskSize || pd.disk || '';
           var provider   = (isAuto && spec) ? spec.providerId : '';
 
+          // Section 2: Mode + provider fields + match labels
           var infoRows =
             '<div class="mc-info-row"><span class="mc-info-label">Mode</span><span class="mc-info-value" style="color:' + provisionColor + '">' + provisionLabel + '</span></div>' +
             (provider   ? '<div class="mc-info-row"><span class="mc-info-label">Provider</span><span class="mc-info-value">' + escHtml(provider) + '</span></div>' : '') +
@@ -3234,6 +3327,18 @@ const uiHTML = `<!DOCTYPE html>
             (pdSockets  ? '<div class="mc-info-row"><span class="mc-info-label">Sockets</span><span class="mc-info-value">' + escHtml(String(pdSockets)) + '</span></div>' : '') +
             (pdMemory   ? '<div class="mc-info-row"><span class="mc-info-label">Memory</span><span class="mc-info-value">' + escHtml(String(pdMemory)) + '</span></div>' : '') +
             (pdDisk     ? '<div class="mc-info-row"><span class="mc-info-label">Disk Size</span><span class="mc-info-value">' + escHtml(String(pdDisk)) + '</span></div>' : '');
+
+          var mlKeys = spec ? Object.keys(spec.matchLabels) : [];
+          var mlHtml = mlKeys.length > 0
+            ? '<div class="mc-info-row" style="align-items:flex-start;margin-top:4px">' +
+                '<span class="mc-info-label">Match Labels</span>' +
+                '<span class="mc-info-value">' +
+                  mlKeys.map(function(k) {
+                    return '<div style="padding:1px 0"><span style="color:#71717a;margin-right:5px">•</span>' + escHtml(k) + ' = ' + escHtml(spec.matchLabels[k]) + '</div>';
+                  }).join('') +
+                '</span>' +
+              '</div>'
+            : '';
 
           // Compute which clusters reference this machine class.
           var usedByClusters = [];
@@ -3262,20 +3367,14 @@ const uiHTML = `<!DOCTYPE html>
             '</span>' +
           '</div>';
 
-          var mlKeys = spec ? Object.keys(spec.matchLabels) : [];
-          var mlHtml = mlKeys.length > 0
-            ? '<div class="mc-info-row" style="align-items:flex-start;margin-top:4px">' +
-                '<span class="mc-info-label">Match Labels</span>' +
-                '<span class="mc-info-value">' +
-                  mlKeys.map(function(k) {
-                    return '<div style="padding:1px 0"><span style="color:#71717a;margin-right:5px">•</span>' + escHtml(k) + ' = ' + escHtml(spec.matchLabels[k]) + '</div>';
-                  }).join('') +
-                '</span>' +
-              '</div>'
-            : '';
+          // Header badge (management + sync state)
+          // Header badge: managed / unmanaged only
+          var mcBadgeText = m.status === 'unmanaged' ? 'unmanaged' : 'managed';
+          var mcBadgeColor = m.status === 'unmanaged' ? '#52525b' : '#71717a';
 
+          // Sync state: used in the Sync Status row
           var mcStatusText = '', mcStatusColor = '#71717a';
-          if (m.status === 'success' || m.status === 'applied') { mcStatusText = '● synced';        mcStatusColor = '#4ade80'; }
+          if (m.status === 'success' || m.status === 'applied') { mcStatusText = '● synced';       mcStatusColor = '#4ade80'; }
           else if (m.status === 'failed')                        { mcStatusText = '● failed';       mcStatusColor = '#f87171'; }
           else if (m.status === 'outofsync')                     { mcStatusText = '● out of sync';  mcStatusColor = '#fb923c'; }
           else if (m.status === 'syncing')                       { mcStatusText = '● syncing';      mcStatusColor = '#2dd4bf'; }
@@ -3284,21 +3383,60 @@ const uiHTML = `<!DOCTYPE html>
             mcStatusText = '<span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span>';
             mcStatusColor = '#2dd4bf';
           }
+
+          // Section 1: Sync Status row — badge + "from branch(sha)" + since
+          var mcCardRepo = (m.repoName && s && s.repos) ? (s.repos.find(function(r) { return r.name === m.repoName; }) || null) : null;
+          var mcCardBranch = mcCardRepo ? mcCardRepo.branch : null;
+          var mcShortSHA = m.lastSyncSHA ? m.lastSyncSHA.slice(0, 8) : null;
+          var mcCommitUrl = (mcCardRepo && mcCardRepo.url && m.lastSyncSHA)
+            ? mcCardRepo.url.replace(/\.git$/, '') + '/commit/' + m.lastSyncSHA
+            : null;
+          var mcBranchSha = (mcCardBranch && mcShortSHA) ? mcCardBranch + '(' + mcShortSHA + ')'
+            : (mcCardBranch || null);
+          var mcBranchShaLink = mcBranchSha
+            ? (mcCommitUrl
+                ? '<a href="' + escHtml(mcCommitUrl) + '" target="_blank" rel="noopener" style="color:#FB326E;text-decoration:none" onclick="event.stopPropagation()">' + escHtml(mcBranchSha) + '</a>'
+                : '<span style="color:#FB326E">' + escHtml(mcBranchSha) + '</span>')
+            : null;
+          var mcSinceTime = (m.status === 'outofsync' && !isZeroTime(m.syncStatusSince))
+            ? m.syncStatusSince
+            : (!isZeroTime(m.lastSyncTime) ? m.lastSyncTime : null);
+          var mcSyncStatusValue;
+          if (m.status === 'unmanaged') {
+            mcSyncStatusValue = '<span style="color:#52525b">—</span>';
+          } else {
+            mcSyncStatusValue = '<span style="color:' + mcStatusColor + '">' + mcStatusText + '</span>';
+          }
+
+          // Section 1 HTML
+          var mcUsedByValue = usedByClusters.length > 0
+            ? '<div class="mc-used-by">' + usedByClusters.map(function(id) { return '<span class="mc-used-by-chip" title="' + escHtml(id) + '" onclick="event.stopPropagation();window.__navToCluster(\'' + escHtml(id) + '\')">' + escHtml(id) + '</span>'; }).join('') + '</div>'
+            : '<span class="mc-used-by-none">none</span>';
+          var mcMetaHtml =
+            '<div class="cluster-card-meta">' +
+              '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Sync Status:</span><span class="cluster-card-meta-value">' + mcSyncStatusValue + '</span></div>' +
+              '<div class="cluster-card-meta-pair" style="align-items:flex-start"><span class="cluster-card-meta-label">Used by:</span><span class="cluster-card-meta-value" style="white-space:normal">' + mcUsedByValue + '</span></div>' +
+              '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Repository:</span><span class="cluster-card-meta-value">' + (m.repoName ? escHtml(m.repoName) : '<span style="color:#52525b">—</span>') + '</span></div>' +
+              '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Branch:</span><span class="cluster-card-meta-value">' + (mcCardBranch ? escHtml(mcCardBranch) : '<span style="color:#52525b">—</span>') + '</span></div>' +
+              '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Created At:</span><span class="cluster-card-meta-value">' + (isZeroTime(m.createdAt) ? '<span style="color:#52525b">—</span>' : fmtDateTime(m.createdAt) + ' <span style="color:#71717a">(' + ago(m.createdAt) + ')</span>') + '</span></div>' +
+              '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Last Sync:</span><span class="cluster-card-meta-value">' + (isZeroTime(m.lastSyncTime) ? '<span style="color:#52525b">—</span>' : fmtDateTime(m.lastSyncTime) + ' <span style="color:#71717a">(' + ago(m.lastSyncTime) + ')</span>') + '</span></div>' +
+            '</div>';
+
           return '<div class="mc-card' + (hasDetails ? ' clickable' : '') + '" data-status="' + (m.status || 'idle') + '"' + (hasDetails ? ' onclick="window.__showMachineClassModal(\'' + m.id + '\')"' : '') + '>' +
             '<div class="mc-card-accent"></div>' +
             '<div class="mc-card-header">' +
               '<div class="mc-card-title-row">' +
-                '<div style="display:flex;align-items:center;gap:12px;min-width:0;">' +
-                  '<span class="mc-card-name">' + m.id + '</span>' +
+                '<div style="display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap;">' +
+                  '<span class="mc-card-name">' + escHtml(m.id) + '</span>' +
                   ((s.omniEndpoint) ? '<a class="btn-sort btn-primary" style="font-size:10px;padding:1px 6px;text-decoration:none;flex-shrink:0" href="' + escHtml(s.omniEndpoint.replace(/\/$/, '') + '/machine-classes/' + m.id) + '" target="_blank" onclick="event.stopPropagation()" title="Open in Omni">&#8599; Open in Omni</a>' : '') +
                 '</div>' +
-                (mcStatusText ? '<span class="mc-card-status" style="color:' + mcStatusColor + ';">' + mcStatusText + '</span>' : '') +
+                '<span class="mc-card-status" style="color:' + mcBadgeColor + ';flex-shrink:0;">' + mcBadgeText + '</span>' +
               '</div>' +
               '<div class="mc-card-divider"></div>' +
+              mcMetaHtml +
+              '<div class="mc-card-divider"></div>' +
               infoRows +
-              mlHtml +
-              '<div class="mc-card-divider" style="margin-top:4px"></div>' +
-              usedByHtml +
+              (mlHtml ? mlHtml + '<div style="margin-top:4px"></div>' : '') +
               (m.status === 'unmanaged' ?
                 '<div style="margin-top:auto">' +
                   '<div class="mc-card-divider" style="margin-top:8px"></div>' +
@@ -3505,31 +3643,24 @@ const uiHTML = `<!DOCTYPE html>
       var omniBtn = omniEndpointC
         ? '<a class="btn-sort btn-primary" style="font-size:10px;padding:1px 6px;text-decoration:none" href="' + escHtml(omniEndpointC.replace(/\/$/, '') + '/clusters/' + c.id) + '" target="_blank" onclick="event.stopPropagation()" title="Open in Omni">&#8599; Open in Omni</a>'
         : '';
+      var cardRepo = (c.repoName && s && s.repos) ? (s.repos.find(function(r) { return r.name === c.repoName; }) || null) : null;
+      var cardBranch = cardRepo ? escHtml(cardRepo.branch || '—') : '—';
       var metaHtml =
         '<div class="cluster-card-meta">' +
-          '<div class="cluster-card-meta-pair">' +
-            '<span class="cluster-card-meta-label">Sync</span>' +
-            '<span class="cluster-card-meta-value" style="color:' + syncColor + '">' + syncText + '</span>' +
-          '</div>' +
-          '<div class="cluster-card-meta-pair">' +
-            '<span class="cluster-card-meta-label">Health</span>' +
-            '<span class="cluster-card-meta-value" style="color:' + healthColor + '">' + healthText + '</span>' +
-          '</div>' +
-          '<div class="cluster-card-meta-pair">' +
-            '<span class="cluster-card-meta-label">Talos</span>' +
-            '<span class="cluster-card-meta-value">' + escHtml(c.talosVersion || '—') + '</span>' +
-          '</div>' +
-          '<div class="cluster-card-meta-pair">' +
-            '<span class="cluster-card-meta-label">K8s</span>' +
-            '<span class="cluster-card-meta-value">' + escHtml(c.kubernetesVersion || '—') + '</span>' +
-          '</div>' +
-          '<div class="cluster-card-meta-pair cluster-card-meta-full"><span class="cluster-card-meta-label">Repo</span><span class="cluster-card-meta-value">' + escHtml(c.repoName || '—') + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Sync Status:</span><span class="cluster-card-meta-value" style="color:' + syncColor + '">' + syncText + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Cluster Health:</span><span class="cluster-card-meta-value" style="color:' + healthColor + '">' + healthText + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Talos Version:</span><span class="cluster-card-meta-value">' + (c.talosVersion ? escHtml(c.talosVersion) : '<span style="color:#52525b">—</span>') + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Kubernetes Version:</span><span class="cluster-card-meta-value">' + (c.kubernetesVersion ? escHtml(c.kubernetesVersion) : '<span style="color:#52525b">—</span>') + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Repository:</span><span class="cluster-card-meta-value">' + (c.repoName ? escHtml(c.repoName) : '<span style="color:#52525b">—</span>') + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Branch:</span><span class="cluster-card-meta-value">' + (cardRepo && cardRepo.branch ? escHtml(cardRepo.branch) : '<span style="color:#52525b">—</span>') + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Created At:</span><span class="cluster-card-meta-value">' + (isZeroTime(c.createdAt) ? '<span style="color:#52525b">—</span>' : fmtDateTime(c.createdAt) + ' <span style="color:#71717a">(' + ago(c.createdAt) + ')</span>') + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Last Sync:</span><span class="cluster-card-meta-value">' + (isZeroTime(c.createdAt) || isZeroTime(c.lastSyncTime) ? '<span style="color:#52525b">—</span>' : fmtDateTime(c.lastSyncTime) + ' <span style="color:#71717a">(' + ago(c.lastSyncTime) + ')</span>') + '</span></div>' +
         '</div>';
       return '<div class="cluster-card clickable" data-status="' + (c.status || 'idle') + '"' + cardHealth + cardPhase + ' onclick="window.__navToCluster(\'' + c.id + '\')">' +
         '<div class="cluster-card-accent"></div>' +
         '<div class="cluster-card-body">' +
           '<div class="cluster-card-header">' +
-            '<div style="display:flex;align-items:center;gap:12px;min-width:0;">' +
+            '<div style="display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap;">' +
               '<span class="cluster-card-title">' + escHtml(c.id) + '</span>' +
               omniBtn +
             '</div>' +
@@ -4039,7 +4170,7 @@ const uiHTML = `<!DOCTYPE html>
           (currentModal.error ? '<button class="drawer-tab ' + (currentModal.activeTab === 'error' ? 'active' : '') + '" onclick="window.__setModalTab(\'error\')">Error</button>' : '') +
           '<button class="drawer-tab ' + (currentModal.activeTab === 'live' ? 'active' : '') + '" onclick="window.__setModalTab(\'live\')">Live</button>' +
           (currentModal.diff ? '<button class="drawer-tab ' + (currentModal.activeTab === 'diff' ? 'active' : '') + '" onclick="window.__setModalTab(\'diff\')">Diff</button>' : '') +
-          (currentModal.type === 'cluster' ? '<button class="drawer-tab ' + (currentModal.activeTab === 'graph' ? 'active' : '') + '" onclick="window.__setModalTab(\'graph\')">Graph</button>' : '') +
+          (currentModal.type === 'cluster' ? '<button class="drawer-tab ' + (currentModal.activeTab === 'graph' ? 'active' : '') + '" onclick="window.__setModalTab(\'graph\')">Topology</button>' : '') +
           (currentModal.type === 'machineclass' ? '<label class="mc-ignored-toggle"><input type="checkbox" class="mc-ignored-cb"' + (mcLiveShowMeta ? ' checked' : '') + ' onchange="window.__toggleMcLiveMeta()"> Show Ignored Fields</label>' : '') +
         '</div>' : '') +
       '<div class="drawer-body' + (currentModal && currentModal.activeTab === 'graph' ? ' graph-mode' : '') + (currentModal && currentModal.activeTab === 'live' && (currentModal.type === 'machineclass' || currentModal.type === 'cluster') ? ' mc-live-mode' : '') + '">' +
@@ -4729,6 +4860,47 @@ const uiHTML = `<!DOCTYPE html>
     });
   }
 
+  function testRepoCardConnection(name, url, branch) {
+    var cardId = 'repo-test-result-' + name.replace(/[^a-zA-Z0-9]/g, '_');
+    var btnId  = 'repo-test-card-btn-' + name;
+    var resultEl = document.getElementById(cardId);
+    var btn      = document.getElementById(btnId);
+    if (!resultEl || !btn) return;
+    delete _repoTestResults[name];
+    btn.disabled = true;
+    btn.textContent = 'Testing…';
+    resultEl.style.display = 'none';
+    function storeResult(text, ok) {
+      _repoTestResults[name] = { text: text, ok: ok };
+      setTimeout(function() { delete _repoTestResults[name]; renderMainOnly(); }, 5000);
+    }
+    fetch('/api/repos/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url, branch: branch })
+    }).then(function(r) {
+      btn.disabled = false;
+      btn.textContent = 'Test Connection';
+      return r.json().then(function(data) {
+        var text = r.ok ? '✓ Connected — branch "' + branch + '" found' : '✗ ' + (data.error || ('Error ' + r.status));
+        storeResult(text, r.ok);
+        resultEl.textContent = text;
+        resultEl.style.background = r.ok ? '#052e16' : '#3f1515';
+        resultEl.style.color      = r.ok ? '#4ade80' : '#f87171';
+        resultEl.style.display = '';
+      });
+    }).catch(function(e) {
+      btn.disabled = false;
+      btn.textContent = 'Test Connection';
+      var text = '✗ Network error: ' + e.message;
+      storeResult(text, false);
+      resultEl.textContent = text;
+      resultEl.style.background = '#3f1515';
+      resultEl.style.color = '#f87171';
+      resultEl.style.display = '';
+    });
+  }
+
   function deleteRepo(name) {
     confirmInput = '';
     var s = state || {};
@@ -4778,7 +4950,8 @@ const uiHTML = `<!DOCTYPE html>
   window.__openRepoModal       = openRepoModal;
   window.__closeRepoModal      = closeRepoModal;
   window.__saveRepo            = saveRepo;
-  window.__testRepoConnection  = testRepoConnection;
+  window.__testRepoConnection     = testRepoConnection;
+  window.__testRepoCardConnection = testRepoCardConnection;
   window.__deleteRepo          = deleteRepo;
 
   // ── End Repo CRUD ───────────────────────────────────────────────────────────
