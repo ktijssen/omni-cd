@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/kevin/**)",
+      "Bash(find /home/kevin/go/pkg/mod/github.com/siderolabs/omni@v1.5.10/frontend -name *.css)"
+    ]
+  }
+}

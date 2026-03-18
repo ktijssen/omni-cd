@@ -48,12 +48,15 @@ const uiHTML = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Omni CD</title>
 <link rel="icon" type="image/svg+xml" href="{{OMNI_LOGO_URI}}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #1b1b1d;
-    color: #e4e4e7;
+    font-family: Roboto, sans-serif;
+    background: #101118;
+    color: #e8e8e9;
     min-height: 100vh;
   }
   .container { padding: 24px; }
@@ -64,7 +67,7 @@ const uiHTML = `<!DOCTYPE html>
     align-items: center;
     margin-bottom: 32px;
     padding-bottom: 16px;
-    border-bottom: 1px solid #27272a;
+    border-bottom: 1px solid #1f222e;
   }
   .header h1 {
     font-size: 24px;
@@ -75,11 +78,11 @@ const uiHTML = `<!DOCTYPE html>
     align-items: center;
     gap: 10px;
   }
-  .header h1 span { color: #FB326E; margin: 0; padding: 0; }
+  .header h1 span { color: #ff8b59; margin: 0; padding: 0; }
   .logo { width: 28px; height: 28px; }
   .header-buttons { display: flex; align-items: center; gap: 10px; }
   .btn-check {
-    background: #FB326E;
+    background: #ff8b59;
     color: #fff;
     border: none;
     padding: 10px 20px;
@@ -89,11 +92,11 @@ const uiHTML = `<!DOCTYPE html>
     cursor: pointer;
     transition: all 0.2s;
   }
-  .btn-check:hover { background: #e0285f; }
-  .btn-check:active { background: #c92255; }
-  .btn-check:disabled { background: #27272a; color: #52525b; cursor: not-allowed; }
+  .btn-check:hover { background: #e67a4a; }
+  .btn-check:active { background: #cc5e35; }
+  .btn-check:disabled { background: #1f222e; color: #5b5c64; cursor: not-allowed; }
   .btn-reconcile {
-    background: #FB326E;
+    background: #ff8b59;
     color: #fff;
     border: none;
     padding: 10px 20px;
@@ -103,9 +106,9 @@ const uiHTML = `<!DOCTYPE html>
     cursor: pointer;
     transition: all 0.2s;
   }
-  .btn-reconcile:hover { background: #e0285f; }
-  .btn-reconcile:active { background: #c92255; }
-  .btn-reconcile:disabled { background: #27272a; color: #52525b; cursor: not-allowed; }
+  .btn-reconcile:hover { background: #e67a4a; }
+  .btn-reconcile:active { background: #cc5e35; }
+  .btn-reconcile:disabled { background: #1f222e; color: #5b5c64; cursor: not-allowed; }
 
   .status-bar {
     display: grid;
@@ -114,8 +117,8 @@ const uiHTML = `<!DOCTYPE html>
     margin-bottom: 24px;
   }
   .status-card {
-    background: #27272a;
-    border: 1px solid #3f3f46;
+    background: #1f222e;
+    border: 1px solid #2c2e38;
     border-radius: 12px;
     padding: 20px;
   }
@@ -123,7 +126,7 @@ const uiHTML = `<!DOCTYPE html>
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: #71717a;
+    color: #7d7d85;
     margin-bottom: 8px;
   }
   .status-card .value {
@@ -134,7 +137,7 @@ const uiHTML = `<!DOCTYPE html>
   }
   .status-card .sub {
     font-size: 12px;
-    color: #a1a1aa;
+    color: #9fa1a6;
     margin-top: 4px;
   }
 
@@ -151,11 +154,11 @@ const uiHTML = `<!DOCTYPE html>
   .badge-failed { background: #451a1e; color: #f87171; }
   .badge-outofsync { background: #431407; color: #fb923c; }
   .badge-orphaned  { background: #2e1065; color: #a78bfa; }
-  .badge-unmanaged { background: #27272a; color: #71717a; border: 1px solid #3f3f46; }
+  .badge-unmanaged { background: #1f222e; color: #7d7d85; border: 1px solid #2c2e38; }
   .badge-deleting { background: #451a1e; color: #f87171; }
   .badge-syncing { background: #0d2d2a; color: #2dd4bf; }
   .badge-connecting { background: #2d0d0d; color: #f87171; }
-  .badge-idle { background: #3f3f46; color: #a1a1aa; }
+  .badge-idle { background: #2c2e38; color: #9fa1a6; }
   .badge-ready { background: #14532d; color: #4ade80; }
   .badge-notready { background: #451a1e; color: #f87171; }
 
@@ -200,7 +203,7 @@ const uiHTML = `<!DOCTYPE html>
     position: relative;
     width: 36px;
     height: 20px;
-    background: #3f3f46;
+    background: #2c2e38;
     border-radius: 10px;
     cursor: pointer;
     transition: background 0.2s;
@@ -208,7 +211,7 @@ const uiHTML = `<!DOCTYPE html>
     padding: 0;
     flex-shrink: 0;
   }
-  .toggle-switch.on { background: #FB326E; }
+  .toggle-switch.on { background: #ff8b59; }
   .toggle-switch .toggle-knob {
     position: absolute;
     top: 2px;
@@ -237,14 +240,14 @@ const uiHTML = `<!DOCTYPE html>
   }
   @media (max-width: 768px) { .panels { grid-template-columns: 1fr; } }
   .panel {
-    background: #27272a;
-    border: 1px solid #3f3f46;
+    background: #1f222e;
+    border: 1px solid #2c2e38;
     border-radius: 12px;
     overflow: hidden;
   }
   .panel-header {
     padding: 16px 20px;
-    border-bottom: 1px solid #3f3f46;
+    border-bottom: 1px solid #2c2e38;
     font-size: 14px;
     font-weight: 600;
     color: #fff;
@@ -253,11 +256,11 @@ const uiHTML = `<!DOCTYPE html>
     align-items: center;
   }
   .panel-header .count {
-    background: #3f3f46;
+    background: #2c2e38;
     padding: 2px 8px;
     border-radius: 4px;
     font-size: 12px;
-    color: #a1a1aa;
+    color: #9fa1a6;
   }
   .resource-list { padding: 8px 0; }
   .resource-item {
@@ -266,22 +269,22 @@ const uiHTML = `<!DOCTYPE html>
     justify-content: space-between;
     align-items: center;
     font-size: 13px;
-    border-bottom: 1px solid #1b1b1d;
+    border-bottom: 1px solid #101118;
   }
   .resource-item:last-child { border-bottom: none; }
-  .resource-id { font-family: 'SF Mono', 'Fira Code', monospace; color: #e4e4e7; }
+  .resource-id { font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace; color: #e8e8e9; }
   .resource-id.clickable { cursor: pointer; }
-  .resource-id.clickable:hover { color: #FB326E; }
+  .resource-id.clickable:hover { color: #ff8b59; }
   .resource-right { display: flex; align-items: center; gap: 8px; }
   .btn-diff {
     background: none;
-    border: 1px solid #3f3f46;
-    color: #a1a1aa;
+    border: 1px solid #2c2e38;
+    color: #9fa1a6;
     padding: 2px 8px;
     border-radius: 4px;
     font-size: 11px;
     cursor: pointer;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace;
   }
   .btn-diff:hover { border-color: #fb923c; color: #fb923c; }
   .btn-sync {
@@ -292,7 +295,7 @@ const uiHTML = `<!DOCTYPE html>
     border-radius: 4px;
     font-size: 11px;
     cursor: pointer;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace;
   }
   .btn-sync:hover { border-color: #fbbf24; background: rgba(251, 191, 36, 0.1); }
   .btn-export {
@@ -303,7 +306,7 @@ const uiHTML = `<!DOCTYPE html>
     border-radius: 4px;
     font-size: 11px;
     cursor: pointer;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace;
     margin-right: 8px;
   }
   .btn-export:hover { border-color: #22d3ee; background: rgba(34, 211, 238, 0.1); }
@@ -315,47 +318,47 @@ const uiHTML = `<!DOCTYPE html>
     border-radius: 4px;
     font-size: 11px;
     cursor: pointer;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace;
     margin-right: 8px;
   }
   .btn-force-sync:hover { border-color: #fb923c; background: rgba(251, 146, 60, 0.1); }
-  .btn-sort { background: none; border: 1px solid #3f3f46; color: #71717a; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: 'SF Mono', 'Fira Code', monospace; white-space: nowrap; }
-  .btn-sort:hover { border-color: #a1a1aa; color: #a1a1aa; }
+  .btn-sort { background: none; border: 1px solid #2c2e38; color: #7d7d85; padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace; white-space: nowrap; }
+  .btn-sort:hover { border-color: #9fa1a6; color: #9fa1a6; }
   .btn-sort:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-sort:disabled:hover { border-color: #3f3f46; color: #71717a; }
-  .btn-sort.active { border-color: #FB326E; color: #FB326E; background: rgba(251, 50, 110, 0.1); }
-  .btn-sort.btn-primary:hover { border-color: #FB326E; color: #FB326E; }
-  .btn-sort.btn-primary:disabled:hover { border-color: #3f3f46; color: #71717a; }
-  .btn-sort.btn-primary.active:hover { border-color: #FB326E; color: #FB326E; background: rgba(251, 50, 110, 0.1); }
-  .cluster-card-actions .btn-sort.btn-primary:hover { border-color: #a1a1aa; color: #a1a1aa; }
-  .cluster-card-actions .btn-sort.btn-primary.active:hover { border-color: #71717a; color: #71717a; background: rgba(63,63,70,0.4); }
-  .btn-sort.btn-primary.auto-sync:not(.active):hover { border-color: #3f3f46; color: #a1a1aa; background: transparent; }
-  .btn-sort.btn-primary.auto-sync.active:hover { border-color: #FB326E; color: #FB326E; background: rgba(251, 50, 110, 0.1); }
-  .cluster-card-actions .btn-sort.btn-primary.auto-sync:not(.active):hover { border-color: #3f3f46; color: #a1a1aa; background: transparent; }
-  .cluster-card-actions .btn-sort.btn-primary.auto-sync.active:hover { border-color: #FB326E; color: #FB326E; background: rgba(251, 50, 110, 0.1); }
+  .btn-sort:disabled:hover { border-color: #2c2e38; color: #7d7d85; }
+  .btn-sort.active { border-color: #ff8b59; color: #ff8b59; background: rgba(255, 139, 89, 0.1); }
+  .btn-sort.btn-primary:hover { border-color: #ff8b59; color: #ff8b59; }
+  .btn-sort.btn-primary:disabled:hover { border-color: #2c2e38; color: #7d7d85; }
+  .btn-sort.btn-primary.active:hover { border-color: #ff8b59; color: #ff8b59; background: rgba(255, 139, 89, 0.1); }
+  .cluster-card-actions .btn-sort.btn-primary:hover { border-color: #9fa1a6; color: #9fa1a6; }
+  .cluster-card-actions .btn-sort.btn-primary.active:hover { border-color: #7d7d85; color: #7d7d85; background: rgba(63,63,70,0.4); }
+  .btn-sort.btn-primary.auto-sync:not(.active):hover { border-color: #2c2e38; color: #9fa1a6; background: transparent; }
+  .btn-sort.btn-primary.auto-sync.active:hover { border-color: #ff8b59; color: #ff8b59; background: rgba(255, 139, 89, 0.1); }
+  .cluster-card-actions .btn-sort.btn-primary.auto-sync:not(.active):hover { border-color: #2c2e38; color: #9fa1a6; background: transparent; }
+  .cluster-card-actions .btn-sort.btn-primary.auto-sync.active:hover { border-color: #ff8b59; color: #ff8b59; background: rgba(255, 139, 89, 0.1); }
   .breadcrumb { display:flex; align-items:center; gap:6px; }
-  .breadcrumb-link { color:#a1a1aa; text-decoration:none; font-size:18px; font-weight:600; letter-spacing:-0.3px; }
+  .breadcrumb-link { color:#9fa1a6; text-decoration:none; font-size:18px; font-weight:600; letter-spacing:-0.3px; }
   .breadcrumb-link:hover { color:#fff; }
-  .breadcrumb-sep { color:#3f3f46; font-size:15px; font-weight:400; }
+  .breadcrumb-sep { color:#2c2e38; font-size:15px; font-weight:400; }
   .breadcrumb-current { color:#fff; font-family:'SF Mono','Fira Code',monospace; font-size:16px; font-weight:600; }
   .panel-nav-link { cursor: pointer; transition: color 0.15s; }
-  .panel-nav-link:hover { color: #FB326E; }
+  .panel-nav-link:hover { color: #ff8b59; }
   .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 16px; padding: 16px 0; }
-  .cluster-card { background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; overflow: hidden; display: flex; }
+  .cluster-card { background: #1f222e; border: 1px solid #2c2e38; border-radius: 12px; overflow: hidden; display: flex; }
   .cluster-card.clickable { cursor: pointer; }
-  .cluster-card.clickable:hover { border-color: #71717a; }
+  .cluster-card.clickable:hover { border-color: #7d7d85; }
   .cluster-card-actions { display: flex; gap: 6px; padding: 2px 0 0; margin-top: auto; flex-wrap: nowrap; }
   .btn-sort.sync:hover    { border-color: #fb923c; color: #fb923c; background: rgba(251,146,60,0.08); }
   .btn-sort.refresh:hover { border-color: #22d3ee; color: #22d3ee; background: rgba(34,211,238,0.08); }
   .btn-sort.danger:hover  { border-color: #f87171; color: #f87171; background: rgba(248,113,113,0.08); }
-  .cluster-card-accent { width: 4px; flex-shrink: 0; background: #3f3f46; }
+  .cluster-card-accent { width: 4px; flex-shrink: 0; background: #2c2e38; }
   .cluster-card[data-status="success"] .cluster-card-accent,
   .cluster-card[data-status="applied"] .cluster-card-accent { background: #4ade80; }
   .cluster-card[data-status="failed"] .cluster-card-accent { background: #f87171; }
   .cluster-card[data-status="outofsync"] .cluster-card-accent { background: #fb923c; }
   .cluster-card[data-status="orphaned"]  .cluster-card-accent { background: #a78bfa; }
   .cluster-card[data-status="syncing"] .cluster-card-accent { background: #2dd4bf; }
-  .cluster-card[data-status="unmanaged"] .cluster-card-accent { background: #52525b; }
+  .cluster-card[data-status="unmanaged"] .cluster-card-accent { background: #5b5c64; }
   .cluster-card[data-status="deleting"] .cluster-card-accent { background: #f87171; }
   /* Override accent to red when synced but cluster not ready */
   .cluster-card[data-status="success"][data-health="not-ready"] .cluster-card-accent,
@@ -365,7 +368,7 @@ const uiHTML = `<!DOCTYPE html>
   .cluster-card[data-phase="destroying"] .cluster-card-accent    { background: #f43f5e; }
   .cluster-card[data-phase="reconfiguring"] .cluster-card-accent { background: #a78bfa; }
   .cluster-health-bar-wrap { padding: 0 0 16px; display: flex; align-items: center; gap: 12px; }
-  .cluster-health-bar { flex: 1; height: 8px; border-radius: 4px; background: #3f3f46; overflow: hidden; display: flex; }
+  .cluster-health-bar { flex: 1; height: 8px; border-radius: 4px; background: #2c2e38; overflow: hidden; display: flex; }
   .cluster-health-bar-seg { height: 100%; cursor: pointer; transition: width 0.3s, opacity 0.15s; opacity: 0.85; border-right: 2px solid rgba(27,27,29,0.7); }
   .cluster-health-bar-seg:hover { opacity: 1; }
   .cluster-health-bar.has-filter .cluster-health-bar-seg { opacity: 0.3; }
@@ -375,81 +378,81 @@ const uiHTML = `<!DOCTYPE html>
   .cluster-health-bar-seg--failed { background: #ef4444; }
   .cluster-health-bar-seg--outofsync { background: #fb923c; }
   .cluster-health-bar-seg--orphaned   { background: #a78bfa; }
-  .cluster-health-bar-seg--unmanaged { background: #52525b; }
+  .cluster-health-bar-seg--unmanaged { background: #5b5c64; }
   .cluster-health-bar-seg--scalingup   { background: #60a5fa; }
   .cluster-health-bar-seg--scalingdown { background: #f59e0b; }
   .cluster-health-bar-seg--destroying  { background: #f43f5e; }
   .cluster-health-bar-seg--reconfiguring { background: #a78bfa; }
-  .cluster-health-summary { font-size: 12px; color: #71717a; white-space: nowrap; }
+  .cluster-health-summary { font-size: 12px; color: #7d7d85; white-space: nowrap; }
   .cluster-card-body { flex: 1; padding: 12px 14px; min-width: 0; display: flex; flex-direction: column; }
   .cluster-card-header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
   .cluster-card-title { font-size: 15px; font-weight: 600; color: #fff; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cluster-card-title.clickable { color: inherit; }
-  .cluster-card-status { font-size: 12px; color: #a1a1aa; white-space: nowrap; flex-shrink: 0; }
-  .cluster-card-versions { font-size: 11px; color: #71717a; margin-bottom: 10px; }
+  .cluster-card-status { font-size: 12px; color: #9fa1a6; white-space: nowrap; flex-shrink: 0; }
+  .cluster-card-versions { font-size: 11px; color: #7d7d85; margin-bottom: 10px; }
   .cluster-card-meta { display: grid; grid-template-columns: 1fr; gap: 3px; margin: 0; padding: 8px 0; }
   .cluster-card-meta-pair { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
-  .cluster-card-meta-label { font-size: 12px; color: #a1a1aa; flex-shrink: 0; min-width: 120px; }
-  .cluster-card-meta-value { font-size: 12px; color: #e4e4e7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .cluster-card-meta-label { font-size: 12px; color: #9fa1a6; flex-shrink: 0; min-width: 120px; }
+  .cluster-card-meta-value { font-size: 12px; color: #e8e8e9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .cluster-card-meta-full { grid-column: 1 / -1; }
-  .cluster-card-divider { height: 1px; background: #3f3f46; margin-bottom: 8px; }
+  .cluster-card-divider { height: 1px; background: #2c2e38; margin-bottom: 8px; }
   .cluster-pool-row { display: flex; align-items: baseline; gap: 8px; font-size: 12px; padding: 2px 0; }
-  .cluster-pool-row-label { color: #a1a1aa; width: 88px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cluster-pool-row-count { color: #e4e4e7; font-weight: 600; width: 20px; text-align: right; flex-shrink: 0; }
-  .cluster-pool-row-mc { color: #71717a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: 11px; }
+  .cluster-pool-row-label { color: #9fa1a6; width: 88px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cluster-pool-row-count { color: #e8e8e9; font-weight: 600; width: 20px; text-align: right; flex-shrink: 0; }
+  .cluster-pool-row-mc { color: #7d7d85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: 11px; }
   .diff-viewer {
-    background: #18181b;
-    border-top: 1px solid #3f3f46;
+    background: #13141c;
+    border-top: 1px solid #2c2e38;
     padding: 12px 20px;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace;
     font-size: 12px;
     line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-all;
     max-height: 300px;
     overflow-y: auto;
-    color: #a1a1aa;
+    color: #9fa1a6;
   }
   .diff-viewer::-webkit-scrollbar { width: 6px; }
-  .diff-viewer::-webkit-scrollbar-track { background: #18181b; }
-  .diff-viewer::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+  .diff-viewer::-webkit-scrollbar-track { background: #13141c; }
+  .diff-viewer::-webkit-scrollbar-thumb { background: #2c2e38; border-radius: 3px; }
   .diff-add { color: #4ade80; }
   .diff-del { color: #f87171; }
   .diff-hdr { color: #60a5fa; }
   .sbs-block { margin-bottom: 16px; }
-  .sbs-table { display: grid; grid-template-columns: 1fr 1fr; column-gap: 1px; background: #3f3f46; border-radius: 4px; overflow: hidden; border: 1px solid #3f3f46; }
-  .sbs-col-hdr { padding: 4px 10px; background: #1c1c1e; color: #71717a; font-size: 11px; border-bottom: 1px solid #3f3f46; }
+  .sbs-table { display: grid; grid-template-columns: 1fr 1fr; column-gap: 1px; background: #2c2e38; border-radius: 4px; overflow: hidden; border: 1px solid #2c2e38; }
+  .sbs-col-hdr { padding: 4px 10px; background: #15161e; color: #7d7d85; font-size: 11px; border-bottom: 1px solid #2c2e38; }
   .sbs-live-hdr { border-right: none; }
-  .sbs-cell { padding: 2px 10px; font-size: 12px; white-space: pre-wrap; word-break: break-all; min-height: 20px; background: #27272a; }
+  .sbs-cell { padding: 2px 10px; font-size: 12px; white-space: pre-wrap; word-break: break-all; min-height: 20px; background: #1f222e; }
   .sbs-del { background: rgba(248,113,113,0.12); color: #f87171; }
   .sbs-add { background: rgba(74,222,128,0.10); color: #4ade80; }
-  .sbs-ln { color: #52525b; margin-right: 8px; user-select: none; font-size: 11px; }
+  .sbs-ln { color: #5b5c64; margin-right: 8px; user-select: none; font-size: 11px; }
   .drawer-body.mc-live-mode { padding: 0; white-space: normal; word-break: normal; }
-  .mc-live-toolbar { display:flex; align-items:center; justify-content:flex-end; padding:8px 16px; border-bottom:1px solid #3f3f46; background:#1c1c1e; position:sticky; top:0; z-index:1; }
-  .mc-live-toggle { font-size:12px; color:#a1a1aa; cursor:pointer; display:flex; align-items:center; gap:6px; }
+  .mc-live-toolbar { display:flex; align-items:center; justify-content:flex-end; padding:8px 16px; border-bottom:1px solid #2c2e38; background:#15161e; position:sticky; top:0; z-index:1; }
+  .mc-live-toggle { font-size:12px; color:#9fa1a6; cursor:pointer; display:flex; align-items:center; gap:6px; }
   .mc-live-toggle input[type=checkbox] { accent-color:#fb923c; cursor:pointer; }
   .mc-live-table { width:100%; border-collapse:collapse; font-family:'SF Mono','Fira Code',monospace; font-size:12px; line-height:1.6; }
-  .mc-live-ln { color:#52525b; text-align:right; padding:2px 10px 2px 16px; user-select:none; min-width:36px; border-right:1px solid #27272a; white-space:nowrap; vertical-align:top; }
-  .mc-live-code { padding:2px 16px; white-space:pre-wrap; word-break:break-all; color:#e4e4e7; }
-  .mc-live-meta-row td { color:#52525b; opacity:0.55; }
-  .mc-live-ignored-row td { color:#3f3f46; font-style:italic; }
-  .sbs-table-single { background: #27272a; border-radius: 4px; overflow: hidden; border: 1px solid #3f3f46; }
+  .mc-live-ln { color:#5b5c64; text-align:right; padding:2px 10px 2px 16px; user-select:none; min-width:36px; border-right:1px solid #1f222e; white-space:nowrap; vertical-align:top; }
+  .mc-live-code { padding:2px 16px; white-space:pre-wrap; word-break:break-all; color:#e8e8e9; }
+  .mc-live-meta-row td { color:#5b5c64; opacity:0.55; }
+  .mc-live-ignored-row td { color:#2c2e38; font-style:italic; }
+  .sbs-table-single { background: #1f222e; border-radius: 4px; overflow: hidden; border: 1px solid #2c2e38; }
   .sbs-meta-dim { opacity: 0.45; }
-  .sbs-ignored { color: #52525b; font-style: italic; }
+  .sbs-ignored { color: #5b5c64; font-style: italic; }
 
   .logs-page { display:flex; flex-direction:column; height:100%; }
   .logs-page-header { display:flex; align-items:center; justify-content:space-between; padding:0; margin-bottom:0; border-bottom:none; }
-  .logs-page-body { flex:1; overflow-y:auto; background:#1b1b1d; border-radius:8px; }
+  .logs-page-body { flex:1; overflow-y:auto; background:#101118; border-radius:8px; }
   .logs-filters { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 0 0; }
   .logs-page-body::-webkit-scrollbar { width:6px; }
-  .logs-page-body::-webkit-scrollbar-track { background:#1b1b1d; }
-  .logs-page-body::-webkit-scrollbar-thumb { background:#3f3f46; border-radius:3px; }
+  .logs-page-body::-webkit-scrollbar-track { background:#101118; }
+  .logs-page-body::-webkit-scrollbar-thumb { background:#2c2e38; border-radius:3px; }
   .logs-modal-header {
     padding: 20px 24px 16px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid #3f3f46;
+    border-bottom: 1px solid #2c2e38;
   }
   .logs-modal-title {
     font-size: 16px;
@@ -465,22 +468,22 @@ const uiHTML = `<!DOCTYPE html>
     height: 400px;
     overflow-y: auto;
     padding: 12px 0;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace;
     font-size: 12px;
     line-height: 1.6;
   }
   .logs-container::-webkit-scrollbar { width: 6px; }
-  .logs-container::-webkit-scrollbar-track { background: #1b1b1d; }
-  .logs-container::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+  .logs-container::-webkit-scrollbar-track { background: #101118; }
+  .logs-container::-webkit-scrollbar-thumb { background: #2c2e38; border-radius: 3px; }
   .log-entry { padding: 2px 20px; font-size: 11px; font-weight: 400; }
   .log-entry:hover { background: #323235; }
-  .log-ts { color: #52525b; }
+  .log-ts { color: #5b5c64; }
   .log-debug { color: #818cf8; }
-  .log-info { color: #e4e4e7; }
+  .log-info { color: #e8e8e9; }
   .log-warn { color: #facc15; }
   .log-error { color: #f87171; }
-  .log-label { color: #a1a1aa; }
-  .log-msg { color: #e4e4e7; }
+  .log-label { color: #9fa1a6; }
+  .log-msg { color: #e8e8e9; }
 
   .refresh-indicator {
     position: fixed;
@@ -489,11 +492,11 @@ const uiHTML = `<!DOCTYPE html>
     right: 0;
     transition: left 0.2s ease;
     font-size: 11px;
-    color: #52525b;
+    color: #5b5c64;
     text-align: center;
     padding: 8px 16px;
-    background: #1b1b1d;
-    border-top: 1px solid #27272a;
+    background: #101118;
+    border-top: 1px solid #1f222e;
     z-index: 10;
   }
 
@@ -502,8 +505,8 @@ const uiHTML = `<!DOCTYPE html>
     display: inline-block;
     width: 16px;
     height: 16px;
-    border: 2px solid #3f3f46;
-    border-top-color: #FB326E;
+    border: 2px solid #2c2e38;
+    border-top-color: #ff8b59;
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
     vertical-align: middle;
@@ -514,7 +517,7 @@ const uiHTML = `<!DOCTYPE html>
   .loading-overlay {
     position: fixed;
     inset: 0;
-    background: #1b1b1d;
+    background: #101118;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -530,19 +533,19 @@ const uiHTML = `<!DOCTYPE html>
   .loading-spinner-large {
     width: 48px;
     height: 48px;
-    border: 3px solid #3f3f46;
-    border-top-color: #FB326E;
+    border: 3px solid #2c2e38;
+    border-top-color: #ff8b59;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
   .loading-overlay-title {
     font-size: 18px;
     font-weight: 600;
-    color: #e4e4e7;
+    color: #e8e8e9;
   }
   .loading-overlay-sub {
     font-size: 13px;
-    color: #71717a;
+    color: #7d7d85;
   }
 
   /* Right slide-over drawer */
@@ -561,8 +564,8 @@ const uiHTML = `<!DOCTYPE html>
     right: 0;
     width: calc(100% - 200px);
     height: 78vh;
-    background: #27272a;
-    border-top: 1px solid #3f3f46;
+    background: #1f222e;
+    border-top: 1px solid #2c2e38;
     border-radius: 12px 12px 0 0;
     z-index: 201;
     display: none;
@@ -584,7 +587,7 @@ const uiHTML = `<!DOCTYPE html>
     font-size: 15px;
     font-weight: 600;
     color: #fff;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -592,7 +595,7 @@ const uiHTML = `<!DOCTYPE html>
   .drawer-close {
     background: none;
     border: none;
-    color: #a1a1aa;
+    color: #9fa1a6;
     font-size: 24px;
     cursor: pointer;
     padding: 0;
@@ -605,22 +608,22 @@ const uiHTML = `<!DOCTYPE html>
     transition: all 0.2s;
     flex-shrink: 0;
   }
-  .drawer-close:hover { background: #3f3f46; color: #fff; }
+  .drawer-close:hover { background: #2c2e38; color: #fff; }
   .drawer-tabs {
     display: flex;
     gap: 4px;
     padding: 0 24px;
     margin-top: 16px;
-    border-bottom: 1px solid #3f3f46;
+    border-bottom: 1px solid #2c2e38;
     flex-shrink: 0;
     align-items: center;
   }
-  .mc-ignored-toggle { margin-left: auto; font-size: 12px; color: #a1a1aa; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 0 0 0 16px; border-left: 1px solid #3f3f46; user-select: none; }
+  .mc-ignored-toggle { margin-left: auto; font-size: 12px; color: #9fa1a6; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 0 0 0 16px; border-left: 1px solid #2c2e38; user-select: none; }
   .mc-ignored-toggle input[type=checkbox] { accent-color: #fb923c; cursor: pointer; }
   .drawer-tab {
     background: none;
     border: none;
-    color: #a1a1aa;
+    color: #9fa1a6;
     padding: 10px 16px;
     font-size: 13px;
     font-weight: 500;
@@ -628,31 +631,31 @@ const uiHTML = `<!DOCTYPE html>
     border-bottom: 2px solid transparent;
     transition: all 0.2s;
   }
-  .drawer-tab:hover { color: #e4e4e7; }
-  .drawer-tab.active { color: #FB326E; border-bottom-color: #FB326E; }
+  .drawer-tab:hover { color: #e8e8e9; }
+  .drawer-tab.active { color: #ff8b59; border-bottom-color: #ff8b59; }
   .drawer-body {
     padding: 24px;
     overflow-y: auto;
     flex: 1;
     min-height: 0;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace;
     font-size: 13px;
     line-height: 1.6;
-    color: #e4e4e7;
+    color: #e8e8e9;
     white-space: pre-wrap;
     word-break: break-all;
   }
   .drawer-body.graph-mode { padding: 0; overflow: hidden; display: flex; flex-direction: column; white-space: normal; word-break: normal; }
   .drawer-body::-webkit-scrollbar { width: 8px; }
-  .drawer-body::-webkit-scrollbar-track { background: #1b1b1d; }
-  .drawer-body::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+  .drawer-body::-webkit-scrollbar-track { background: #101118; }
+  .drawer-body::-webkit-scrollbar-thumb { background: #2c2e38; border-radius: 4px; }
 
   /* Machine classes grid */
   .mc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 12px; }
-  .mc-card { background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; overflow: hidden; display: flex; }
+  .mc-card { background: #1f222e; border: 1px solid #2c2e38; border-radius: 12px; overflow: hidden; display: flex; }
   .mc-card.clickable { cursor: pointer; }
-  .mc-card.clickable:hover { border-color: #71717a; }
-  .mc-card-accent { width: 4px; flex-shrink: 0; background: #3f3f46; }
+  .mc-card.clickable:hover { border-color: #7d7d85; }
+  .mc-card-accent { width: 4px; flex-shrink: 0; background: #2c2e38; }
   .mc-card[data-status="success"] .mc-card-accent,
   .mc-card[data-status="applied"] .mc-card-accent { background: #4ade80; }
   .mc-card[data-status="failed"] .mc-card-accent { background: #f87171; }
@@ -663,8 +666,8 @@ const uiHTML = `<!DOCTYPE html>
   .mc-card-name {
     font-size: 13px;
     font-weight: 600;
-    color: #e4e4e7;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: #e8e8e9;
+    font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -672,18 +675,18 @@ const uiHTML = `<!DOCTYPE html>
   }
   .mc-card-name.clickable { color: inherit; }
   .mc-card-status { font-size: 11px; white-space: nowrap; flex-shrink: 0; }
-  .mc-card-divider { height: 1px; background: #3f3f46; margin-bottom: 8px; }
+  .mc-card-divider { height: 1px; background: #2c2e38; margin-bottom: 8px; }
   .mc-used-by { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
-  .mc-used-by-chip { font-size: 10px; font-family: 'SF Mono','Fira Code',monospace; background: #3f3f46; color: #a1a1aa; border-radius: 4px; padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; cursor: pointer; border: none; transition: background 0.15s, color 0.15s; }
-  .mc-used-by-chip:hover { background: rgba(251, 50, 110, 0.1); color: #FB326E; }
-  .mc-used-by-none { font-size: 11px; color: #52525b; font-style: italic; }
+  .mc-used-by-chip { font-size: 10px; font-family: 'SF Mono','Fira Code',monospace; background: #2c2e38; color: #9fa1a6; border-radius: 4px; padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; cursor: pointer; border: none; transition: background 0.15s, color 0.15s; }
+  .mc-used-by-chip:hover { background: rgba(255, 139, 89, 0.1); color: #ff8b59; }
+  .mc-used-by-none { font-size: 11px; color: #5b5c64; font-style: italic; }
   .page-size-bar { display: flex; align-items: center; gap: 6px; }
-  .page-size-btn { background: none; border: 1px solid #3f3f46; color: #a1a1aa; padding: 3px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; transition: all 0.2s; }
-  .page-size-btn:hover:not(.active) { border-color: #71717a; color: #e4e4e7; }
-  .page-size-btn.active { background: #3f3f46; border-color: #52525b; color: #fff; }
+  .page-size-btn { background: none; border: 1px solid #2c2e38; color: #9fa1a6; padding: 3px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+  .page-size-btn:hover:not(.active) { border-color: #7d7d85; color: #e8e8e9; }
+  .page-size-btn.active { background: #2c2e38; border-color: #5b5c64; color: #fff; }
   .mc-info-row { display: flex; gap: 8px; font-size: 12px; padding: 1px 0; }
-  .mc-info-label { color: #a1a1aa; min-width: 74px; flex-shrink: 0; }
-  .mc-info-value { color: #e4e4e7; }
+  .mc-info-label { color: #9fa1a6; min-width: 74px; flex-shrink: 0; }
+  .mc-info-value { color: #e8e8e9; }
 
   /* Modal */
   .modal {
@@ -703,8 +706,8 @@ const uiHTML = `<!DOCTYPE html>
     to { opacity: 1; }
   }
   .modal-content {
-    background: #27272a;
-    border: 1px solid #3f3f46;
+    background: #1f222e;
+    border: 1px solid #2c2e38;
     border-radius: 12px;
     width: 900px;
     max-width: 90%;
@@ -727,12 +730,12 @@ const uiHTML = `<!DOCTYPE html>
     font-size: 16px;
     font-weight: 600;
     color: #fff;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace;
   }
   .modal-close {
     background: none;
     border: none;
-    color: #a1a1aa;
+    color: #9fa1a6;
     font-size: 24px;
     cursor: pointer;
     padding: 0;
@@ -744,18 +747,18 @@ const uiHTML = `<!DOCTYPE html>
     border-radius: 6px;
     transition: all 0.2s;
   }
-  .modal-close:hover { background: #3f3f46; color: #fff; }
+  .modal-close:hover { background: #2c2e38; color: #fff; }
   .modal-tabs {
     display: flex;
     gap: 4px;
     padding: 0 24px;
     margin-top: 16px;
-    border-bottom: 1px solid #3f3f46;
+    border-bottom: 1px solid #2c2e38;
   }
   .modal-tab {
     background: none;
     border: none;
-    color: #a1a1aa;
+    color: #9fa1a6;
     padding: 10px 16px;
     font-size: 13px;
     font-weight: 500;
@@ -763,25 +766,25 @@ const uiHTML = `<!DOCTYPE html>
     border-bottom: 2px solid transparent;
     transition: all 0.2s;
   }
-  .modal-tab:hover { color: #e4e4e7; }
+  .modal-tab:hover { color: #e8e8e9; }
   .modal-tab.active {
-    color: #FB326E;
-    border-bottom-color: #FB326E;
+    color: #ff8b59;
+    border-bottom-color: #ff8b59;
   }
   .modal-body {
     padding: 24px;
     overflow-y: auto;
     flex: 1;
-    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace;
     font-size: 13px;
     line-height: 1.6;
-    color: #e4e4e7;
+    color: #e8e8e9;
     white-space: pre-wrap;
     word-break: break-all;
   }
   .modal-body::-webkit-scrollbar { width: 8px; }
-  .modal-body::-webkit-scrollbar-track { background: #1b1b1d; }
-  .modal-body::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+  .modal-body::-webkit-scrollbar-track { background: #101118; }
+  .modal-body::-webkit-scrollbar-thumb { background: #2c2e38; border-radius: 4px; }
 
   /* Confirmation modal */
   .confirm-modal {
@@ -801,10 +804,10 @@ const uiHTML = `<!DOCTYPE html>
     display: none;
   }
   .confirm-message {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: Roboto, sans-serif;
     font-size: 13px;
     line-height: 1.4;
-    color: #e4e4e7;
+    color: #e8e8e9;
     margin-bottom: 14px;
     white-space: pre-line;
   }
@@ -815,16 +818,16 @@ const uiHTML = `<!DOCTYPE html>
   }
   .confirm-input-prompt {
     font-size: 13px;
-    color: #a1a1aa;
+    color: #9fa1a6;
     margin-bottom: 8px;
     text-align: left;
   }
   .confirm-input {
     width: 100%;
-    background: #27272a;
-    border: 1px solid #3f3f46;
+    background: #1f222e;
+    border: 1px solid #2c2e38;
     border-radius: 6px;
-    color: #e4e4e7;
+    color: #e8e8e9;
     font-size: 13px;
     font-family: ui-monospace, SFMono-Regular, monospace;
     padding: 7px 10px;
@@ -837,35 +840,35 @@ const uiHTML = `<!DOCTYPE html>
   /* Cluster topology graph */
   .cluster-graph { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; white-space: normal; word-break: normal; display: flex; flex-direction: column; overflow: hidden; flex: 1; min-height: 0; }
   .cluster-graph-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 10px 16px 0; flex-shrink: 0; }
-  .cluster-graph-zoom-btn { background: #3f3f46; border: 1px solid #52525b; color: #a1a1aa; border-radius: 5px; width: 26px; height: 26px; font-size: 16px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-  .cluster-graph-zoom-btn:hover { background: #52525b; color: #e4e4e7; }
-  .graph-zoom-level { font-size: 11px; color: #71717a; min-width: 34px; text-align: center; }
-  .graph-toolbar-sep { width: 1px; height: 16px; background: #3f3f46; margin: 0 2px; flex-shrink: 0; }
-  .fold-badge { display: inline-flex; align-items: center; justify-content: center; background: #52525b; color: #e4e4e7; border-radius: 4px; font-size: 10px; font-weight: 600; padding: 1px 5px; margin-right: 2px; letter-spacing: 0.02em; }
+  .cluster-graph-zoom-btn { background: #2c2e38; border: 1px solid #5b5c64; color: #9fa1a6; border-radius: 5px; width: 26px; height: 26px; font-size: 16px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .cluster-graph-zoom-btn:hover { background: #5b5c64; color: #e8e8e9; }
+  .graph-zoom-level { font-size: 11px; color: #7d7d85; min-width: 34px; text-align: center; }
+  .graph-toolbar-sep { width: 1px; height: 16px; background: #2c2e38; margin: 0 2px; flex-shrink: 0; }
+  .fold-badge { display: inline-flex; align-items: center; justify-content: center; background: #5b5c64; color: #e8e8e9; border-radius: 4px; font-size: 10px; font-weight: 600; padding: 1px 5px; margin-right: 2px; letter-spacing: 0.02em; }
   .cluster-graph-canvas { flex: 1; overflow: auto; padding: 24px 20px; cursor: grab; user-select: none; }
   .cluster-graph-inner { display: inline-flex; transform-origin: top left; transition: transform 0.15s; }
-  .graph-node { background: #1b1b1d; border: 1px solid #3f3f46; border-radius: 10px; padding: 14px 20px; overflow: hidden; }
+  .graph-node { background: #101118; border: 1px solid #2c2e38; border-radius: 10px; padding: 14px 20px; overflow: hidden; }
   .graph-node--git { border-color: #3b82f6; }
-  .graph-node-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #52525b; margin-bottom: 6px; }
+  .graph-node-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #5b5c64; margin-bottom: 6px; }
   .graph-node-name { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .graph-node-meta { font-size: 11px; color: #71717a; line-height: 1.5; }
+  .graph-node-meta { font-size: 11px; color: #7d7d85; line-height: 1.5; }
   .graph-node-badges { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
-  .graph-extensions { margin-top: 8px; padding-top: 7px; border-top: 1px solid #3f3f46; }
-  .graph-extensions summary { font-size: 11px; color: #71717a; cursor: pointer; list-style: none; user-select: none; }
+  .graph-extensions { margin-top: 8px; padding-top: 7px; border-top: 1px solid #2c2e38; }
+  .graph-extensions summary { font-size: 11px; color: #7d7d85; cursor: pointer; list-style: none; user-select: none; }
   .graph-extensions summary::-webkit-details-marker { display: none; }
-  .graph-extensions summary::before { content: '▶ '; font-size: 9px; color: #52525b; }
+  .graph-extensions summary::before { content: '▶ '; font-size: 9px; color: #5b5c64; }
   .graph-extensions[open] summary::before { content: '▼ '; }
-  .graph-ext-item { font-size: 11px; color: #52525b; padding: 3px 0 0 12px; font-family: 'SF Mono','Fira Code',monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .graph-ext-item { font-size: 11px; color: #5b5c64; padding: 3px 0 0 12px; font-family: 'SF Mono','Fira Code',monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* DAG graph - Argo CD style left-to-right layout */
-  .dag-node { display:flex; align-items:stretch; background:#18181b; border:1px solid #3f3f46; border-radius:6px; overflow:hidden; height:100px; flex-shrink:0; }
-  .dag-node.clickable:hover { border-color:#71717a; }
+  .dag-node { display:flex; align-items:stretch; background:#13141c; border:1px solid #2c2e38; border-radius:6px; overflow:hidden; height:100px; flex-shrink:0; }
+  .dag-node.clickable:hover { border-color:#7d7d85; }
   .dag-node-accent { width:3px; flex-shrink:0; }
   .dag-node-icon { display:flex; align-items:center; justify-content:center; width:36px; flex-shrink:0; }
   .dag-node-body { flex:1; padding:10px 10px 10px 6px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; min-width:0; }
-  .dag-node-kind { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:#52525b; margin-bottom:2px; }
-  .dag-node-name { font-size:13px; font-weight:600; color:#e4e4e7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .dag-node-meta { font-size:10px; color:#71717a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+  .dag-node-kind { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:#5b5c64; margin-bottom:2px; }
+  .dag-node-name { font-size:13px; font-weight:600; color:#e8e8e9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dag-node-meta { font-size:10px; color:#7d7d85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
   .dag-node-badges { display:flex; gap:3px; margin-top:5px; flex-wrap:wrap; }
 
   /* Pagination */
@@ -875,12 +878,12 @@ const uiHTML = `<!DOCTYPE html>
     align-items: center;
     gap: 4px;
     padding: 12px 20px;
-    border-top: 1px solid #1b1b1d;
+    border-top: 1px solid #101118;
   }
   .page-btn {
     background: none;
-    border: 1px solid #3f3f46;
-    color: #a1a1aa;
+    border: 1px solid #2c2e38;
+    color: #9fa1a6;
     padding: 4px 10px;
     border-radius: 4px;
     font-size: 12px;
@@ -889,12 +892,12 @@ const uiHTML = `<!DOCTYPE html>
     transition: all 0.2s;
   }
   .page-btn:hover:not(:disabled) {
-    border-color: #FB326E;
-    color: #FB326E;
+    border-color: #ff8b59;
+    color: #ff8b59;
   }
   .page-btn.active {
-    background: #FB326E;
-    border-color: #FB326E;
+    background: #ff8b59;
+    border-color: #ff8b59;
     color: #fff;
   }
   .page-btn:disabled {
@@ -903,47 +906,47 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   /* Dashboard */
-  .dash-fleet-card { background: #27272a; border: 1px solid #3f3f46; border-radius: 12px; padding: 18px 20px; }
-  .dash-fleet-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #71717a; margin-bottom: 12px; }
-  .dash-fleet-bar { height: 10px; border-radius: 5px; background: #3f3f46; overflow: hidden; display: flex; margin-bottom: 12px; }
+  .dash-fleet-card { background: #1f222e; border: 1px solid #2c2e38; border-radius: 12px; padding: 18px 20px; }
+  .dash-fleet-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #7d7d85; margin-bottom: 12px; }
+  .dash-fleet-bar { height: 10px; border-radius: 5px; background: #2c2e38; overflow: hidden; display: flex; margin-bottom: 12px; }
   .dash-fleet-seg { height: 100%; transition: width 0.4s; }
   .dash-fleet-seg--ready     { background: #4ade80; }
   .dash-fleet-seg--notready  { background: #f87171; }
   .dash-fleet-seg--outofsync { background: #fb923c; }
   .dash-fleet-seg--orphaned  { background: #a78bfa; }
   .dash-fleet-seg--failed    { background: #ef4444; }
-  .dash-fleet-seg--unmanaged { background: #52525b; }
+  .dash-fleet-seg--unmanaged { background: #5b5c64; }
   .dash-fleet-legend { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
-  .dash-fleet-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #a1a1aa; }
+  .dash-fleet-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9fa1a6; }
   .dash-fleet-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
   .stat-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
   @media (max-width: 900px) { .stat-strip { grid-template-columns: repeat(2, 1fr); } }
   .stat-tile {
-    background: #27272a;
-    border: 1px solid #3f3f46;
+    background: #1f222e;
+    border: 1px solid #2c2e38;
     border-radius: 12px;
     padding: 16px 20px;
   }
-  .stat-tile-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #71717a; margin-bottom: 6px; }
+  .stat-tile-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #7d7d85; margin-bottom: 6px; }
   .stat-tile-value { font-size: 28px; font-weight: 700; color: #fff; line-height: 1; margin-bottom: 4px; }
-  .stat-tile-sub { font-size: 12px; color: #a1a1aa; }
-  .mini-bar { height: 4px; border-radius: 2px; background: #3f3f46; overflow: hidden; margin-top: 8px; }
+  .stat-tile-sub { font-size: 12px; color: #9fa1a6; }
+  .mini-bar { height: 4px; border-radius: 2px; background: #2c2e38; overflow: hidden; margin-top: 8px; }
   .mini-bar-fill { height: 100%; border-radius: 2px; background: #4ade80; transition: width 0.4s; }
   .info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
   @media (max-width: 768px) { .info-row { grid-template-columns: 1fr; } }
   .info-card {
-    background: #27272a;
-    border: 1px solid #3f3f46;
+    background: #1f222e;
+    border: 1px solid #2c2e38;
     border-radius: 12px;
     padding: 18px 20px;
   }
   .info-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .info-card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #71717a; }
+  .info-card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #7d7d85; }
   .info-card-value { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .info-card-sub { font-size: 12px; color: #71717a; line-height: 1.7; }
+  .info-card-sub { font-size: 12px; color: #7d7d85; line-height: 1.7; }
   .reconcile-bar {
-    background: #27272a;
-    border: 1px solid #3f3f46;
+    background: #1f222e;
+    border: 1px solid #2c2e38;
     border-radius: 12px;
     padding: 12px 20px;
     display: flex;
@@ -952,16 +955,16 @@ const uiHTML = `<!DOCTYPE html>
     margin-bottom: 12px;
     flex-wrap: wrap;
   }
-  .reconcile-bar-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #71717a; flex-shrink: 0; }
-  .reconcile-bar-detail { font-size: 12px; color: #71717a; flex: 1; }
+  .reconcile-bar-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #7d7d85; flex-shrink: 0; }
+  .reconcile-bar-detail { font-size: 12px; color: #7d7d85; flex: 1; }
 
   /* Sidebar layout */
   .layout { display: flex; min-height: 100vh; }
   .sidebar {
     width: 200px;
     flex-shrink: 0;
-    background: #18181b;
-    border-right: 1px solid #27272a;
+    background: #13141c;
+    border-right: 1px solid #1f222e;
     display: flex;
     flex-direction: column;
     position: sticky;
@@ -976,10 +979,10 @@ const uiHTML = `<!DOCTYPE html>
     align-items: center;
     gap: 10px;
     padding: 20px 16px;
-    border-bottom: 1px solid #27272a;
+    border-bottom: 1px solid #1f222e;
   }
   .sidebar-logo-text { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
-  .sidebar-logo-text span { color: #FB326E; }
+  .sidebar-logo-text span { color: #ff8b59; }
   .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
   .sidebar-item {
     display: flex;
@@ -989,7 +992,7 @@ const uiHTML = `<!DOCTYPE html>
     border-radius: 6px;
     font-size: 13px;
     font-weight: 500;
-    color: #a1a1aa;
+    color: #9fa1a6;
     cursor: pointer;
     text-decoration: none;
     transition: background 0.15s, color 0.15s;
@@ -998,60 +1001,44 @@ const uiHTML = `<!DOCTYPE html>
     width: 100%;
     text-align: left;
   }
-  .sidebar-item:hover { background: #27272a; color: #e4e4e7; }
-  .sidebar-item.active { background: #27272a; color: #fff; }
-  .sidebar-item.active .sidebar-item-icon { color: #FB326E; }
+  .sidebar-item:hover { background: #1f222e; color: #e8e8e9; }
+  .sidebar-item.active { background: #1f222e; color: #e8e8e9; border-left: 2px solid #ff8b59; padding-left: 10px; }
+  .sidebar-item.active .sidebar-item-icon { color: #ff8b59; }
   .sidebar-item-icon { font-size: 15px; width: 20px; text-align: center; }
-  .sidebar-sep { height: 1px; background: #27272a; margin: 6px 8px; }
-  .sidebar-group-arrow { margin-left: auto; font-size: 11px; color: #52525b; transition: transform 0.15s; }
+  .sidebar-sep { height: 1px; background: #1f222e; margin: 6px 8px; }
+  .sidebar-group-arrow { margin-left: auto; font-size: 11px; color: #5b5c64; transition: transform 0.15s; }
   .sidebar-subgroup { display: none; flex-direction: column; gap: 2px; padding-left: 4px; }
   .sidebar-subgroup.open { display: flex; }
   .sidebar-subitem { padding-left: 24px !important; }
-  .sidebar.collapsed .sidebar-group-arrow { display: none; }
-  .sidebar.collapsed .sidebar-subgroup { display: none !important; }
-  .sidebar-toggle { flex-shrink: 0; background: none; border: none; cursor: pointer; color: #71717a; font-size: 15px; padding: 2px 5px; border-radius: 4px; transition: color 0.15s, background 0.15s; margin-left: auto; line-height: 1; }
-  .sidebar-toggle:hover { color: #e4e4e7; background: #27272a; }
-  .sidebar.collapsed { width: 56px; }
-  .sidebar.collapsed .sidebar-logo-img { display: none; }
-  .sidebar.collapsed .sidebar-logo-text { display: none; }
-  .sidebar.collapsed .sidebar-logo { justify-content: center; padding: 16px 0; }
-  .sidebar.collapsed .sidebar-toggle { margin-left: 0; }
-  .sidebar.collapsed .sidebar-item-label { display: none; }
-  .sidebar.collapsed .sidebar-item { justify-content: center; padding: 9px 0; gap: 0; }
-  .sidebar.collapsed .sidebar-item-icon { width: auto; }
-  .sidebar.collapsed .sidebar-nav { padding: 12px 4px; }
-  .sidebar.collapsed .sidebar-footer { padding: 8px 4px; }
-  .sidebar-user { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #27272a; }
+  .sidebar-user { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #1f222e; }
   .sidebar-user-icon { width: 28px; height: 28px; flex-shrink: 0; opacity: 0.45; filter: invert(1); }
   .sidebar-user-text { flex: 1; min-width: 0; }
-  .sidebar-user-label { font-size: 10px; color: #52525b; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
-  .sidebar-user-name { font-size: 12px; font-weight: 500; color: #a1a1aa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sidebar.collapsed .sidebar-user-text { display: none; }
-  .sidebar.collapsed .sidebar-user { justify-content: center; padding: 10px 0; }
+  .sidebar-user-label { font-size: 10px; color: #5b5c64; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+  .sidebar-user-name { font-size: 12px; font-weight: 500; color: #9fa1a6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .main-content { flex: 1; min-width: 0; padding-bottom: 36px; }
-  .placeholder-page { padding: 64px 24px; text-align: center; color: #52525b; }
+  .placeholder-page { padding: 64px 24px; text-align: center; color: #5b5c64; }
   .placeholder-page .placeholder-icon { font-size: 40px; margin-bottom: 16px; }
-  .placeholder-page .placeholder-title { font-size: 16px; font-weight: 600; color: #71717a; margin-bottom: 8px; }
+  .placeholder-page .placeholder-title { font-size: 16px; font-weight: 600; color: #7d7d85; margin-bottom: 8px; }
   .placeholder-page .placeholder-sub { font-size: 13px; }
 
   /* Repo CRUD */
   .btn-tooltip { position:relative; }
-  .btn-tooltip::after { content:attr(data-tooltip); position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); background:#FB326E; color:#fff; font-size:11px; white-space:nowrap; padding:4px 8px; border-radius:4px; pointer-events:none; opacity:0; transition:opacity 0.15s; z-index:100; }
+  .btn-tooltip::after { content:attr(data-tooltip); position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); background:#ff8b59; color:#fff; font-size:11px; white-space:nowrap; padding:4px 8px; border-radius:4px; pointer-events:none; opacity:0; transition:opacity 0.15s; z-index:100; }
   .btn-tooltip:hover::after { opacity:1; }
   .info-card-actions { display:flex; gap:6px; margin-top:10px; justify-content:flex-end; }
   .repo-modal-wrap { display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.7); align-items:center; justify-content:center; }
   .repo-modal-wrap.show { display:flex; }
-  .repo-modal-box { background:#27272a; border:1px solid #3f3f46; border-radius:12px; width:480px; max-width:94vw; padding:28px; max-height:90vh; overflow-y:auto; }
+  .repo-modal-box { background:#1f222e; border:1px solid #2c2e38; border-radius:12px; width:480px; max-width:94vw; padding:28px; max-height:90vh; overflow-y:auto; }
   .repo-modal-title { font-size:16px; font-weight:600; color:#fff; margin-bottom:20px; }
   .repo-form-group { margin-bottom:14px; }
-  .repo-form-label { display:block; font-size:12px; color:#a1a1aa; margin-bottom:5px; }
-  .repo-form-input { width:100%; background:#18181b; border:1px solid #3f3f46; border-radius:6px; color:#e4e4e7; font-size:13px; padding:7px 10px; box-sizing:border-box; transition:border-color 0.15s; }
-  .repo-form-input:focus { outline:none; border-color:#FB326E; }
+  .repo-form-label { display:block; font-size:12px; color:#9fa1a6; margin-bottom:5px; }
+  .repo-form-input { width:100%; background:#13141c; border:1px solid #2c2e38; border-radius:6px; color:#e8e8e9; font-size:13px; padding:7px 10px; box-sizing:border-box; transition:border-color 0.15s; }
+  .repo-form-input:focus { outline:none; border-color:#ff8b59; }
   .repo-form-input:disabled { opacity:0.5; cursor:not-allowed; }
   .repo-token-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
   .repo-form-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
   .pw-checks { display:flex; flex-direction:column; gap:5px; margin:0 0 16px; }
-  .pw-check { display:flex; align-items:center; gap:8px; font-size:12px; color:#52525b; transition:color 0.15s; }
+  .pw-check { display:flex; align-items:center; gap:8px; font-size:12px; color:#5b5c64; transition:color 0.15s; }
   .pw-check.met { color:#4ade80; }
   .pw-check-icon { font-size:11px; width:12px; flex-shrink:0; }
   .repo-form-error { color:#f87171; font-size:12px; margin-top:8px; }
@@ -1060,21 +1047,21 @@ const uiHTML = `<!DOCTYPE html>
   .cluster-detail-header-wrap { padding:24px 24px 0; flex-shrink:0; }
   .cluster-detail-header-wrap .header { margin-bottom:0; }
   .cluster-detail-page { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
-  .cluster-detail-strip { display:flex; align-items:stretch; flex-shrink:0; border-bottom:1px solid #27272a; background:#27272a; overflow-x:auto; }
+  .cluster-detail-strip { display:flex; align-items:stretch; flex-shrink:0; border-bottom:1px solid #1f222e; background:#1f222e; overflow-x:auto; }
   .detail-strip-item { display:flex; flex-direction:column; justify-content:flex-start; align-items:flex-start; padding:10px 12px; min-width:max-content; overflow:hidden; }
-  .detail-strip-sep { width:1px; background:#3f3f46; flex-shrink:0; }
-  .detail-strip-label { font-size:10px; text-transform:uppercase; letter-spacing:0.08em; color:#71717a; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid #3f3f46; white-space:nowrap; align-self:stretch; }
-  .detail-strip-value { font-size:13px; font-weight:600; color:#e4e4e7; white-space:nowrap; width:100%; overflow:hidden; text-overflow:ellipsis; }
-  .cluster-detail-tabs-bar { display:flex; gap:0; flex-shrink:0; border-bottom:1px solid #27272a; padding:0 16px; background:#1b1b1d; align-items:center; }
-  .cluster-detail-tab { background:none; border:none; color:#a1a1aa; padding:10px 14px; font-size:13px; font-weight:500; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.15s; }
-  .cluster-detail-tab:hover { color:#e4e4e7; }
-  .cluster-detail-tab.active { color:#FB326E; border-bottom-color:#FB326E; }
-  .cluster-detail-body { flex:1; min-height:0; overflow-y:auto; font-family:'SF Mono','Fira Code',monospace; font-size:13px; line-height:1.6; color:#e4e4e7; white-space:pre-wrap; word-break:break-all; }
+  .detail-strip-sep { width:1px; background:#2c2e38; flex-shrink:0; }
+  .detail-strip-label { font-size:10px; text-transform:uppercase; letter-spacing:0.08em; color:#7d7d85; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid #2c2e38; white-space:nowrap; align-self:stretch; }
+  .detail-strip-value { font-size:13px; font-weight:600; color:#e8e8e9; white-space:nowrap; width:100%; overflow:hidden; text-overflow:ellipsis; }
+  .cluster-detail-tabs-bar { display:flex; gap:0; flex-shrink:0; border-bottom:1px solid #1f222e; padding:0 16px; background:#101118; align-items:center; }
+  .cluster-detail-tab { background:none; border:none; color:#9fa1a6; padding:10px 14px; font-size:13px; font-weight:500; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.15s; }
+  .cluster-detail-tab:hover { color:#e8e8e9; }
+  .cluster-detail-tab.active { color:#ff8b59; border-bottom-color:#ff8b59; }
+  .cluster-detail-body { flex:1; min-height:0; overflow-y:auto; font-family:'SF Mono','Fira Code',monospace; font-size:13px; line-height:1.6; color:#e8e8e9; white-space:pre-wrap; word-break:break-all; }
   .cluster-detail-body.graph-mode { padding:0; overflow:hidden; display:flex; flex-direction:column; white-space:normal; word-break:normal; }
   .cluster-detail-body.mc-live-mode { white-space:normal; word-break:normal; }
   .cluster-detail-body::-webkit-scrollbar { width:8px; }
-  .cluster-detail-body::-webkit-scrollbar-track { background:#1b1b1d; }
-  .cluster-detail-body::-webkit-scrollbar-thumb { background:#3f3f46; border-radius:4px; }
+  .cluster-detail-body::-webkit-scrollbar-track { background:#101118; }
+  .cluster-detail-body::-webkit-scrollbar-thumb { background:#2c2e38; border-radius:4px; }
 
   /* Omni connectivity alert bar */
   .omni-alert-bar {
@@ -1098,7 +1085,7 @@ const uiHTML = `<!DOCTYPE html>
 </style>
 </head>
 <body>
-<div class="loading-overlay" id="loading-overlay">
+<div class="loading-overlay" id="loading-overlay" style="display:none">
   <div class="loading-spinner-large"></div>
   <div class="loading-overlay-title"><img src="{{OMNI_LOGO_URI}}" alt="Omni" style="width:24px;height:24px;vertical-align:middle;margin-right:8px;">OmniCD is starting up...</div>
   <div class="loading-overlay-sub">This may take a moment</div>
@@ -1135,10 +1122,10 @@ const uiHTML = `<!DOCTYPE html>
       <label class="repo-form-label">Access Token</label>
       <div class="repo-token-row">
         <input type="checkbox" id="rm-set-token" />
-        <label for="rm-set-token" style="font-size:12px;color:#a1a1aa" id="rm-set-token-label">Set access token</label>
+        <label for="rm-set-token" style="font-size:12px;color:#9fa1a6" id="rm-set-token-label">Set access token</label>
       </div>
       <input class="repo-form-input" id="rm-token" type="password" placeholder="Personal access token" style="display:none" />
-      <div style="font-size:11px;color:#71717a;margin-top:4px" id="rm-token-hint"></div>
+      <div style="font-size:11px;color:#7d7d85;margin-top:4px" id="rm-token-hint"></div>
     </div>
     <div class="repo-form-group">
       <label class="repo-form-label" for="rm-clusters">Clusters Path</label>
@@ -1167,7 +1154,7 @@ const uiHTML = `<!DOCTYPE html>
     </div>
     <div class="repo-form-group">
       <label class="repo-form-label">New Password</label>
-      <input class="repo-form-input" id="chpw-new" type="password" placeholder="••••••••" autocomplete="new-password" oninput="updateChpwChecks(this.value);document.getElementById('chpw-confirm-msg').textContent=document.getElementById('chpw-confirm').value?(document.getElementById('chpw-confirm').value===this.value?'✓ Passwords match':'✗ Passwords do not match'):'';document.getElementById('chpw-confirm-msg').style.color=document.getElementById('chpw-confirm').value===this.value?'#4ade80':'#f87171';">
+      <input class="repo-form-input" id="chpw-new" type="password" placeholder="••••••••" autocomplete="new-password" oninput="updateChpwChecks(this.value);document.getElementById('chpw-confirm-msg').innerHTML=document.getElementById('chpw-confirm').value?(document.getElementById('chpw-confirm').value===this.value?window.__syncedIcon+' Passwords match':window.__failedIcon+' Passwords do not match'):'';document.getElementById('chpw-confirm-msg').style.color=document.getElementById('chpw-confirm').value===this.value?'#4ade80':'#f87171';">
     </div>
     <div class="pw-checks" style="margin:0 0 12px;">
       <div class="pw-check" id="chpw-chk-len"><span class="pw-check-icon">✗</span>12 characters or more</div>
@@ -1177,7 +1164,7 @@ const uiHTML = `<!DOCTYPE html>
     </div>
     <div class="repo-form-group">
       <label class="repo-form-label">Confirm New Password</label>
-      <input class="repo-form-input" id="chpw-confirm" type="password" placeholder="••••••••" autocomplete="new-password" oninput="var m=document.getElementById('chpw-confirm-msg');if(!this.value){m.textContent='';return;}var match=this.value===document.getElementById('chpw-new').value;m.style.color=match?'#4ade80':'#f87171';m.textContent=match?'✓ Passwords match':'✗ Passwords do not match';">
+      <input class="repo-form-input" id="chpw-confirm" type="password" placeholder="••••••••" autocomplete="new-password" oninput="var m=document.getElementById('chpw-confirm-msg');if(!this.value){m.innerHTML='';return;}var match=this.value===document.getElementById('chpw-new').value;m.style.color=match?'#4ade80':'#f87171';m.innerHTML=match?window.__syncedIcon+' Passwords match':window.__failedIcon+' Passwords do not match';">
       <div id="chpw-confirm-msg" style="font-size:12px;margin-top:6px;min-height:16px;"></div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
@@ -1214,27 +1201,27 @@ const uiHTML = `<!DOCTYPE html>
       <label class="repo-form-label">Role</label>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
         <div id="oidc-role-opt-admin" onclick="window.__selectOIDCRole('admin')"
-          style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid #3f3f46;cursor:pointer;transition:border-color 0.15s,background 0.15s;">
-          <div style="width:10px;height:10px;border-radius:50%;background:#FB326E;flex-shrink:0;"></div>
+          style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid #2c2e38;cursor:pointer;transition:border-color 0.15s,background 0.15s;">
+          <div style="width:10px;height:10px;border-radius:50%;background:#ff8b59;flex-shrink:0;"></div>
           <div>
-            <div style="font-size:13px;font-weight:600;color:#FB326E;">Admin</div>
-            <div style="font-size:11px;color:#71717a;">Full access — can change settings and trigger actions</div>
+            <div style="font-size:13px;font-weight:600;color:#ff8b59;">Admin</div>
+            <div style="font-size:11px;color:#7d7d85;">Full access — can change settings and trigger actions</div>
           </div>
         </div>
         <div id="oidc-role-opt-viewer" onclick="window.__selectOIDCRole('viewer')"
-          style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid #3f3f46;cursor:pointer;transition:border-color 0.15s,background 0.15s;">
+          style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid #2c2e38;cursor:pointer;transition:border-color 0.15s,background 0.15s;">
           <div style="width:10px;height:10px;border-radius:50%;background:#22c55e;flex-shrink:0;"></div>
           <div>
             <div style="font-size:13px;font-weight:600;color:#22c55e;">Viewer</div>
-            <div style="font-size:11px;color:#71717a;">Read-only access — can view clusters and logs</div>
+            <div style="font-size:11px;color:#7d7d85;">Read-only access — can view clusters and logs</div>
           </div>
         </div>
         <div id="oidc-role-opt-none" onclick="window.__selectOIDCRole('none')"
-          style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid #3f3f46;cursor:pointer;transition:border-color 0.15s,background 0.15s;">
-          <div style="width:10px;height:10px;border-radius:50%;background:#71717a;flex-shrink:0;"></div>
+          style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid #2c2e38;cursor:pointer;transition:border-color 0.15s,background 0.15s;">
+          <div style="width:10px;height:10px;border-radius:50%;background:#7d7d85;flex-shrink:0;"></div>
           <div>
-            <div style="font-size:13px;font-weight:600;color:#71717a;">No Access</div>
-            <div style="font-size:11px;color:#71717a;">Cannot log in — redirected to the access denied page</div>
+            <div style="font-size:13px;font-weight:600;color:#7d7d85;">No Access</div>
+            <div style="font-size:11px;color:#7d7d85;">Cannot log in — redirected to the access denied page</div>
           </div>
         </div>
       </div>
@@ -1248,8 +1235,8 @@ const uiHTML = `<!DOCTYPE html>
 <div id="delete-oidc-user-modal" class="repo-modal-wrap">
   <div class="repo-modal-box">
     <div class="repo-modal-title">Delete SSO User</div>
-    <p style="font-size:13px;color:#a1a1aa;margin-bottom:4px;">Delete SSO User <span id="delete-oidc-user-email-label" style="color:#fff;font-weight:600;"></span>?</p>
-    <p style="font-size:13px;color:#71717a;margin-bottom:20px;">They will be removed from the user list and their active session will be invalidated.</p>
+    <p style="font-size:13px;color:#9fa1a6;margin-bottom:4px;">Delete SSO User <span id="delete-oidc-user-email-label" style="color:#fff;font-weight:600;"></span>?</p>
+    <p style="font-size:13px;color:#7d7d85;margin-bottom:20px;">They will be removed from the user list and their active session will be invalidated.</p>
     <div id="delete-oidc-user-error" style="color:#f87171;font-size:13px;min-height:18px;margin-bottom:8px;"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;">
       <button class="btn-sort btn-primary" onclick="window.__closeDeleteOIDCUser()">Cancel</button>
@@ -1267,7 +1254,7 @@ const uiHTML = `<!DOCTYPE html>
     <div class="repo-form-group">
       <label class="repo-form-label" for="oim-key">Service Account Key</label>
       <input class="repo-form-input" id="oim-key" type="password" placeholder="Paste service account key" />
-      <div style="font-size:11px;color:#71717a;margin-top:4px" id="oim-key-hint"></div>
+      <div style="font-size:11px;color:#7d7d85;margin-top:4px" id="oim-key-hint"></div>
     </div>
     <div id="oim-test-result" style="display:none;margin-top:4px;font-size:12px"></div>
     <div class="repo-form-error" id="oim-form-error" style="display:none"></div>
@@ -1290,6 +1277,9 @@ const uiHTML = `<!DOCTYPE html>
   var userRole = '{{USER_ROLE}}'; // "admin" or "viewer"
   var isAdmin = userRole === 'admin';
   if (footerEl) footerEl.textContent = 'Omni CD ' + appVersion + ' · Real-time updates';
+  var syncedIcon    = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.4731 2.53338C9.30774 2.0062 8.00444 1.8652 6.75333 2.13095C5.50222 2.39671 4.36877 3.05531 3.51836 4.01067C2.66795 4.96603 2.14508 6.16814 2.02605 7.44161C1.90701 8.71509 2.19804 9.99328 2.85667 11.0897C3.5153 12.1861 4.50707 13.0433 5.68725 13.5364C6.86744 14.0294 8.1743 14.1323 9.41713 13.8302C10.66 13.5282 11.7738 12.8368 12.596 11.8571C13.4182 10.8774 13.9058 9.66053 13.9877 8.38413C14.0054 8.10855 14.2431 7.89948 14.5187 7.91716C14.7943 7.93484 15.0033 8.17257 14.9856 8.44815C14.8901 9.93728 14.3212 11.3569 13.362 12.4999C12.4027 13.643 11.1033 14.4495 9.65332 14.802C8.20334 15.1544 6.67868 15.0343 5.3018 14.4591C3.92491 13.8839 2.76785 12.8838 1.99945 11.6046C1.23105 10.3255 0.891515 8.83427 1.03039 7.34855C1.16926 5.86283 1.77927 4.46036 2.77141 3.34578C3.76356 2.2312 5.08592 1.46282 6.54555 1.15278C8.00518 0.842728 9.52569 1.00723 10.8852 1.62227C11.1368 1.73609 11.2485 2.03232 11.1347 2.28391C11.0209 2.53551 10.7247 2.6472 10.4731 2.53338Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M13.8536 4.14645C14.0488 4.34171 14.0488 4.65829 13.8536 4.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L5.14645 7.85355C4.95118 7.65829 4.95118 7.34171 5.14645 7.14645C5.34171 6.95118 5.65829 6.95118 5.85355 7.14645L8 9.29289L13.1464 4.14645C13.3417 3.95118 13.6583 3.95118 13.8536 4.14645Z"/></svg>';
+  var outOfSyncIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px"><path d="M2.09 6.96 A6 6 0 0 1 13.8 6.45 L13.23 8.46 L12.35 6.84 A4.5 4.5 0 0 0 3.57 7.22 Z"/><path d="M13.91 9.04 A6 6 0 0 1 2.2 9.55 L2.77 7.54 L3.65 9.16 A4.5 4.5 0 0 0 12.43 8.78 Z"/></svg>';
+  var failedIcon    = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.4731 2.53338C9.30774 2.0062 8.00444 1.8652 6.75333 2.13095C5.50222 2.39671 4.36877 3.05531 3.51836 4.01067C2.66795 4.96603 2.14508 6.16814 2.02605 7.44161C1.90701 8.71509 2.19804 9.99328 2.85667 11.0897C3.5153 12.1861 4.50707 13.0433 5.68725 13.5364C6.86744 14.0294 8.1743 14.1323 9.41713 13.8302C10.66 13.5282 11.7738 12.8368 12.596 11.8571C13.4182 10.8774 13.9058 9.66053 13.9877 8.38413C14.0054 8.10855 14.2431 7.89948 14.5187 7.91716C14.7943 7.93484 15.0033 8.17257 14.9856 8.44815C14.8901 9.93728 14.3212 11.3569 13.362 12.4999C12.4027 13.643 11.1033 14.4495 9.65332 14.802C8.20334 15.1544 6.67868 15.0343 5.3018 14.4591C3.92491 13.8839 2.76785 12.8838 1.99945 11.6046C1.23105 10.3255 0.891515 8.83427 1.03039 7.34855C1.16926 5.86283 1.77927 4.46036 2.77141 3.34578C3.76356 2.2312 5.08592 1.46282 6.54555 1.15278C8.00518 0.842728 9.52569 1.00723 10.8852 1.62227C11.1368 1.73609 11.2485 2.03232 11.1347 2.28391C11.0209 2.53551 10.7247 2.6472 10.4731 2.53338Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M5.14645 5.14645C5.34171 4.95118 5.65829 4.95118 5.85355 5.14645L8 7.29289L10.1464 5.14645C10.3417 4.95118 10.6583 4.95118 10.8536 5.14645C11.0488 5.34171 11.0488 5.65829 10.8536 5.85355L8.70711 8L10.8536 10.1464C11.0488 10.3417 11.0488 10.6583 10.8536 10.8536C10.6583 11.0488 10.3417 11.0488 10.1464 10.8536L8 8.70711L5.85355 10.8536C5.65829 11.0488 5.34171 11.0488 5.14645 10.8536C4.95118 10.6583 4.95118 10.3417 5.14645 10.1464L7.29289 8L5.14645 5.85355C4.95118 5.65829 4.95118 5.34171 5.14645 5.14645Z"/></svg>';
   var state = null;
   var loadingOverlay = document.getElementById('loading-overlay');
   var appLoaded = false; // resolved after first state message confirms server start time
@@ -1440,11 +1430,11 @@ const uiHTML = `<!DOCTYPE html>
             ? renderClusterLiveContent(currentModal.liveContent)
             : (currentModal.liveContent
               ? '<pre style="margin:0;white-space:pre-wrap;">' + escHtml(currentModal.liveContent) + '</pre>'
-              : '<div style="color:#71717a;text-align:center;padding:40px;">No live state available</div>'));
+              : '<div style="color:#7d7d85;text-align:center;padding:40px;">No live state available</div>'));
       } else if (tab === 'diff') {
         body.innerHTML = currentModal.diff
           ? (currentModal.type === 'machineclass' ? formatMachineClassDiff(currentModal.diff) : '<pre style="margin:0;white-space:pre-wrap;">' + formatDiff(currentModal.diff) + '</pre>')
-          : '<div style="color:#71717a;text-align:center;padding:40px;">' + (currentModal.status === 'unmanaged' ? 'No diff \u2014 this cluster has no template in Git.' : 'No diff available') + '</div>';
+          : '<div style="color:#7d7d85;text-align:center;padding:40px;">' + (currentModal.status === 'unmanaged' ? 'No diff \u2014 this cluster has no template in Git.' : 'No diff available') + '</div>';
       } else if (tab === 'graph') {
         body.innerHTML = renderClusterGraph(currentModal);
         var inner = body.querySelector('.cluster-graph-inner');
@@ -1456,7 +1446,7 @@ const uiHTML = `<!DOCTYPE html>
           }
         }
       } else {
-        body.innerHTML = '<div style="color:#71717a;text-align:center;padding:40px;">No content available</div>';
+        body.innerHTML = '<div style="color:#7d7d85;text-align:center;padding:40px;">No content available</div>';
       }
       body.scrollTop = 0;
     }
@@ -1467,8 +1457,22 @@ const uiHTML = `<!DOCTYPE html>
     render();
   }
 
+  function navigate(path) {
+    if (currentRoute === path) return;
+    history.pushState(null, '', path);
+    currentRoute = path;
+    var m = currentRoute.match(/^\/clusters\/(.+)$/);
+    clusterDetailId = m ? decodeURIComponent(m[1]) : null;
+    if (clusterDetailId) {
+      clusterDetailTab = 'graph';
+      clusterDetailTabExplicit = false;
+    }
+    document.getElementById('sidebar').innerHTML = renderSidebar();
+    render();
+  }
+
   function navToCluster(id) {
-    window.location.href = '/clusters/' + encodeURIComponent(id);
+    navigate('/clusters/' + encodeURIComponent(id));
   }
 
   function applyDetailPageLayout() {
@@ -1487,35 +1491,35 @@ const uiHTML = `<!DOCTYPE html>
 
   function renderClusterDetailStrip(cluster, s) {
     function cpBadge(val) {
-      if (val === 'ready') return '<span style="color:#4ade80">&#x2713; Ready</span>';
-      if (val === 'not-ready') return '<span style="color:#f87171">&#x2717; Not Ready</span>';
-      return '<span style="color:#52525b">&#x2014;</span>';
+      if (val === 'ready') return '<span style="color:#4ade80">' + syncedIcon + ' Ready</span>';
+      if (val === 'not-ready') return '<span style="color:#f87171">' + failedIcon + ' Not Ready</span>';
+      return '<span style="color:#5b5c64">&#x2014;</span>';
     }
     function statusBadge(val) {
-      if (val === 'ok' || val === 'ready') return '<span style="color:#4ade80">&#x2713; OK</span>';
-      if (val === 'not-ready') return '<span style="color:#f87171">&#x2717; Not Ready</span>';
-      return '<span style="color:#52525b">&#x2014;</span>';
+      if (val === 'ok' || val === 'ready') return '<span style="color:#4ade80">' + syncedIcon + ' OK</span>';
+      if (val === 'not-ready') return '<span style="color:#f87171">' + failedIcon + ' Not Ready</span>';
+      return '<span style="color:#5b5c64">&#x2014;</span>';
     }
     function syncBadge(status) {
-      if (status === 'success' || status === 'applied') return '<span style="color:#4ade80">&#x25cf; Synced</span>';
-      if (status === 'outofsync') return '<span style="color:#fb923c">&#x25cf; Out of Sync</span>';
+      if (status === 'success' || status === 'applied') return '<span style="color:#4ade80">' + syncedIcon + ' Synced</span>';
+      if (status === 'outofsync') return '<span style="color:#fb923c">' + outOfSyncIcon + ' Out of Sync</span>';
       if (status === 'orphaned')  return '<span style="color:#a78bfa">&#x25cf; Orphaned</span>';
-      if (status === 'failed') return '<span style="color:#f87171">&#x25cf; Failed</span>';
+      if (status === 'failed') return '<span style="color:#f87171">' + failedIcon + ' Failed</span>';
       if (status === 'syncing') return '<span style="color:#2dd4bf">&#x25cf; Syncing</span>';
-      if (status === 'unmanaged') return '<span style="color:#52525b">Unmanaged</span>';
-      return '<span style="color:#52525b">&#x2014;</span>';
+      if (status === 'unmanaged') return '<span style="color:#5b5c64">Unmanaged</span>';
+      return '<span style="color:#5b5c64">&#x2014;</span>';
     }
     function formatLastSync(t) {
-      if (!t || t === '0001-01-01T00:00:00Z' || t === '') return '<span style="color:#71717a">Never</span>';
+      if (!t || t === '0001-01-01T00:00:00Z' || t === '') return '<span style="color:#7d7d85">Never</span>';
       var d = new Date(t);
-      if (isNaN(d.getTime())) return '<span style="color:#71717a">Never</span>';
+      if (isNaN(d.getTime())) return '<span style="color:#7d7d85">Never</span>';
       var diff = Date.now() - d.getTime();
       var mins = Math.floor(diff / 60000);
       var hours = Math.floor(mins / 60);
       var days = Math.floor(hours / 24);
-      if (days > 0) return '<span style="color:#e4e4e7">' + days + 'd ago</span>';
-      if (hours > 0) return '<span style="color:#e4e4e7">' + hours + 'h ago</span>';
-      if (mins > 0) return '<span style="color:#e4e4e7">' + mins + 'm ago</span>';
+      if (days > 0) return '<span style="color:#e8e8e9">' + days + 'd ago</span>';
+      if (hours > 0) return '<span style="color:#e8e8e9">' + hours + 'h ago</span>';
+      if (mins > 0) return '<span style="color:#e8e8e9">' + mins + 'm ago</span>';
       return '<span style="color:#4ade80">Just now</span>';
     }
     function si(label, value) {
@@ -1528,7 +1532,7 @@ const uiHTML = `<!DOCTYPE html>
       ? (healthy === total
           ? '<span style="color:#4ade80">' + healthy + ' / ' + total + '</span>'
           : '<span style="color:#fb923c">' + healthy + ' / ' + total + '</span>')
-      : '<span style="color:#52525b">&#x2014;</span>';
+      : '<span style="color:#5b5c64">&#x2014;</span>';
     var clusterRepo = null;
     if (cluster.repoName && s && s.repos) {
       clusterRepo = s.repos.find(function(r) { return r.name === cluster.repoName; }) || null;
@@ -1542,7 +1546,7 @@ const uiHTML = `<!DOCTYPE html>
       if (phase === 'destroying')    return '<span style="color:#f43f5e">&#x2715; Destroying</span>';
       if (phase === 'reconfiguring') return '<span style="color:#a78bfa">&#x21bb; Reconfiguring</span>';
       if (phase === 'running')       return '<span style="color:#4ade80">&#x25cf; Running</span>';
-      return '<span style="color:#52525b">&#x2014;</span>';
+      return '<span style="color:#5b5c64">&#x2014;</span>';
     }
     var activePhase = cluster.clusterPhase && cluster.clusterPhase !== 'running' && cluster.clusterPhase !== 'unknown';
     var phaseRow = activePhase ? si('Phase', phaseBadge(cluster.clusterPhase)) + sep : '';
@@ -1554,11 +1558,11 @@ const uiHTML = `<!DOCTYPE html>
       si('Wireguard', statusBadge(cluster.wireGuardStatus)) + sep +
       si('Machines', machinesVal) + sep +
       (function() {
-        var sub = 'style="font-size:11px;color:#71717a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%"';
+        var sub = 'style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%"';
         if (cluster.status === 'unmanaged') {
           return '<div class="detail-strip-item" style="min-width:160px">' +
             '<div class="detail-strip-label">Sync Status</div>' +
-            '<div class="detail-strip-value"><span style="color:#52525b">&#x2014;</span></div>' +
+            '<div class="detail-strip-value"><span style="color:#5b5c64">&#x2014;</span></div>' +
           '</div>';
         }
         if (repoDisconnected) {
@@ -1573,7 +1577,7 @@ const uiHTML = `<!DOCTYPE html>
           : '';
         var commitUrl  = repoUrl && clusterRepo.sha ? escHtml(repoUrl.replace(/\/+$/, '') + '/commit/' + clusterRepo.sha) : '';
         var branchShaLink = branchSha
-          ? (commitUrl ? '<a href="' + commitUrl + '" target="_blank" rel="noopener" style="color:#FB326E;text-decoration:none" onclick="event.stopPropagation()">' + branchSha + '</a>' : '<span style="color:#FB326E">' + branchSha + '</span>')
+          ? (commitUrl ? '<a href="' + commitUrl + '" target="_blank" rel="noopener" style="color:#ff8b59;text-decoration:none" onclick="event.stopPropagation()">' + branchSha + '</a>' : '<span style="color:#ff8b59">' + branchSha + '</span>')
           : '';
         var author  = clusterRepo && clusterRepo.commitAuthor  ? escHtml(clusterRepo.commitAuthor)  : '';
         var message = clusterRepo && clusterRepo.commitMessage ? escHtml(clusterRepo.commitMessage) : '';
@@ -1599,31 +1603,31 @@ const uiHTML = `<!DOCTYPE html>
           '<div class="detail-strip-value">' + syncStatusBadge + '</div>' +
           sinceLine +
           (author  ? '<div ' + sub + '>Author: ' + author + '</div>' : '') +
-          (message ? '<div ' + sub + ' style="font-size:11px;color:#71717a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: ' + message + '</div>' : '') +
+          (message ? '<div ' + sub + ' style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: ' + message + '</div>' : '') +
         '</div>';
       })() + sep +
       (function() {
-        var sub = 'style="font-size:11px;color:#71717a;margin-top:2px;white-space:nowrap"';
+        var sub = 'style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap"';
         if (cluster.status === 'unmanaged') {
           return '<div class="detail-strip-item" style="min-width:140px">' +
             '<div class="detail-strip-label">Last Sync Result</div>' +
-            '<div class="detail-strip-value"><span style="color:#52525b">&#x2014;</span></div>' +
+            '<div class="detail-strip-value"><span style="color:#5b5c64">&#x2014;</span></div>' +
           '</div>';
         }
         if (!cluster.lastSyncResult) {
           return '<div class="detail-strip-item" style="min-width:140px">' +
             '<div class="detail-strip-label">Last Sync Result</div>' +
-            '<div class="detail-strip-value"><span style="color:#52525b">&#x2014;</span></div>' +
+            '<div class="detail-strip-value"><span style="color:#5b5c64">&#x2014;</span></div>' +
           '</div>';
         }
         var lastSyncRepoUrl = clusterRepo && clusterRepo.repo ? clusterRepo.repo.replace(/\/+$/, '') : '';
         var shortSyncSHA = cluster.lastSyncSHA ? cluster.lastSyncSHA.slice(0, 8) : '';
         var shaLink = shortSyncSHA
-          ? (' to ' + (lastSyncRepoUrl ? '<a href="' + escHtml(lastSyncRepoUrl + '/commit/' + cluster.lastSyncSHA) + '" target="_blank" rel="noopener" style="color:#FB326E;text-decoration:none" onclick="event.stopPropagation()">' + escHtml(shortSyncSHA) + '</a>' : '<span style="color:#FB326E">' + escHtml(shortSyncSHA) + '</span>'))
+          ? (' to ' + (lastSyncRepoUrl ? '<a href="' + escHtml(lastSyncRepoUrl + '/commit/' + cluster.lastSyncSHA) + '" target="_blank" rel="noopener" style="color:#ff8b59;text-decoration:none" onclick="event.stopPropagation()">' + escHtml(shortSyncSHA) + '</a>' : '<span style="color:#ff8b59">' + escHtml(shortSyncSHA) + '</span>'))
           : '';
         var resultBadge = cluster.lastSyncResult === 'ok'
-          ? '<span style="color:#4ade80">&#x2713; Sync OK</span>' + shaLink
-          : '<span style="color:#f87171">&#x2717; Sync Failed</span>&nbsp;<button class="btn-sort" style="font-size:10px;padding:1px 6px;margin-left:4px" onclick="event.stopPropagation();window.__showSyncErrorModal()">Details</button>';
+          ? '<span style="color:#4ade80">' + syncedIcon + ' Sync OK</span>' + shaLink
+          : '<span style="color:#f87171">' + failedIcon + ' Sync Failed</span>&nbsp;<button class="btn-sort" style="font-size:10px;padding:1px 6px;margin-left:4px" onclick="event.stopPropagation();window.__showSyncErrorModal()">Details</button>';
         var verb = cluster.lastSyncResult === 'ok' ? 'Succeeded ' : 'Failed ';
         var dateStr = cluster.lastSyncTime ? (verb + relTime(cluster.lastSyncTime)) : '';
         var author  = cluster.lastSyncAuthor  ? escHtml(cluster.lastSyncAuthor)  : '';
@@ -1638,7 +1642,7 @@ const uiHTML = `<!DOCTYPE html>
           '<div class="detail-strip-value">' + resultBadge + '</div>' +
           (dateStr  ? '<div ' + sub + '>' + escHtml(dateStr) + '</div>' : '') +
           (author   ? '<div ' + sub + '>Author: ' + author + '</div>' : '') +
-          (message  ? '<div ' + sub + ' style="font-size:11px;color:#71717a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: ' + message + '</div>' : '') +
+          (message  ? '<div ' + sub + ' style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: ' + message + '</div>' : '') +
         '</div>';
       })();
   }
@@ -1673,7 +1677,7 @@ const uiHTML = `<!DOCTYPE html>
       } else if (tab === 'diff') {
         body.innerHTML = cluster.diff
           ? '<pre style="margin:0;padding:24px;white-space:pre-wrap;">' + formatDiff(cluster.diff) + '</pre>'
-          : '<div style="color:#71717a;text-align:center;padding:40px;">' + (cluster.status === 'unmanaged' ? 'No diff \u2014 this cluster has no template in Git.' : 'No diff available') + '</div>';
+          : '<div style="color:#7d7d85;text-align:center;padding:40px;">' + (cluster.status === 'unmanaged' ? 'No diff \u2014 this cluster has no template in Git.' : 'No diff available') + '</div>';
       }
       body.scrollTop = 0;
     }
@@ -1709,7 +1713,7 @@ const uiHTML = `<!DOCTYPE html>
       } else if (clusterDetailTab === 'diff') {
         body.innerHTML = cluster.diff
           ? '<pre style="margin:0;padding:24px;white-space:pre-wrap;">' + formatDiff(cluster.diff) + '</pre>'
-          : '<div style="color:#71717a;text-align:center;padding:40px;">' + (cluster.status === 'unmanaged' ? 'No diff \u2014 this cluster has no template in Git.' : 'No diff available') + '</div>';
+          : '<div style="color:#7d7d85;text-align:center;padding:40px;">' + (cluster.status === 'unmanaged' ? 'No diff \u2014 this cluster has no template in Git.' : 'No diff available') + '</div>';
       }
     }
   }
@@ -1717,15 +1721,15 @@ const uiHTML = `<!DOCTYPE html>
   function renderClusterDetailPage(s) {
     var cluster = s.clusters && s.clusters.find(function(c) { return c.id === clusterDetailId; });
     if (!cluster) {
-      return '<div style="padding:40px;text-align:center;color:#52525b">Cluster not found: ' + escHtml(clusterDetailId || '') + '</div>';
+      return '<div style="padding:40px;text-align:center;color:#5b5c64">Cluster not found: ' + escHtml(clusterDetailId || '') + '</div>';
     }
-    var statusText = '', statusColor = '#71717a';
-    if (cluster.status === 'unmanaged')                                    { statusText = 'unmanaged';     statusColor = '#52525b'; }
-    else if (cluster.status === 'outofsync')                               { statusText = '● out of sync'; statusColor = '#fb923c'; }
+    var statusText = '', statusColor = '#7d7d85';
+    if (cluster.status === 'unmanaged')                                    { statusText = 'unmanaged';     statusColor = '#5b5c64'; }
+    else if (cluster.status === 'outofsync')                               { statusText = outOfSyncIcon + ' out of sync'; statusColor = '#fb923c'; }
     else if (cluster.status === 'orphaned')                                { statusText = '● orphaned';    statusColor = '#a78bfa'; }
-    else if (cluster.status === 'failed')                                  { statusText = '● failed';      statusColor = '#f87171'; }
+    else if (cluster.status === 'failed')                                  { statusText = failedIcon + ' failed';      statusColor = '#f87171'; }
     else if (cluster.status === 'syncing')                                 { statusText = '● syncing';     statusColor = '#2dd4bf'; }
-    else if (cluster.status === 'success' || cluster.status === 'applied') { statusText = '● synced';      statusColor = '#4ade80'; }
+    else if (cluster.status === 'success' || cluster.status === 'applied') { statusText = syncedIcon + ' synced';      statusColor = '#4ade80'; }
     var isRunning = s.lastReconcile && s.lastReconcile.status === 'running';
     var tabs = ['graph', 'live', 'diff'];
     if (!clusterDetailTabExplicit || tabs.indexOf(clusterDetailTab) < 0) clusterDetailTab = 'graph';
@@ -1743,7 +1747,7 @@ const uiHTML = `<!DOCTYPE html>
     } else {
       bodyContent = cluster.diff
         ? '<pre style="margin:0;padding:24px;white-space:pre-wrap;">' + formatDiff(cluster.diff) + '</pre>'
-        : '<div style="color:#71717a;text-align:center;padding:40px;">' + (cluster.status === 'unmanaged' ? 'No diff — this cluster has no template in Git.' : 'No diff available') + '</div>';
+        : '<div style="color:#7d7d85;text-align:center;padding:40px;">' + (cluster.status === 'unmanaged' ? 'No diff — this cluster has no template in Git.' : 'No diff available') + '</div>';
     }
     var omniEndpoint = (s && s.omniEndpoint) || '';
     var clusterActions = '<div class="cluster-card-actions" style="padding:10px 0 10px 24px">' +
@@ -1955,7 +1959,7 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   function renderMcLiveContent(content) {
-    if (!content) return '<div style="color:#71717a;text-align:center;padding:40px;">No live state available</div>';
+    if (!content) return '<div style="color:#7d7d85;text-align:center;padding:40px;">No live state available</div>';
     var rows = buildMcRows(content);
     var html = '';
     for (var i = 0; i < rows.length; i++) {
@@ -1967,7 +1971,7 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   function renderClusterLiveContent(content) {
-    if (!content) return '<div style="color:#71717a;text-align:center;padding:40px;">No live state available</div>';
+    if (!content) return '<div style="color:#7d7d85;text-align:center;padding:40px;">No live state available</div>';
     var lines = (content || '').replace(/\\n/g, '\n').split('\n');
     var html = '';
     for (var i = 0; i < lines.length; i++) {
@@ -2209,14 +2213,17 @@ const uiHTML = `<!DOCTYPE html>
     return 'log-info';
   }
 
-  function hideOverlay(animate) {
+  function showOverlay() {
     if (loadingOverlay) {
-      if (animate) {
-        loadingOverlay.classList.add('hidden');
-        setTimeout(function() { loadingOverlay.style.display = 'none'; }, 350);
-      } else {
-        loadingOverlay.style.display = 'none';
-      }
+      loadingOverlay.classList.remove('hidden');
+      loadingOverlay.style.display = '';
+    }
+  }
+
+  function hideOverlay() {
+    if (loadingOverlay) {
+      loadingOverlay.classList.add('hidden');
+      setTimeout(function() { loadingOverlay.style.display = 'none'; }, 350);
     }
   }
 
@@ -2227,16 +2234,15 @@ const uiHTML = `<!DOCTYPE html>
     var serverStart = state.serverStartedAt || '';
     var knownStart  = localStorage.getItem('omniCdServerStart');
     if (serverStart !== knownStart) {
-      // New server session — wait for reconcile to complete, or show the UI
-      // immediately if the app is idle (Omni not yet configured, waiting for UI input).
+      // New server session — show the overlay and wait for reconcile to complete,
+      // or show the UI immediately if the app is idle (Omni not yet configured).
+      showOverlay();
       var status = state.lastReconcile && state.lastReconcile.status;
       if (status !== 'success' && status !== 'failed' && status !== 'idle') return;
       localStorage.setItem('omniCdServerStart', serverStart);
-      hideOverlay(true);
-    } else {
-      // Same server session as last page load — skip overlay immediately.
-      hideOverlay(false);
+      hideOverlay();
     }
+    // Same server session — overlay stays hidden (display:none from HTML).
     appLoaded = true;
   }
 
@@ -2637,11 +2643,11 @@ const uiHTML = `<!DOCTYPE html>
   }
 
   function showClustersView() {
-    window.location.href = '/clusters';
+    navigate('/clusters');
   }
 
   function hideClustersView() {
-    window.location.href = '/clusters';
+    navigate('/clusters');
   }
 
   var settingsOpen = localStorage.getItem('sidebar-settings-open') === '1';
@@ -2669,14 +2675,13 @@ const uiHTML = `<!DOCTYPE html>
     var html = '<div class="sidebar-logo">' +
       '<img class="logo sidebar-logo-img" src="{{OMNI_LOGO_URI}}" alt="Omni">' +
       '<div class="sidebar-logo-text">Omni <span>CD</span></div>' +
-      '<button class="sidebar-toggle" id="sidebar-toggle" onclick="window.__toggleSidebar()" title="Toggle sidebar">‹</button>' +
     '</div>' +
     (loggedInAs ? '<div class="sidebar-user"><img class="sidebar-user-icon" src="{{PROFILE_ICON_URI}}" alt="user"><div class="sidebar-user-text"><div class="sidebar-user-label">Logged in as:</div><div class="sidebar-user-name">' + escHtml(loggedInAs) + '</div></div></div>' : '') +
     '<div class="sidebar-nav">';
     navItems.forEach(function(item) {
       if (!item) { html += '<div class="sidebar-sep"></div>'; return; }
       var isActive = currentRoute === item.href || (item.href !== '/' && currentRoute.startsWith(item.href));
-      html += '<a class="sidebar-item' + (isActive ? ' active' : '') + '" href="' + item.href + '" title="' + item.label + '">' +
+      html += '<a class="sidebar-item' + (isActive ? ' active' : '') + '" href="' + item.href + '" onclick="event.preventDefault();window.__navigate(\'' + item.href + '\')" title="' + item.label + '">' +
         '<span class="sidebar-item-icon">' + item.icon + '</span>' +
         '<span class="sidebar-item-label">' + item.label + '</span>' +
       '</a>';
@@ -2698,7 +2703,7 @@ const uiHTML = `<!DOCTYPE html>
     html += '<div id="settings-subgroup" class="sidebar-subgroup' + (showSettings ? ' open' : '') + '">';
     subItems.forEach(function(item) {
       var isActive = currentRoute === item.href;
-      html += '<a class="sidebar-item sidebar-subitem' + (isActive ? ' active' : '') + '" href="' + item.href + '" title="' + item.label + '">' +
+      html += '<a class="sidebar-item sidebar-subitem' + (isActive ? ' active' : '') + '" href="' + item.href + '" onclick="event.preventDefault();window.__navigate(\'' + item.href + '\')" title="' + item.label + '">' +
         '<span class="sidebar-item-icon">' + item.icon + '</span>' +
         '<span class="sidebar-item-label">' + item.label + '</span>' +
       '</a>';
@@ -2707,7 +2712,7 @@ const uiHTML = `<!DOCTYPE html>
 
     html += '</div>' +
       '<div class="sidebar-footer">' +
-        '<a class="sidebar-item" href="/logout" style="color:#71717a;" title="Sign out">' +
+        '<a class="sidebar-item" href="/logout" style="color:#7d7d85;" title="Sign out">' +
           '<span class="sidebar-item-icon">⏻</span>' +
           '<span class="sidebar-item-label">Sign out</span>' +
         '</a>' +
@@ -2744,7 +2749,7 @@ const uiHTML = `<!DOCTYPE html>
             '<span class="log-msg">' + escHtml(l.message) + '</span>' +
           '</div>';
         }).join('')
-      : '<div class="log-entry" style="color:#52525b">' + (allLogs.length > 0 ? 'No logs match the current filters' : 'No logs yet') + '</div>';
+      : '<div class="log-entry" style="color:#5b5c64">' + (allLogs.length > 0 ? 'No logs match the current filters' : 'No logs yet') + '</div>';
 
     var levels = (s.logLevel === 'DEBUG' ? ['DEBUG'] : []).concat(['INFO', 'WARN', 'ERROR']);
     var levelBtns = levels.map(function(lv) {
@@ -2756,11 +2761,11 @@ const uiHTML = `<!DOCTYPE html>
       components.map(function(c) {
         return '<option value="' + escHtml(c) + '"' + (logsComponentFilter === c ? ' selected' : '') + '>' + escHtml(c) + '</option>';
       }).join('');
-    var componentSelect = '<select onchange="window.__setLogsComponent(this.value)" style="background:#18181b;border:1px solid #3f3f46;border-radius:4px;color:#e4e4e7;font-size:12px;padding:3px 8px;outline:none;font-family:inherit;cursor:pointer">' + componentOpts + '</select>';
+    var componentSelect = '<select onchange="window.__setLogsComponent(this.value)" style="background:#13141c;border:1px solid #2c2e38;border-radius:4px;color:#e8e8e9;font-size:12px;padding:3px 8px;outline:none;font-family:inherit;cursor:pointer">' + componentOpts + '</select>';
 
-    var searchInput = '<input type="text" placeholder="Search logs..." value="' + escHtml(logsSearch) + '" oninput="window.__setLogsSearch(this.value)" style="background:#18181b;border:1px solid #3f3f46;border-radius:4px;color:#e4e4e7;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;" />';
+    var searchInput = '<input type="text" placeholder="Search logs..." value="' + escHtml(logsSearch) + '" oninput="window.__setLogsSearch(this.value)" style="background:#13141c;border:1px solid #2c2e38;border-radius:4px;color:#e8e8e9;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;" />';
 
-    var orderSelect = '<select onchange="window.__setLogsOrder(this.value)" style="background:#18181b;border:1px solid #3f3f46;border-radius:4px;color:#e4e4e7;font-size:12px;padding:3px 8px;outline:none;font-family:inherit;cursor:pointer">' +
+    var orderSelect = '<select onchange="window.__setLogsOrder(this.value)" style="background:#13141c;border:1px solid #2c2e38;border-radius:4px;color:#e8e8e9;font-size:12px;padding:3px 8px;outline:none;font-family:inherit;cursor:pointer">' +
       '<option value="oldest"' + (logsOrder === 'oldest' ? ' selected' : '') + '>Oldest first</option>' +
       '<option value="newest"' + (logsOrder === 'newest' ? ' selected' : '') + '>Newest first</option>' +
       '</select>';
@@ -2769,7 +2774,7 @@ const uiHTML = `<!DOCTYPE html>
       ? '<button class="btn-sort" onclick="window.__clearLogsFilters()" title="Clear filters">✕ Clear</button>'
       : '';
 
-    var countHint = '<span style="font-size:11px;color:#52525b;margin-left:4px">' + filtered.length + ' / ' + allLogs.length + '</span>';
+    var countHint = '<span style="font-size:11px;color:#5b5c64;margin-left:4px">' + filtered.length + ' / ' + allLogs.length + '</span>';
 
     var logsHeader = '<div class="header">' +
       '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Logs</h1>' +
@@ -2822,16 +2827,16 @@ const uiHTML = `<!DOCTYPE html>
             '<span class="badge ' + gitHealthBadgeClass(repoHealth.status) + '">' + repoHealth.label + '</span>' +
           '</div>' +
           '<div class="info-card-value">' +
-            (url ? '<a href="' + escHtml(url) + '" target="_blank" style="color:#FB326E;text-decoration:none">' + escHtml(url) + '</a>' : '—') +
+            (url ? '<a href="' + escHtml(url) + '" target="_blank" style="color:#ff8b59;text-decoration:none">' + escHtml(url) + '</a>' : '—') +
           '</div>' +
           '<div class="info-card-sub">' +
-            'Branch: <b style="color:#a1a1aa">' + escHtml(branch) + '</b>' +
-            (r.shortSha ? ' &nbsp;&middot;&nbsp; SHA <b style="color:#a1a1aa">' + r.shortSha + '</b>' : '') +
+            'Branch: <b style="color:#9fa1a6">' + escHtml(branch) + '</b>' +
+            (r.shortSha ? ' &nbsp;&middot;&nbsp; SHA <b style="color:#9fa1a6">' + r.shortSha + '</b>' : '') +
             (rc.hasToken ? ' &nbsp;&middot;&nbsp; <span style="color:#4ade80;font-size:11px">&#128273; token set</span>' : '') + '<br>' +
             (r.commitMessage ? escHtml(r.commitMessage) + '<br>' : '') +
-            (r.lastSync ? 'Last sync: ' + ago(r.lastSync) : '<span style="color:#52525b">Never synced</span>') +
+            (r.lastSync ? 'Last sync: ' + ago(r.lastSync) : '<span style="color:#5b5c64">Never synced</span>') +
           '</div>' +
-          (function() { var tr = _repoTestResults[name]; return tr ? '<div id="' + cardId + '" style="display:;font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;background:' + (tr.ok ? '#052e16' : '#3f1515') + ';color:' + (tr.ok ? '#4ade80' : '#f87171') + '">' + escHtml(tr.text) + '</div>' : '<div id="' + cardId + '" style="display:none;font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;"></div>'; })() +
+          (function() { var tr = _repoTestResults[name]; return tr ? '<div id="' + cardId + '" style="display:;font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;background:' + (tr.ok ? '#052e16' : '#3f1515') + ';color:' + (tr.ok ? '#4ade80' : '#f87171') + '">' + tr.text + '</div>' : '<div id="' + cardId + '" style="display:none;font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;"></div>'; })() +
           (isAdmin ? '<div class="info-card-actions">' +
             '<button class="btn-sort btn-primary" id="repo-test-card-btn-' + escHtml(name) + '" onclick="window.__testRepoCardConnection(\'' + safeName + '\',\'' + safeUrl + '\',\'' + safeBranch + '\')">Test Connection</button>' +
             '<button class="btn-sort btn-primary" onclick="window.__openRepoModal(\'' + safeName + '\')">Edit</button>' +
@@ -2861,12 +2866,12 @@ const uiHTML = `<!DOCTYPE html>
             '<span class="info-card-title">Omni Instance</span>' +
             '<span class="badge ' + gitHealthBadgeClass(omniHealth.status) + '">' + omniHealth.label + '</span>' +
           '</div>' +
-          '<div class="info-card-value">' + (s.omniEndpoint ? '<a href="' + escHtml(s.omniEndpoint) + '" target="_blank" style="color:#FB326E;text-decoration:none">' + escHtml(s.omniEndpoint) + '</a>' : '<span style="color:#71717a">Not configured</span>') + '</div>' +
+          '<div class="info-card-value">' + (s.omniEndpoint ? '<a href="' + escHtml(s.omniEndpoint) + '" target="_blank" style="color:#ff8b59;text-decoration:none">' + escHtml(s.omniEndpoint) + '</a>' : '<span style="color:#7d7d85">Not configured</span>') + '</div>' +
           '<div class="info-card-sub">' +
-            (s.omniConfigured ? 'Version: <b style="color:#a1a1aa">' + escHtml(s.omniVersion || '?') + '</b>' : '') +
+            (s.omniConfigured ? 'Version: <b style="color:#9fa1a6">' + escHtml(s.omniVersion || '?') + '</b>' : '') +
             (s.omniHealth && s.omniHealth.error ? '<br><span style="color:#f87171">' + escHtml(s.omniHealth.error) + '</span>' : '') +
           '</div>' +
-          (function() { var tr = _omniTestResult; return tr ? '<div id="omni-test-card-result" style="display:;font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;background:' + (tr.ok ? '#052e16' : '#3f1515') + ';color:' + (tr.ok ? '#4ade80' : '#f87171') + '">' + escHtml(tr.text) + '</div>' : '<div id="omni-test-card-result" style="display:none;font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;"></div>'; })() +
+          (function() { var tr = _omniTestResult; return tr ? '<div id="omni-test-card-result" style="display:;font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;background:' + (tr.ok ? '#052e16' : '#3f1515') + ';color:' + (tr.ok ? '#4ade80' : '#f87171') + '">' + tr.text + '</div>' : '<div id="omni-test-card-result" style="display:none;font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;"></div>'; })() +
           (isAdmin ? '<div class="info-card-actions">' +
             '<button class="btn-sort btn-primary" id="omni-test-card-btn" onclick="window.__refreshOmniConnection()">Test Connection</button>' +
             '<button class="btn-sort btn-primary"' + disabledAttr + ' onclick="window.__openOmniInstanceModal()">Edit</button>' +
@@ -3004,10 +3009,10 @@ const uiHTML = `<!DOCTYPE html>
     fetch('/api/omni-instance/refresh', { method: 'POST' })
       .then(function(r) {
         return r.json().then(function(d) {
-          var text = r.ok ? '✓ Connection successful' : '✗ ' + (d.error || 'Test failed');
+          var text = r.ok ? syncedIcon + ' Connection successful' : failedIcon + ' ' + escHtml(d.error || 'Test failed');
           storeOmniResult(text, r.ok);
           if (resultEl) {
-            resultEl.textContent = text;
+            resultEl.innerHTML = text;
             resultEl.style.background = r.ok ? '#052e16' : '#3f1515';
             resultEl.style.color      = r.ok ? '#4ade80' : '#f87171';
             resultEl.style.display = '';
@@ -3017,10 +3022,10 @@ const uiHTML = `<!DOCTYPE html>
         });
       })
       .catch(function(e) {
-        var text = '✗ Network error: ' + e.message;
+        var text = failedIcon + ' Network error: ' + escHtml(e.message);
         storeOmniResult(text, false);
         if (resultEl) {
-          resultEl.textContent = text;
+          resultEl.innerHTML = text;
           resultEl.style.background = '#3f1515';
           resultEl.style.color = '#f87171';
           resultEl.style.display = '';
@@ -3044,13 +3049,13 @@ const uiHTML = `<!DOCTYPE html>
 
     var content = '';
     if (!_usersData) {
-      content = '<div style="color:#71717a;font-size:13px;padding:24px 0;">Loading...</div>';
+      content = '<div style="color:#7d7d85;font-size:13px;padding:24px 0;">Loading...</div>';
       fetchUsers();
     } else if (_usersData.length > 0) {
       var u = _usersData[0];
       content =
-        '<div style="font-size:13px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">Local Admin Account</div>' +
-        '<div style="display:flex;align-items:center;gap:12px;background:#27272a;border:1px solid #3f3f46;border-radius:10px;padding:14px 16px;max-width:480px;">' +
+        '<div style="font-size:13px;font-weight:600;color:#9fa1a6;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">Local Admin Account</div>' +
+        '<div style="display:flex;align-items:center;gap:12px;background:#1f222e;border:1px solid #2c2e38;border-radius:10px;padding:14px 16px;max-width:480px;">' +
           '<img src="{{PROFILE_ICON_URI}}" style="width:18px;height:18px;opacity:0.5;filter:invert(1);flex-shrink:0;" alt="">' +
           '<div style="flex:1;min-width:0;">' +
             '<div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(u.displayName || u.username) + '</div>' +
@@ -3066,15 +3071,15 @@ const uiHTML = `<!DOCTYPE html>
     var oidcSection = '';
     if (_oidcUsersData !== null) {
       var oidcRows = _oidcUsersData.length === 0
-        ? '<div style="padding:12px 14px;font-size:13px;color:#71717a;">No SSO users have logged in yet.</div>'
+        ? '<div style="padding:12px 14px;font-size:13px;color:#7d7d85;">No SSO users have logged in yet.</div>'
         : _oidcUsersData.map(function(u) {
             var roleLabel = u.role === 'admin' ? 'Admin' : u.role === 'viewer' ? 'Viewer' : 'No Access';
-            var roleColor = u.role === 'admin' ? '#FB326E' : u.role === 'viewer' ? '#22c55e' : '#71717a';
-            return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #3f3f46;">' +
+            var roleColor = u.role === 'admin' ? '#ff8b59' : u.role === 'viewer' ? '#22c55e' : '#7d7d85';
+            return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #2c2e38;">' +
               '<div style="flex:1;min-width:0;">' +
                 '<div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(u.displayName || u.email) + '</div>' +
-                '<div style="font-size:12px;color:#71717a;">' + escHtml(u.email) + '</div>' +
-                '<div style="font-size:11px;color:#52525b;margin-top:2px">Last seen: ' + new Date(u.lastSeen).toLocaleString() + '</div>' +
+                '<div style="font-size:12px;color:#7d7d85;">' + escHtml(u.email) + '</div>' +
+                '<div style="font-size:11px;color:#5b5c64;margin-top:2px">Last seen: ' + new Date(u.lastSeen).toLocaleString() + '</div>' +
               '</div>' +
               '<span style="font-size:12px;font-weight:600;color:' + roleColor + ';margin-right:8px;">' + roleLabel + '</span>' +
               '<button class="btn-sort btn-primary" onclick="window.__openEditOIDCUser(\'' + escHtml(u.email).replace(/\\/g,'\\\\').replace(/\'/g,"\\'") + '\', \'' + escHtml(u.role).replace(/\\/g,'\\\\').replace(/\'/g,"\\'") + '\')">Edit Role</button>' +
@@ -3082,8 +3087,8 @@ const uiHTML = `<!DOCTYPE html>
             '</div>';
           }).join('');
       oidcSection = '<div style="margin-top:28px">' +
-        '<div style="font-size:13px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">SSO Users</div>' +
-        '<div style="background:#27272a;border:1px solid #3f3f46;border-radius:10px;overflow:hidden;max-width:560px">' +
+        '<div style="font-size:13px;font-weight:600;color:#9fa1a6;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">SSO Users</div>' +
+        '<div style="background:#1f222e;border:1px solid #2c2e38;border-radius:10px;overflow:hidden;max-width:560px">' +
           oidcRows +
         '</div>' +
       '</div>';
@@ -3108,8 +3113,8 @@ const uiHTML = `<!DOCTYPE html>
     ['admin','viewer','none'].forEach(function(r) {
       var el = document.getElementById('oidc-role-opt-' + r);
       if (!el) return;
-      el.style.background = r === role ? '#27272a' : '';
-      el.style.borderColor = r === role ? (r === 'admin' ? '#FB326E' : r === 'viewer' ? '#22c55e' : '#71717a') : '#3f3f46';
+      el.style.background = r === role ? '#1f222e' : '';
+      el.style.borderColor = r === role ? (r === 'admin' ? '#ff8b59' : r === 'viewer' ? '#22c55e' : '#7d7d85') : '#2c2e38';
     });
   };
 
@@ -3256,8 +3261,8 @@ const uiHTML = `<!DOCTYPE html>
       var el = document.getElementById(id);
       if (!el) continue;
       var icon = el.querySelector('.pw-check-icon');
-      if (checks[id]) { el.classList.add('met'); icon.textContent = '✓'; }
-      else { el.classList.remove('met'); icon.textContent = '✗'; }
+      if (checks[id]) { el.classList.add('met'); icon.innerHTML = syncedIcon; }
+      else { el.classList.remove('met'); icon.innerHTML = failedIcon; }
     }
   }
 
@@ -3266,7 +3271,7 @@ const uiHTML = `<!DOCTYPE html>
     var pageTitle = titles[currentRoute] || 'Clusters';
     var titleHtml;
     if (clusterOverride) {
-      titleHtml = '<span class="breadcrumb"><a class="breadcrumb-link" href="/clusters">Clusters</a>' +
+      titleHtml = '<span class="breadcrumb"><a class="breadcrumb-link" href="/clusters" onclick="event.preventDefault();window.__navigate(\'/clusters\')">Clusters</a>' +
         '<span class="breadcrumb-sep">/</span>' +
         '<span class="breadcrumb-current">' + escHtml(clusterOverride.id) + '</span></span>';
     } else {
@@ -3309,7 +3314,7 @@ const uiHTML = `<!DOCTYPE html>
             provisionType = mcContent.toLowerCase().indexOf('providerid:') >= 0 ? 'auto' : 'manual';
           }
           var provisionLabel = provisionType === 'auto' ? 'Auto-Provision' : provisionType === 'manual' ? 'Manual' : 'Unknown';
-          var provisionColor = provisionType === 'auto' ? '#60a5fa' : '#a1a1aa';
+          var provisionColor = provisionType === 'auto' ? '#60a5fa' : '#9fa1a6';
 
           var isAuto = provisionType === 'auto';
           var pd = (isAuto && spec) ? spec.providerData : {};
@@ -3334,7 +3339,7 @@ const uiHTML = `<!DOCTYPE html>
                 '<span class="mc-info-label">Match Labels</span>' +
                 '<span class="mc-info-value">' +
                   mlKeys.map(function(k) {
-                    return '<div style="padding:1px 0"><span style="color:#71717a;margin-right:5px">•</span>' + escHtml(k) + ' = ' + escHtml(spec.matchLabels[k]) + '</div>';
+                    return '<div style="padding:1px 0"><span style="color:#7d7d85;margin-right:5px">•</span>' + escHtml(k) + ' = ' + escHtml(spec.matchLabels[k]) + '</div>';
                   }).join('') +
                 '</span>' +
               '</div>'
@@ -3370,15 +3375,15 @@ const uiHTML = `<!DOCTYPE html>
           // Header badge (management + sync state)
           // Header badge: managed / unmanaged only
           var mcBadgeText = m.status === 'unmanaged' ? 'unmanaged' : 'managed';
-          var mcBadgeColor = m.status === 'unmanaged' ? '#52525b' : '#71717a';
+          var mcBadgeColor = m.status === 'unmanaged' ? '#5b5c64' : '#7d7d85';
 
           // Sync state: used in the Sync Status row
-          var mcStatusText = '', mcStatusColor = '#71717a';
-          if (m.status === 'success' || m.status === 'applied') { mcStatusText = '● synced';       mcStatusColor = '#4ade80'; }
-          else if (m.status === 'failed')                        { mcStatusText = '● failed';       mcStatusColor = '#f87171'; }
-          else if (m.status === 'outofsync')                     { mcStatusText = '● out of sync';  mcStatusColor = '#fb923c'; }
+          var mcStatusText = '', mcStatusColor = '#7d7d85';
+          if (m.status === 'success' || m.status === 'applied') { mcStatusText = syncedIcon + ' synced';       mcStatusColor = '#4ade80'; }
+          else if (m.status === 'failed')                        { mcStatusText = failedIcon + ' failed';       mcStatusColor = '#f87171'; }
+          else if (m.status === 'outofsync')                     { mcStatusText = outOfSyncIcon + ' out of sync';  mcStatusColor = '#fb923c'; }
           else if (m.status === 'syncing')                       { mcStatusText = '● syncing';      mcStatusColor = '#2dd4bf'; }
-          else if (m.status === 'unmanaged')                     { mcStatusText = '● unmanaged';    mcStatusColor = '#52525b'; }
+          else if (m.status === 'unmanaged')                     { mcStatusText = '● unmanaged';    mcStatusColor = '#5b5c64'; }
           if (m.repoName && mcRepoSyncErrors[m.repoName] && m.status !== 'unmanaged') {
             mcStatusText = '<span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span>';
             mcStatusColor = '#2dd4bf';
@@ -3395,15 +3400,15 @@ const uiHTML = `<!DOCTYPE html>
             : (mcCardBranch || null);
           var mcBranchShaLink = mcBranchSha
             ? (mcCommitUrl
-                ? '<a href="' + escHtml(mcCommitUrl) + '" target="_blank" rel="noopener" style="color:#FB326E;text-decoration:none" onclick="event.stopPropagation()">' + escHtml(mcBranchSha) + '</a>'
-                : '<span style="color:#FB326E">' + escHtml(mcBranchSha) + '</span>')
+                ? '<a href="' + escHtml(mcCommitUrl) + '" target="_blank" rel="noopener" style="color:#ff8b59;text-decoration:none" onclick="event.stopPropagation()">' + escHtml(mcBranchSha) + '</a>'
+                : '<span style="color:#ff8b59">' + escHtml(mcBranchSha) + '</span>')
             : null;
           var mcSinceTime = (m.status === 'outofsync' && !isZeroTime(m.syncStatusSince))
             ? m.syncStatusSince
             : (!isZeroTime(m.lastSyncTime) ? m.lastSyncTime : null);
           var mcSyncStatusValue;
           if (m.status === 'unmanaged') {
-            mcSyncStatusValue = '<span style="color:#52525b">—</span>';
+            mcSyncStatusValue = '<span style="color:#5b5c64">—</span>';
           } else {
             mcSyncStatusValue = '<span style="color:' + mcStatusColor + '">' + mcStatusText + '</span>';
           }
@@ -3416,10 +3421,10 @@ const uiHTML = `<!DOCTYPE html>
             '<div class="cluster-card-meta">' +
               '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Sync Status:</span><span class="cluster-card-meta-value">' + mcSyncStatusValue + '</span></div>' +
               '<div class="cluster-card-meta-pair" style="align-items:flex-start"><span class="cluster-card-meta-label">Used by:</span><span class="cluster-card-meta-value" style="white-space:normal">' + mcUsedByValue + '</span></div>' +
-              '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Repository:</span><span class="cluster-card-meta-value">' + (m.repoName ? escHtml(m.repoName) : '<span style="color:#52525b">—</span>') + '</span></div>' +
-              '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Branch:</span><span class="cluster-card-meta-value">' + (mcCardBranch ? escHtml(mcCardBranch) : '<span style="color:#52525b">—</span>') + '</span></div>' +
-              '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Created At:</span><span class="cluster-card-meta-value">' + (isZeroTime(m.createdAt) ? '<span style="color:#52525b">—</span>' : fmtDateTime(m.createdAt) + ' <span style="color:#71717a">(' + ago(m.createdAt) + ')</span>') + '</span></div>' +
-              '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Last Sync:</span><span class="cluster-card-meta-value">' + (isZeroTime(m.lastSyncTime) ? '<span style="color:#52525b">—</span>' : fmtDateTime(m.lastSyncTime) + ' <span style="color:#71717a">(' + ago(m.lastSyncTime) + ')</span>') + '</span></div>' +
+              '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Repository:</span><span class="cluster-card-meta-value">' + (m.repoName ? escHtml(m.repoName) : '<span style="color:#5b5c64">—</span>') + '</span></div>' +
+              '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Branch:</span><span class="cluster-card-meta-value">' + (mcCardBranch ? escHtml(mcCardBranch) : '<span style="color:#5b5c64">—</span>') + '</span></div>' +
+              '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Created At:</span><span class="cluster-card-meta-value">' + (isZeroTime(m.createdAt) ? '<span style="color:#5b5c64">—</span>' : fmtDateTime(m.createdAt) + ' <span style="color:#7d7d85">(' + ago(m.createdAt) + ')</span>') + '</span></div>' +
+              '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Last Sync:</span><span class="cluster-card-meta-value">' + (isZeroTime(m.lastSyncTime) ? '<span style="color:#5b5c64">—</span>' : fmtDateTime(m.lastSyncTime) + ' <span style="color:#7d7d85">(' + ago(m.lastSyncTime) + ')</span>') + '</span></div>' +
             '</div>';
 
           return '<div class="mc-card' + (hasDetails ? ' clickable' : '') + '" data-status="' + (m.status || 'idle') + '"' + (hasDetails ? ' onclick="window.__showMachineClassModal(\'' + m.id + '\')"' : '') + '>' +
@@ -3461,13 +3466,13 @@ const uiHTML = `<!DOCTYPE html>
             '</div>' +
           '</div>';
         }).join('')
-      : '<div style="padding:40px;text-align:center;color:#52525b">No machine classes</div>';
+      : '<div style="padding:40px;text-align:center;color:#5b5c64">No machine classes</div>';
 
     var mcActionBar = '<div style="display:flex;align-items:center;gap:8px">' +
       (isRunning ? '<span class="spinner"></span>' : '') +
       (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__refreshMC()" ' + (isRunning ? 'disabled' : '') + '>' + (mcRunning ? 'Refreshing...' : 'Refresh') + '</button>' : '') +
       (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__triggerReconcile()" ' + (isRunning ? 'disabled' : '') + '>' + (syncRunning ? 'Syncing...' : 'Sync') + '</button>' : '') +
-      '<input type="text" placeholder="Search machine classes..." value="' + mcSearch + '" oninput="window.__setMcSearch(this.value)" style="background:#18181b;border:1px solid #3f3f46;border-radius:4px;color:#e4e4e7;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;margin-left:8px;" />' +
+      '<input type="text" placeholder="Search machine classes..." value="' + mcSearch + '" oninput="window.__setMcSearch(this.value)" style="background:#13141c;border:1px solid #2c2e38;border-radius:4px;color:#e8e8e9;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;margin-left:8px;" />' +
     '</div>';
     var mcHeader = '<div class="header">' +
       '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Machine Classes</h1>' +
@@ -3487,7 +3492,7 @@ const uiHTML = `<!DOCTYPE html>
     ];
     var filterCheckboxes = statusDefs.filter(function(d) { return mcPresentKeys[d.key]; }).map(function(d) {
       var checked = !!mcStatusFilters[d.key];
-      return '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:#a1a1aa;user-select:none">' +
+      return '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:#9fa1a6;user-select:none">' +
         '<input type="checkbox"' + (checked ? ' checked' : '') + ' onchange="window.__toggleMcStatusFilter(\'' + d.key + '\')" style="accent-color:#fb923c;cursor:pointer">' +
         d.label +
       '</label>';
@@ -3532,7 +3537,7 @@ const uiHTML = `<!DOCTYPE html>
       if (countScalingDown)   summaryParts.push('<span style="color:#f59e0b;cursor:pointer' + (hasFilter && clusterStatusFilter === 'scaling-down'  ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'scaling-down\')">'  + countScalingDown  + ' scaling down</span>');
       if (countDestroying)    summaryParts.push('<span style="color:#f43f5e;cursor:pointer' + (hasFilter && clusterStatusFilter === 'destroying'    ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'destroying\')">'    + countDestroying   + ' destroying</span>');
       if (countReconfiguring) summaryParts.push('<span style="color:#a78bfa;cursor:pointer' + (hasFilter && clusterStatusFilter === 'reconfiguring' ? ';font-weight:700' : '') + '" onclick="window.__setClusterFilter(\'reconfiguring\')">' + countReconfiguring + ' reconfiguring</span>');
-      var clearBtn = hasFilter ? ' &nbsp;<span style="cursor:pointer;color:#a1a1aa;text-decoration:underline;font-size:11px" onclick="window.__clearClusterFilter()">clear</span>' : '';
+      var clearBtn = hasFilter ? ' &nbsp;<span style="cursor:pointer;color:#9fa1a6;text-decoration:underline;font-size:11px" onclick="window.__clearClusterFilter()">clear</span>' : '';
       healthBar = '<div class="cluster-health-bar-wrap">' +
         '<div class="cluster-health-bar' + (hasFilter ? ' has-filter' : '') + '">' +
           (countReady        ? '<div class="cluster-health-bar-seg cluster-health-bar-seg--ready'         + (hasFilter && clusterStatusFilter === 'ready'         ? ' active' : '') + '" style="width:' + (countReady        / healthTotal * 100).toFixed(1) + '%" onclick="window.__setClusterFilter(\'ready\')"         title="' + countReady        + ' ready"></div>'         : '') +
@@ -3598,23 +3603,23 @@ const uiHTML = `<!DOCTYPE html>
         return '<div class="cluster-pool-row">' +
           '<div class="cluster-pool-row-label">' + escHtml(sec.label) + '</div>' +
           '<div class="cluster-pool-row-count">' + sec.count + '</div>' +
-          '<div class="cluster-pool-row-mc">' + (sec.mc ? escHtml(sec.mc) : '<span style="color:#3f3f46">—</span>') + '</div>' +
+          '<div class="cluster-pool-row-mc">' + (sec.mc ? escHtml(sec.mc) : '<span style="color:#2c2e38">—</span>') + '</div>' +
         '</div>';
       }).join('');
       // Management badge (header)
       var mgmtBadge, mgmtColor;
-      if (c.status === 'unmanaged')      { mgmtBadge = 'unmanaged'; mgmtColor = '#52525b'; }
+      if (c.status === 'unmanaged')      { mgmtBadge = 'unmanaged'; mgmtColor = '#5b5c64'; }
       else if (c.status === 'orphaned')  { mgmtBadge = 'orphaned';  mgmtColor = '#a78bfa'; }
-      else                               { mgmtBadge = 'managed';   mgmtColor = '#71717a'; }
+      else                               { mgmtBadge = 'managed';   mgmtColor = '#7d7d85'; }
 
       // Sync row value
       var syncText, syncColor;
-      if (c.status === 'unmanaged' || c.status === 'orphaned') { syncText = '—'; syncColor = '#52525b'; }
-      else if (c.status === 'outofsync')                        { syncText = '● out of sync'; syncColor = '#fb923c'; }
-      else if (c.status === 'failed')                           { syncText = '● failed';       syncColor = '#f87171'; }
+      if (c.status === 'unmanaged' || c.status === 'orphaned') { syncText = '—'; syncColor = '#5b5c64'; }
+      else if (c.status === 'outofsync')                        { syncText = outOfSyncIcon + ' out of sync'; syncColor = '#fb923c'; }
+      else if (c.status === 'failed')                           { syncText = failedIcon + ' failed';       syncColor = '#f87171'; }
       else if (c.status === 'syncing')                          { syncText = '● syncing';      syncColor = '#2dd4bf'; }
-      else if (c.status === 'success' || c.status === 'applied'){ syncText = '● synced';       syncColor = '#4ade80'; }
-      else                                                       { syncText = '—';              syncColor = '#52525b'; }
+      else if (c.status === 'success' || c.status === 'applied'){ syncText = syncedIcon + ' synced';       syncColor = '#4ade80'; }
+      else                                                       { syncText = '—';              syncColor = '#5b5c64'; }
       // Override: repo failing to sync
       if (c.repoName && repoSyncErrors[c.repoName] && c.status !== 'unmanaged') {
         syncText = '<span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span> syncing';
@@ -3629,11 +3634,11 @@ const uiHTML = `<!DOCTYPE html>
       else if (phase === 'destroying')    { healthText = '✕ destroying';    healthColor = '#f43f5e'; }
       else if (phase === 'reconfiguring') { healthText = '↻ reconfiguring'; healthColor = '#a78bfa'; }
       else if (c.clusterReady === 'ready' && c.kubernetesApiReady === 'ready') {
-        healthText = '✓ ready'; healthColor = '#4ade80';
+        healthText = syncedIcon + ' ready'; healthColor = '#4ade80';
       } else if (c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready') {
-        healthText = '✗ not ready'; healthColor = '#f87171';
+        healthText = failedIcon + ' not ready'; healthColor = '#f87171';
       } else {
-        healthText = '—'; healthColor = '#52525b';
+        healthText = '—'; healthColor = '#5b5c64';
       }
 
       var cardHealth = ((c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready')) ? ' data-health="not-ready"' : '';
@@ -3649,12 +3654,12 @@ const uiHTML = `<!DOCTYPE html>
         '<div class="cluster-card-meta">' +
           '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Sync Status:</span><span class="cluster-card-meta-value" style="color:' + syncColor + '">' + syncText + '</span></div>' +
           '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Cluster Health:</span><span class="cluster-card-meta-value" style="color:' + healthColor + '">' + healthText + '</span></div>' +
-          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Talos Version:</span><span class="cluster-card-meta-value">' + (c.talosVersion ? escHtml(c.talosVersion) : '<span style="color:#52525b">—</span>') + '</span></div>' +
-          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Kubernetes Version:</span><span class="cluster-card-meta-value">' + (c.kubernetesVersion ? escHtml(c.kubernetesVersion) : '<span style="color:#52525b">—</span>') + '</span></div>' +
-          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Repository:</span><span class="cluster-card-meta-value">' + (c.repoName ? escHtml(c.repoName) : '<span style="color:#52525b">—</span>') + '</span></div>' +
-          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Branch:</span><span class="cluster-card-meta-value">' + (cardRepo && cardRepo.branch ? escHtml(cardRepo.branch) : '<span style="color:#52525b">—</span>') + '</span></div>' +
-          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Created At:</span><span class="cluster-card-meta-value">' + (isZeroTime(c.createdAt) ? '<span style="color:#52525b">—</span>' : fmtDateTime(c.createdAt) + ' <span style="color:#71717a">(' + ago(c.createdAt) + ')</span>') + '</span></div>' +
-          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Last Sync:</span><span class="cluster-card-meta-value">' + (isZeroTime(c.createdAt) || isZeroTime(c.lastSyncTime) ? '<span style="color:#52525b">—</span>' : fmtDateTime(c.lastSyncTime) + ' <span style="color:#71717a">(' + ago(c.lastSyncTime) + ')</span>') + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Talos Version:</span><span class="cluster-card-meta-value">' + (c.talosVersion ? escHtml(c.talosVersion) : '<span style="color:#5b5c64">—</span>') + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Kubernetes Version:</span><span class="cluster-card-meta-value">' + (c.kubernetesVersion ? escHtml(c.kubernetesVersion) : '<span style="color:#5b5c64">—</span>') + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Repository:</span><span class="cluster-card-meta-value">' + (c.repoName ? escHtml(c.repoName) : '<span style="color:#5b5c64">—</span>') + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Branch:</span><span class="cluster-card-meta-value">' + (cardRepo && cardRepo.branch ? escHtml(cardRepo.branch) : '<span style="color:#5b5c64">—</span>') + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Created At:</span><span class="cluster-card-meta-value">' + (isZeroTime(c.createdAt) ? '<span style="color:#5b5c64">—</span>' : fmtDateTime(c.createdAt) + ' <span style="color:#7d7d85">(' + ago(c.createdAt) + ')</span>') + '</span></div>' +
+          '<div class="cluster-card-meta-pair"><span class="cluster-card-meta-label">Last Sync:</span><span class="cluster-card-meta-value">' + (isZeroTime(c.createdAt) || isZeroTime(c.lastSyncTime) ? '<span style="color:#5b5c64">—</span>' : fmtDateTime(c.lastSyncTime) + ' <span style="color:#7d7d85">(' + ago(c.lastSyncTime) + ')</span>') + '</span></div>' +
         '</div>';
       return '<div class="cluster-card clickable" data-status="' + (c.status || 'idle') + '"' + cardHealth + cardPhase + ' onclick="window.__navToCluster(\'' + c.id + '\')">' +
         '<div class="cluster-card-accent"></div>' +
@@ -3703,7 +3708,7 @@ const uiHTML = `<!DOCTYPE html>
     ];
     var clusterSyncCheckboxes = clusterSyncDefs.filter(function(d) { return clusterPresentKeys[d.key]; }).map(function(d) {
       var checked = !!clusterSyncFilters[d.key];
-      return '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:#a1a1aa;user-select:none">' +
+      return '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:#9fa1a6;user-select:none">' +
         '<input type="checkbox"' + (checked ? ' checked' : '') + ' onchange="window.__toggleClusterSyncFilter(\'' + d.key + '\')" style="accent-color:#fb923c;cursor:pointer">' +
         d.label +
       '</label>';
@@ -3725,7 +3730,7 @@ const uiHTML = `<!DOCTYPE html>
       (isRunningC ? '<span class="spinner"></span>' : '') +
       (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__checkGit()" ' + (isRunningC ? 'disabled' : '') + '>' + (gitRunningC ? 'Refreshing...' : 'Refresh') + '</button>' : '') +
       (isAdmin ? '<button class="btn-sort btn-primary" onclick="window.__triggerReconcile()" ' + (isRunningC ? 'disabled' : '') + '>' + (syncRunningC ? 'Syncing...' : 'Sync') + '</button>' : '') +
-      '<input type="text" placeholder="Search clusters..." value="' + clusterSearch + '" oninput="window.__setClusterSearch(this.value)" style="background:#18181b;border:1px solid #3f3f46;border-radius:4px;color:#e4e4e7;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;margin-left:8px;" />' +
+      '<input type="text" placeholder="Search clusters..." value="' + clusterSearch + '" oninput="window.__setClusterSearch(this.value)" style="background:#13141c;border:1px solid #2c2e38;border-radius:4px;color:#e8e8e9;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;margin-left:8px;" />' +
     '</div>';
     var clusterHeader = '<div class="header">' +
       '<h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Clusters</h1>' +
@@ -3735,12 +3740,12 @@ const uiHTML = `<!DOCTYPE html>
       (clusters.length > 0
         ? '<div class="cluster-grid">' + cards + '</div>' +
           (clusterPageSize > 0 && displayClusters.length > clusterPageSize ? renderPaginationSized(displayClusters, clusterPage, 'window.__changeClusterPage', clusterPageSize) : '')
-        : '<div style="padding:24px;color:#52525b">No clusters found</div>');
+        : '<div style="padding:24px;color:#5b5c64">No clusters found</div>');
   }
 
   function renderClusterGraph(modal) {
     var cluster = state && state.clusters && state.clusters.find(function(c) { return c.id === modal.id; });
-    if (!cluster) return '<div style="color:#71717a;text-align:center;padding:40px;">No cluster data available</div>';
+    if (!cluster) return '<div style="color:#7d7d85;text-align:center;padding:40px;">No cluster data available</div>';
 
     var git = (state && state.git) || {};
     // Use the repo that owns this cluster for accurate branch/sha/sync info.
@@ -3759,19 +3764,19 @@ const uiHTML = `<!DOCTYPE html>
     var omniVersion  = (state && state.omniVersion)  || '';
     var omniHealth   = (state && state.omniHealth)   || {};
     var omniStatus   = omniHealth.status || 'unknown';
-    var omniColor    = omniStatus === 'healthy' ? '#fb923c' : (omniStatus === 'failed' ? '#f87171' : '#71717a');
+    var omniColor    = omniStatus === 'healthy' ? '#fb923c' : (omniStatus === 'failed' ? '#f87171' : '#7d7d85');
     var omniEndpointDisplay = omniEndpoint.replace(/^https?:\/\//, '');
 
     var cp = cluster.controlPlane || {};
     var workers = Array.isArray(cluster.workers) ? cluster.workers : (cluster.workers ? [cluster.workers] : []);
 
     var st = cluster.status || '';
-    var borderColor = '#3f3f46';
+    var borderColor = '#2c2e38';
     if (st === 'success' || st === 'applied') borderColor = '#4ade80';
     else if (st === 'failed')    borderColor = '#f87171';
     else if (st === 'outofsync') borderColor = '#fb923c';
     else if (st === 'syncing')   borderColor = '#2dd4bf';
-    else if (st === 'unmanaged') borderColor = '#52525b';
+    else if (st === 'unmanaged') borderColor = '#5b5c64';
     if ((st === 'success' || st === 'applied') && (cluster.clusterReady === 'not-ready' || cluster.kubernetesApiReady === 'not-ready'))
       borderColor = '#f87171';
 
@@ -3785,7 +3790,7 @@ const uiHTML = `<!DOCTYPE html>
       machines: cpMachines,
       count: cp.count || 0,
       exts: cp.extensions || [],
-      color: '#FB326E',
+      color: '#ff8b59',
       isPool: cpMachines.length === 0
     });
     workers.forEach(function(wk) {
@@ -4020,8 +4025,8 @@ const uiHTML = `<!DOCTYPE html>
         var ly = spreadMidY(leftCount, conn[0]);
         var ry = spreadMidY(rightCount, conn[1]);
         var bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#3f3f46" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
-        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#52525b"/>';
+        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
     }
@@ -4036,8 +4041,8 @@ const uiHTML = `<!DOCTYPE html>
           : spreadMidY(col3Nodes.length, conn.srcIdx);
         var ry = spreadMidY(rightCount, conn.tgtIdx);
         var bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#3f3f46" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
-        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#52525b"/>';
+        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
     }
@@ -4067,8 +4072,8 @@ const uiHTML = `<!DOCTYPE html>
       var paths = '';
       col3Nodes.forEach(function(_, i) {
         var ly = spreadMidY(1, 0), ry = col3NodeY[i], bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx + ',' + ly.toFixed(1) + ' ' + bx + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#3f3f46" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
-        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#52525b"/>';
+        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx + ',' + ly.toFixed(1) + ' ' + bx + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
     }
@@ -4096,8 +4101,8 @@ const uiHTML = `<!DOCTYPE html>
         var ly = col3NodeY[gi];
         var ry = machY[fi] + col4Off;
         var bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#3f3f46" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
-        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#52525b"/>';
+        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
     }
@@ -4111,8 +4116,8 @@ const uiHTML = `<!DOCTYPE html>
       var ry = spreadMidY(1, 0);
       col1Y.forEach(function(ly) {
         var bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#3f3f46" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
-        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#52525b"/>';
+        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
     })();
@@ -4176,10 +4181,10 @@ const uiHTML = `<!DOCTYPE html>
       '<div class="drawer-body' + (currentModal && currentModal.activeTab === 'graph' ? ' graph-mode' : '') + (currentModal && currentModal.activeTab === 'live' && (currentModal.type === 'machineclass' || currentModal.type === 'cluster') ? ' mc-live-mode' : '') + '">' +
         (currentModal ?
           (currentModal.activeTab === 'error' ? '<div style="color:#f87171;white-space:pre-wrap;">' + escHtml(currentModal.error) + '</div>' :
-           currentModal.activeTab === 'live' ? (currentModal.type === 'machineclass' ? renderMcLiveContent(currentModal.liveContent) : (currentModal.type === 'cluster' ? renderClusterLiveContent(currentModal.liveContent) : (currentModal.liveContent ? '<pre style="margin:0;white-space:pre-wrap;">' + escHtml(currentModal.liveContent) + '</pre>' : '<div style="color:#71717a;text-align:center;padding:40px;">No live state available</div>'))) :
-           currentModal.activeTab === 'diff' ? (currentModal.diff ? (currentModal.type === 'machineclass' ? formatMachineClassDiff(currentModal.diff) : '<pre style="margin:0;white-space:pre-wrap;">' + formatDiff(currentModal.diff) + '</pre>') : '<div style="color:#71717a;text-align:center;padding:40px;">' + (currentModal.status === 'unmanaged' ? 'No diff \u2014 this cluster has no template in Git.' : 'No diff available') + '</div>') :
+           currentModal.activeTab === 'live' ? (currentModal.type === 'machineclass' ? renderMcLiveContent(currentModal.liveContent) : (currentModal.type === 'cluster' ? renderClusterLiveContent(currentModal.liveContent) : (currentModal.liveContent ? '<pre style="margin:0;white-space:pre-wrap;">' + escHtml(currentModal.liveContent) + '</pre>' : '<div style="color:#7d7d85;text-align:center;padding:40px;">No live state available</div>'))) :
+           currentModal.activeTab === 'diff' ? (currentModal.diff ? (currentModal.type === 'machineclass' ? formatMachineClassDiff(currentModal.diff) : '<pre style="margin:0;white-space:pre-wrap;">' + formatDiff(currentModal.diff) + '</pre>') : '<div style="color:#7d7d85;text-align:center;padding:40px;">' + (currentModal.status === 'unmanaged' ? 'No diff \u2014 this cluster has no template in Git.' : 'No diff available') + '</div>') :
            currentModal.activeTab === 'graph' ? renderClusterGraph(currentModal) :
-           '<div style="color:#71717a;text-align:center;padding:40px;">No content available</div>')
+           '<div style="color:#7d7d85;text-align:center;padding:40px;">No content available</div>')
         : '') +
       '</div>' +
     '</div>' +
@@ -4228,7 +4233,7 @@ const uiHTML = `<!DOCTYPE html>
                 return '<div class="log-entry">' +
                   '<span class="log-msg">' + l.message + '</span></div>';
               }).join('')
-            : '<div class="log-entry" style="color:#52525b">No logs yet</div>') +
+            : '<div class="log-entry" style="color:#5b5c64">No logs yet</div>') +
         '</div>' +
       '</div>' +
     '</div>' +
@@ -4240,23 +4245,23 @@ const uiHTML = `<!DOCTYPE html>
         '</div>' +
         '<div style="padding:16px 24px;min-height:80px">' +
           (logFilesLoading
-            ? '<div style="color:#71717a;text-align:center;padding:24px">Loading...</div>'
+            ? '<div style="color:#7d7d85;text-align:center;padding:24px">Loading...</div>'
             : (logFilesList && logFilesList.length > 0
                 ? '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
                     '<thead><tr>' +
-                      '<th style="text-align:left;color:#71717a;font-weight:400;padding:4px 8px">Date</th>' +
-                      '<th style="text-align:right;color:#71717a;font-weight:400;padding:4px 8px">Size</th>' +
+                      '<th style="text-align:left;color:#7d7d85;font-weight:400;padding:4px 8px">Date</th>' +
+                      '<th style="text-align:right;color:#7d7d85;font-weight:400;padding:4px 8px">Size</th>' +
                       '<th style="padding:4px 8px"></th>' +
                     '</tr></thead><tbody>' +
                     (logFilesList || []).map(function(f) {
-                      return '<tr style="border-top:1px solid #27272a">' +
-                        '<td style="padding:6px 8px;color:#e4e4e7">' + escHtml(f.date) + '</td>' +
-                        '<td style="padding:6px 8px;color:#71717a;text-align:right">' + formatBytes(f.size) + '</td>' +
+                      return '<tr style="border-top:1px solid #1f222e">' +
+                        '<td style="padding:6px 8px;color:#e8e8e9">' + escHtml(f.date) + '</td>' +
+                        '<td style="padding:6px 8px;color:#7d7d85;text-align:right">' + formatBytes(f.size) + '</td>' +
                         '<td style="padding:6px 8px;text-align:right"><button class="btn-sort btn-primary" onclick="window.__downloadLogFile(\'' + escHtml(f.date) + '\')">Download</button></td>' +
                       '</tr>';
                     }).join('') +
                     '</tbody></table>'
-                : '<div style="color:#71717a;text-align:center;padding:24px">No log files found</div>')) +
+                : '<div style="color:#7d7d85;text-align:center;padding:24px">No log files found</div>')) +
         '</div>' +
       '</div>' +
     '</div>';
@@ -4293,7 +4298,7 @@ const uiHTML = `<!DOCTYPE html>
         ? state.logs.map(function(l) {
             return '<div class="log-entry"><span class="log-msg">' + l.message + '</span></div>';
           }).join('')
-        : '<div class="log-entry" style="color:#52525b">No logs yet</div>';
+        : '<div class="log-entry" style="color:#5b5c64">No logs yet</div>';
       if (atBottom) el.scrollTop = el.scrollHeight;
     });
   }
@@ -4341,7 +4346,7 @@ const uiHTML = `<!DOCTYPE html>
       restoreDefaultLayout();
       app.innerHTML = renderLogsView(s);
     } else {
-      window.location.replace('/clusters');
+      navigate('/clusters');
     }
   }
 
@@ -4630,7 +4635,7 @@ const uiHTML = `<!DOCTYPE html>
         if (li) { li.focus(); li.setSelectionRange(lss, lse); }
       }
     } else {
-      window.location.replace('/clusters');
+      navigate('/clusters');
     }
 
     modalsEl.innerHTML = renderDrawer();
@@ -4840,11 +4845,11 @@ const uiHTML = `<!DOCTYPE html>
       btn.textContent = 'Test Connection';
       return r.json().then(function(data) {
         if (r.ok) {
-          resultEl.textContent = '✓ Connected — branch "' + branch + '" found';
+          resultEl.innerHTML = syncedIcon + ' Connected — branch "' + escHtml(branch) + '" found';
           resultEl.style.background = '#052e16';
           resultEl.style.color = '#4ade80';
         } else {
-          resultEl.textContent = '✗ ' + (data.error || ('Error ' + r.status));
+          resultEl.innerHTML = failedIcon + ' ' + escHtml(data.error || ('Error ' + r.status));
           resultEl.style.background = '#3f1515';
           resultEl.style.color = '#f87171';
         }
@@ -4853,7 +4858,7 @@ const uiHTML = `<!DOCTYPE html>
     }).catch(function(e) {
       btn.disabled = false;
       btn.textContent = 'Test Connection';
-      resultEl.textContent = '✗ Network error: ' + e.message;
+      resultEl.innerHTML = failedIcon + ' Network error: ' + escHtml(e.message);
       resultEl.style.background = '#3f1515';
       resultEl.style.color = '#f87171';
       resultEl.style.display = '';
@@ -4882,9 +4887,9 @@ const uiHTML = `<!DOCTYPE html>
       btn.disabled = false;
       btn.textContent = 'Test Connection';
       return r.json().then(function(data) {
-        var text = r.ok ? '✓ Connected — branch "' + branch + '" found' : '✗ ' + (data.error || ('Error ' + r.status));
+        var text = r.ok ? syncedIcon + ' Connected — branch "' + escHtml(branch) + '" found' : failedIcon + ' ' + escHtml(data.error || ('Error ' + r.status));
         storeResult(text, r.ok);
-        resultEl.textContent = text;
+        resultEl.innerHTML = text;
         resultEl.style.background = r.ok ? '#052e16' : '#3f1515';
         resultEl.style.color      = r.ok ? '#4ade80' : '#f87171';
         resultEl.style.display = '';
@@ -4892,9 +4897,9 @@ const uiHTML = `<!DOCTYPE html>
     }).catch(function(e) {
       btn.disabled = false;
       btn.textContent = 'Test Connection';
-      var text = '✗ Network error: ' + e.message;
+      var text = failedIcon + ' Network error: ' + escHtml(e.message);
       storeResult(text, false);
-      resultEl.textContent = text;
+      resultEl.innerHTML = text;
       resultEl.style.background = '#3f1515';
       resultEl.style.color = '#f87171';
       resultEl.style.display = '';
@@ -5024,27 +5029,29 @@ const uiHTML = `<!DOCTYPE html>
     }
   });
 
+  window.__navigate = navigate;
+  window.__syncedIcon = syncedIcon;
+  window.__failedIcon = failedIcon;
+
+  // Handle browser back/forward
+  window.addEventListener('popstate', function() {
+    currentRoute = window.location.pathname;
+    var m = currentRoute.match(/^\/clusters\/(.+)$/);
+    clusterDetailId = m ? decodeURIComponent(m[1]) : null;
+    if (clusterDetailId) { clusterDetailTab = 'graph'; clusterDetailTabExplicit = false; }
+    document.getElementById('sidebar').innerHTML = renderSidebar();
+    render();
+  });
+
+  // Initialize pw-check icons to failedIcon (default unmet state)
+  document.querySelectorAll('.pw-check-icon').forEach(function(el) { el.innerHTML = failedIcon; });
+
   // Render sidebar immediately (doesn't depend on state)
   document.getElementById('sidebar').innerHTML = renderSidebar();
 
   // Apply flex layout immediately on cluster detail pages (avoids layout flash)
   if (clusterDetailId) applyDetailPageLayout();
 
-  // Sidebar collapse state
-  var sidebarEl = document.getElementById('sidebar');
-  function applySidebarCollapse(collapsed) {
-    sidebarEl.classList.toggle('collapsed', collapsed);
-    document.documentElement.style.setProperty('--sidebar-w', collapsed ? '56px' : '200px');
-    var btn = document.getElementById('sidebar-toggle');
-    if (btn) btn.textContent = collapsed ? '›' : '‹';
-  }
-  window.__toggleSidebar = function() {
-    var collapsed = !sidebarEl.classList.contains('collapsed');
-    localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
-    applySidebarCollapse(collapsed);
-  };
-
-  applySidebarCollapse(localStorage.getItem('sidebarCollapsed') === '1');
 
   // Start WebSocket connection
   connectWebSocket();
