@@ -26,6 +26,9 @@ func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
 	html = strings.ReplaceAll(html, "{{GIT_ICON}}", gitIconSVG)
 	html = strings.ReplaceAll(html, "{{OMNI_ICON}}", omniIconSVG)
 	html = strings.ReplaceAll(html, "{{K8S_ICON}}", k8sIconSVG)
+	html = strings.ReplaceAll(html, "{{MACHINESET_ICON}}", machinesetIconSVG)
+	html = strings.ReplaceAll(html, "{{MACHINESET_POOL_MANUAL_ICON}}", machinesetPoolManualIconSVG)
+	html = strings.ReplaceAll(html, "{{MACHINESET_POOL_INFRA_ICON}}", machinesetPoolInfraIconSVG)
 	html = strings.ReplaceAll(html, "{{EXT_ICON}}", extIconSVG)
 	html = strings.ReplaceAll(html, "{{TALOS_ICON}}", talosIconSVG)
 	html = strings.ReplaceAll(html, "{{MACHINE_ICON}}", machineIconSVG)
@@ -874,14 +877,32 @@ const uiHTML = `<!DOCTYPE html>
   .graph-ext-item { font-size: 11px; color: #5b5c64; padding: 3px 0 0 12px; font-family: 'SF Mono','Fira Code',monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* DAG graph - Argo CD style left-to-right layout */
+  .dag-node-wrap { position:relative; flex-shrink:0; }
   .dag-node { display:flex; align-items:stretch; background:#13141c; border:1px solid #2c2e38; border-radius:6px; overflow:hidden; height:100px; flex-shrink:0; }
   .dag-node.clickable:hover { border-color:#7d7d85; }
+  .dag-fold-btn { position:absolute; right:-10px; top:50%; transform:translateY(-50%); width:20px; height:20px; border-radius:50%; background:#1f222e; border:1px solid #3a3d4a; color:#9fa1a6; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:1; padding:0; line-height:1; transition:background 0.15s,color 0.15s,border-color 0.15s; }
+  .dag-fold-btn-left { position:absolute; left:-10px; top:50%; transform:translateY(-50%); width:20px; height:20px; border-radius:50%; background:#1f222e; border:1px solid #3a3d4a; color:#9fa1a6; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:1; padding:0; line-height:1; transition:background 0.15s,color 0.15s,border-color 0.15s; }
+  .dag-fold-btn:hover,.dag-fold-btn-left:hover { background:#ff8b59; color:#fff; border-color:#ff8b59; }
+  ::view-transition-group(*) { animation-duration: 0.3s; animation-timing-function: cubic-bezier(0.4,0,0.2,1); }
+  ::view-transition-old(*) { animation-duration: 0.3s; animation-timing-function: cubic-bezier(0.4,0,0.2,1); }
+  ::view-transition-new(*) { animation-duration: 0.3s; animation-timing-function: cubic-bezier(0.4,0,0.2,1); }
   .dag-node-accent { width:3px; flex-shrink:0; }
-  .dag-node-icon { display:flex; align-items:center; justify-content:center; width:36px; flex-shrink:0; }
+  .dag-node-icon { display:flex; align-items:center; justify-content:center; width:36px; flex-shrink:0; color:#ff8b59; }
+  .dag-node-left-btn .dag-node-icon { padding-left:10px; }
   .dag-node-body { flex:1; padding:10px 10px 10px 6px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; min-width:0; }
   .dag-node-kind { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:#5b5c64; margin-bottom:2px; }
   .dag-node-name { font-size:13px; font-weight:600; color:#e8e8e9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .dag-node-meta { font-size:10px; color:#7d7d85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+  /* Extension edge highlight states */
+  .dag-node { transition: opacity 0.15s, box-shadow 0.15s; }
+  .dag-node.ext-hl-faded { opacity: 0.25; }
+  .dag-node.ext-hl-selected { box-shadow: 0 0 0 2px #ff8b59; }
+  .ext-edge { opacity: 1; transition: opacity 0.15s; }
+  .ext-arrow { opacity: 1; transition: opacity 0.15s; }
+  .ext-edge.ext-hl-active { opacity: 1; stroke: #ff8b59 !important; stroke-dasharray: none !important; }
+  .ext-arrow.ext-hl-active { opacity: 1; fill: #ff8b59 !important; }
+  .ext-edge.ext-hl-faded { opacity: 0.06; }
+  .ext-arrow.ext-hl-faded { opacity: 0.06; }
   .dag-node-badges { display:flex; gap:3px; margin-top:5px; flex-wrap:wrap; }
 
   /* Pagination */
@@ -2145,9 +2166,12 @@ const uiHTML = `<!DOCTYPE html>
       requestAnimationFrame(function() { if (gid) restoreGraphTransform(gid); });
     }
   }
+  function graphTransition(fn) {
+    if (document.startViewTransition) { document.startViewTransition(fn); } else { fn(); }
+  }
   window.__graphToggleColFold = function(key) {
     window.__graphColFolded[key] = !window.__graphColFolded[key];
-    reRenderGraph();
+    graphTransition(reRenderGraph);
   };
   window.__graphCollapseAll = function(graphId) {
     var inner = document.getElementById(graphId);
@@ -2156,13 +2180,60 @@ const uiHTML = `<!DOCTYPE html>
       var m = (el.getAttribute('onclick') || '').match(/__graphToggleColFold\('([^']+)'\)/);
       if (m) window.__graphColFolded[m[1]] = true;
     });
-    reRenderGraph();
+    window.__graphColFolded[graphId + ':col1'] = true;
+    graphTransition(reRenderGraph);
   };
   window.__graphExpandAll = function(graphId) {
     Object.keys(window.__graphColFolded).forEach(function(k) {
       if (k.indexOf(graphId + ':') === 0) window.__graphColFolded[k] = false;
     });
-    reRenderGraph();
+    graphTransition(reRenderGraph);
+  };
+
+  window.__graphClearHighlight = function(gid) {
+    var inner = document.getElementById(gid);
+    if (!inner) return;
+    inner.querySelectorAll('.ext-edge').forEach(function(el) { el.classList.remove('ext-hl-active', 'ext-hl-faded'); });
+    inner.querySelectorAll('.ext-arrow').forEach(function(el) { el.classList.remove('ext-hl-active', 'ext-hl-faded'); });
+    inner.querySelectorAll('.dag-node').forEach(function(el) { el.classList.remove('ext-hl-faded', 'ext-hl-selected'); });
+  };
+
+  window.__graphHighlightMachine = function(gid, mi, event) {
+    if (event) event.stopPropagation();
+    var map = window.__extEdgeMap && window.__extEdgeMap[gid];
+    var inner = document.getElementById(gid);
+    if (!inner) return;
+    var mn = document.getElementById('mn-' + gid + '-' + mi);
+    if (mn && mn.classList.contains('ext-hl-selected')) { window.__graphClearHighlight(gid); return; }
+    window.__graphClearHighlight(gid);
+    if (!map) return;
+    if (mn) mn.classList.add('ext-hl-selected');
+    var activeEdges = map.machToEdges[mi] || [];
+    var edgeSet = {}, extSet = {};
+    activeEdges.forEach(function(ci) { edgeSet[ci] = true; extSet[map.conns[ci].tgtIdx] = true; });
+    inner.querySelectorAll('.ext-edge').forEach(function(el) { el.classList.add(edgeSet[+el.dataset.ci] ? 'ext-hl-active' : 'ext-hl-faded'); });
+    inner.querySelectorAll('.ext-arrow').forEach(function(el) { el.classList.add(edgeSet[+el.dataset.ci] ? 'ext-hl-active' : 'ext-hl-faded'); });
+    for (var i = 0; i < map.numMach; i++) { var n = document.getElementById('mn-' + gid + '-' + i); if (n && i !== mi) n.classList.add('ext-hl-faded'); }
+    for (var j = 0; j < map.numExt; j++) { var e = document.getElementById('en-' + gid + '-' + j); if (e) e.classList.add(extSet[j] ? 'ext-hl-selected' : 'ext-hl-faded'); }
+  };
+
+  window.__graphHighlightExt = function(gid, ei, event) {
+    if (event) event.stopPropagation();
+    var map = window.__extEdgeMap && window.__extEdgeMap[gid];
+    var inner = document.getElementById(gid);
+    if (!inner) return;
+    var en = document.getElementById('en-' + gid + '-' + ei);
+    if (en && en.classList.contains('ext-hl-selected')) { window.__graphClearHighlight(gid); return; }
+    window.__graphClearHighlight(gid);
+    if (!map) return;
+    if (en) en.classList.add('ext-hl-selected');
+    var activeEdges = map.extToEdges[ei] || [];
+    var edgeSet = {}, machSet = {};
+    activeEdges.forEach(function(ci) { edgeSet[ci] = true; machSet[map.conns[ci].srcIdx] = true; });
+    inner.querySelectorAll('.ext-edge').forEach(function(el) { el.classList.add(edgeSet[+el.dataset.ci] ? 'ext-hl-active' : 'ext-hl-faded'); });
+    inner.querySelectorAll('.ext-arrow').forEach(function(el) { el.classList.add(edgeSet[+el.dataset.ci] ? 'ext-hl-active' : 'ext-hl-faded'); });
+    for (var i = 0; i < map.numMach; i++) { var n = document.getElementById('mn-' + gid + '-' + i); if (n) n.classList.add(machSet[i] ? 'ext-hl-selected' : 'ext-hl-faded'); }
+    for (var j = 0; j < map.numExt; j++) { var e = document.getElementById('en-' + gid + '-' + j); if (e && j !== ei) e.classList.add('ext-hl-faded'); }
   };
 
   function badgeClass(st) {
@@ -3794,12 +3865,16 @@ const uiHTML = `<!DOCTYPE html>
       borderColor = '#f87171';
 
     // Build node groups (col 3)
+    var mcProvMap = {};
+    (state && state.machineClasses || []).forEach(function(mc) { mcProvMap[mc.id] = mc.provisionType || 'manual'; });
+    function mcProvisionType(mcName) { return mcName ? (mcProvMap[mcName] || 'manual') : ''; }
     var nodeGroups = [];
     var cpMachines = cp.machines || [];
     nodeGroups.push({
       kind: 'MachineSet',
       label: cp.name || 'control-planes',
       machineClass: cp.machineClass || '',
+      provisionType: mcProvisionType(cp.machineClass),
       machines: cpMachines,
       count: cp.count || 0,
       exts: cp.extensions || [],
@@ -3812,6 +3887,7 @@ const uiHTML = `<!DOCTYPE html>
         kind: 'MachineSet',
         label: wk.name || 'workers',
         machineClass: wk.machineClass || '',
+        provisionType: mcProvisionType(wk.machineClass),
         machines: wkMachines,
         count: wk.count || 0,
         exts: wk.extensions || [],
@@ -3847,11 +3923,13 @@ const uiHTML = `<!DOCTYPE html>
 
     // DAG node builder — optional width, nameStyle, onclickExpr params
     // onclickExpr: raw JS expression string placed in an onclick attribute
-    function dagNode(kind, name, metaHtml, badgesHtml, accentColor, iconSvg, width, nameStyle, onclickExpr) {
+    function dagNode(kind, name, metaHtml, badgesHtml, accentColor, iconSvg, width, nameStyle, onclickExpr, nodeId, foldOnclick, folded, leftFoldOnclick, leftFolded) {
       var w = width || NW;
-      var cls = 'dag-node' + (onclickExpr ? ' clickable' : '');
+      var cls = 'dag-node' + (onclickExpr ? ' clickable' : '') + (leftFoldOnclick ? ' dag-node-left-btn' : '');
       var clickAttr = onclickExpr ? ' onclick="' + onclickExpr + '"' : '';
-      return '<div class="' + cls + '" style="border-color:' + accentColor + ';width:' + w + 'px;"' + clickAttr + '>' +
+      var idAttr = nodeId ? ' id="' + nodeId + '"' : '';
+      var vtStyle = nodeId ? 'view-transition-name:' + nodeId + ';' : '';
+      var card = '<div class="' + cls + '"' + idAttr + ' style="width:' + w + 'px;' + vtStyle + '"' + clickAttr + '>' +
         '<div class="dag-node-icon">' + iconSvg + '</div>' +
         '<div class="dag-node-body">' +
           '<div class="dag-node-kind">' + escHtml(kind) + '</div>' +
@@ -3860,21 +3938,29 @@ const uiHTML = `<!DOCTYPE html>
           (badgesHtml ? '<div class="dag-node-badges">' + badgesHtml + '</div>' : '') +
         '</div>' +
       '</div>';
+      if (!foldOnclick && !leftFoldOnclick) return card;
+      var foldBtn = foldOnclick ? '<button class="dag-fold-btn" onclick="event.stopPropagation();' + foldOnclick + '">' + (folded ? '+' : '&#8722;') + '</button>' : '';
+      var leftFoldBtn = leftFoldOnclick ? '<button class="dag-fold-btn-left" onclick="event.stopPropagation();' + leftFoldOnclick + '">' + (leftFolded ? '+' : '&#8722;') + '</button>' : '';
+      return '<div class="dag-node-wrap">' + leftFoldBtn + card + foldBtn + '</div>';
     }
 
     // Icons
     var gitIcon   = '{{GIT_ICON}}';
     var omniIcon  = '{{OMNI_ICON}}';
     // Kubernetes logo (blue hexagon + 6-spoke helm wheel, 100x100 viewBox for crisp rendering)
-    var k8sIcon   = '{{K8S_ICON}}';
-    var cpIcon    = k8sIcon;
-    var wpIcon    = k8sIcon;
+    var k8sIcon         = '{{K8S_ICON}}';
+    var machinesetIcon          = '{{MACHINESET_ICON}}';
+    var machinesetPoolManualIcon = '{{MACHINESET_POOL_MANUAL_ICON}}';
+    var machinesetPoolInfraIcon  = '{{MACHINESET_POOL_INFRA_ICON}}';
+    function msIcon(g) {
+      return g.provisionType === 'auto' ? machinesetPoolInfraIcon : machinesetPoolManualIcon;
+    }
     var extIcon   = '{{EXT_ICON}}';
     // Talos logo — actual SVG paths scaled to 16x16 via viewBox (three sweeping arms, red→orange gradient)
     var talosIcon = '{{TALOS_ICON}}';
     var machineIconSVG = '{{MACHINE_ICON}}';
     function machIcon(c) {
-      return machineIconSVG.replace('<svg ', '<svg style="color:' + c + '" ');
+      return machineIconSVG;
     }
 
     // Col 1: Git + Omni
@@ -3884,8 +3970,8 @@ const uiHTML = `<!DOCTYPE html>
     var omniMeta = (omniVersion ? escHtml(omniVersion) : '') +
       (omniStatus ? (omniVersion ? ' &middot; ' : '') + '<span style="color:' + omniColor + '">' + escHtml(omniStatus) + '</span>' : '');
     var col1Nodes = [
-      dagNode('Git', gitRepoName, gitMeta, '', '#3b82f6', gitIcon),
-      dagNode('Omni', omniEndpointDisplay || 'Omni Instance', omniMeta, '', omniColor, omniIcon)
+      dagNode('Git', gitRepoName, gitMeta, '', '#3b82f6', gitIcon, undefined, undefined, undefined, 'gt-' + graphId),
+      dagNode('Omni', omniEndpointDisplay || 'Omni Instance', omniMeta, '', omniColor, omniIcon, undefined, undefined, undefined, 'om-' + graphId)
     ];
 
     // Col 3: Node groups (ControlPlane + Workers) + cluster-level extensions (same visual level)
@@ -3893,24 +3979,22 @@ const uiHTML = `<!DOCTYPE html>
     // Built before col2 so we can show the fold-badge count on the Cluster card.
     var clusterExtsList = cluster.clusterExtensions || [];
     var col3Nodes = nodeGroups.map(function(g, gi) {
-      var mcLabel = g.machineClass ? escHtml(g.machineClass) : 'Manual';
+      var mcLabel = g.machineClass ? escHtml(g.machineClass) : '';
       var meta = g.isPool
-        ? (g.count + ' node' + (g.count !== 1 ? 's' : '') + ' - ' + mcLabel)
-        : (g.machines.length + ' machine' + (g.machines.length !== 1 ? 's' : '') + ' - ' + mcLabel);
-      var msonclick = g.machines.length > 0 ? 'window.__graphToggleColFold(\'' + graphId + ':col4:' + gi + '\')' : '';
+        ? (g.count + ' node' + (g.count !== 1 ? 's' : '') + (mcLabel ? ' \u00b7 ' + mcLabel : ''))
+        : (g.machines.length + ' machine' + (g.machines.length !== 1 ? 's' : '') + (mcLabel ? ' \u00b7 ' + mcLabel : ''));
       var giFolded = g.machines.length > 0 && !!colFoldedMap[graphId + ':col4:' + gi];
-      var foldBadge = giFolded ? '<span class="fold-badge">+' + g.machines.length + '</span>' : '';
-      return dagNode(g.kind, g.label, meta, foldBadge, g.color, cpIcon, undefined, undefined, msonclick);
-    }).concat(clusterExtsList.map(function(ext) {
-      return dagNode('Extension', ext, '', '', '#6366f1', extIcon);
-    }));
+      var msFoldOnclick = g.machines.length > 0 ? 'window.__graphToggleColFold(\'' + graphId + ':col4:' + gi + '\')' : '';
+      return dagNode(g.kind, g.label, meta, '', g.color, machinesetIcon, undefined, undefined, undefined, 'ms-' + graphId + '-' + gi, msFoldOnclick, giFolded);
+    });
 
     // Col 2: Cluster — clicking collapses/expands the MachineSet column
     var clusterMeta = 'Talos ' + escHtml(cluster.talosVersion || '\u2014') + ' &middot; K8s ' + escHtml(cluster.kubernetesVersion || '\u2014');
-    var col2onclick = 'window.__graphToggleColFold(\'' + graphId + ':col3\')';
     var col3foldedEarly = !!(col3Nodes.length > 0 && colFoldedMap[graphId + ':col3']);
-    var clusterFoldBadge = col3foldedEarly ? '<span class="fold-badge">+' + col3Nodes.length + '</span>' : '';
-    var col2Nodes = [dagNode('Cluster', cluster.id, clusterMeta, clusterFoldBadge, borderColor, talosIcon, undefined, undefined, col2onclick)];
+    var col2FoldOnclick = 'window.__graphToggleColFold(\'' + graphId + ':col3\')';
+    var col1FoldOnclick = 'window.__graphToggleColFold(\'' + graphId + ':col1\')';
+    var col1foldedEarly = !!colFoldedMap[graphId + ':col1'];
+    var col2Nodes = [dagNode('Cluster', cluster.id, clusterMeta, '', borderColor, talosIcon, undefined, undefined, undefined, 'cl-' + graphId, col2FoldOnclick, col3foldedEarly, col1FoldOnclick, col1foldedEarly)];
 
     // Col 4 (optional): Individual machines — per-MachineSet fold, full UUID, monospace name, wider card
     var col4Nodes = [], machineConnections = [], col4Uuids = [];
@@ -3935,8 +4019,10 @@ const uiHTML = `<!DOCTYPE html>
           machineConnections.push([gi, flatIdx]);
           col4Uuids.push(mid);
           var hn = hostnames[mid] ? escHtml(hostnames[mid]) : '';
-          col4Nodes.push(dagNode('Machine', mid, hn, '', g.color, machIcon(g.color), NW_MACH,
-            'font-family:\'SF Mono\',\'Fira Code\',monospace;font-size:11px;'));
+          var machNodeId = 'mn-' + graphId + '-' + flatIdx;
+          var machOnclick = 'window.__graphHighlightMachine(\'' + graphId + '\',' + flatIdx + ',event)';
+          col4Nodes.push(dagNode('Machine', mid, hn, '', g.color, msIcon(g), NW_MACH,
+            'font-family:\'SF Mono\',\'Fira Code\',monospace;font-size:11px;', machOnclick, machNodeId));
           localIdx++;
         });
         var gs = g.machines.length;
@@ -3945,37 +4031,57 @@ const uiHTML = `<!DOCTYPE html>
       col4TotalH = yOff;
     }
 
-    // Extensions: collect unique names from nodeGroup and machine sources.
-    // Cluster-level extensions are placed directly in col3 (alongside nodeGroups).
-    // extConns stores {srcKeys, srcIdx, tgtIdx} for variable-height SVG routing.
-    var extNodes = [], extNameToIdx = {}, extConns = [];
-    function addExt(name) {
-      if (!(name in extNameToIdx)) {
-        var eidx = extNodes.length;
-        extNameToIdx[name] = eidx;
-        extNodes.push(dagNode('Extension', name, '', '', '#6366f1', extIcon));
-      }
-      return extNameToIdx[name];
-    }
-    // NodeGroup-level extensions → connect from each visible machine in that group.
-    // If the MachineSet is collapsed its machines aren't in machineConnections, so
-    // no extension links are drawn for it.
+    // Extensions: all routed from individual machines (col4).
+    // Cluster-level → every visible machine. Group-level → machines in that group. Machine-level → that machine only.
+    // Collect raw connections first so we can sort extension names alphabetically before building nodes.
+    var machExtMap = cluster.machineExtensions || {};
+    var rawExtConns = [];
+    col4Uuids.forEach(function(uuid, mi) {
+      clusterExtsList.forEach(function(ext) { rawExtConns.push({srcIdx: mi, name: ext}); });
+    });
     machineConnections.forEach(function(mc) {
       var gi = mc[0], mi = mc[1];
-      nodeGroups[gi].exts.forEach(function(ext) {
-        extConns.push({srcCol: 4, srcIdx: mi, tgtIdx: addExt(ext)});
-      });
+      nodeGroups[gi].exts.forEach(function(ext) { rawExtConns.push({srcIdx: mi, name: ext}); });
     });
-    // Machine-level extensions → connect from that specific machine card.
-    var machExtMap = cluster.machineExtensions || {};
     col4Uuids.forEach(function(uuid, mi) {
-      (machExtMap[uuid] || []).forEach(function(ext) {
-        extConns.push({srcCol: 4, srcIdx: mi, tgtIdx: addExt(ext)});
-      });
+      (machExtMap[uuid] || []).forEach(function(ext) { rawExtConns.push({srcIdx: mi, name: ext}); });
+    });
+    // Build sorted extension nodes.
+    var extNameSet = {};
+    rawExtConns.forEach(function(c) { extNameSet[c.name] = true; });
+    var sortedExtNames = Object.keys(extNameSet).sort();
+    var extNodes = [], extNameToIdx = {};
+    sortedExtNames.forEach(function(name, eidx) {
+      extNameToIdx[name] = eidx;
+      var extNodeId = 'en-' + graphId + '-' + eidx;
+      var extOnclick = 'window.__graphHighlightExt(\'' + graphId + '\',' + eidx + ',event)';
+      extNodes.push(dagNode('Extension', name, '', '', '#ff8b59', extIcon, undefined, undefined, extOnclick, extNodeId));
+    });
+    // Deduplicate connections and map to sorted indices.
+    var extConnSeen = {}, extConns = [];
+    rawExtConns.forEach(function(c) {
+      var tgtIdx = extNameToIdx[c.name];
+      var key = c.srcIdx + ':' + tgtIdx;
+      if (!extConnSeen[key]) { extConnSeen[key] = true; extConns.push({srcIdx: c.srcIdx, tgtIdx: tgtIdx}); }
     });
     var hasExtensions = extNodes.length > 0;
+    // Build machine↔extension edge index maps for highlight interactions.
+    var machToEdges = {}, extToEdges = {};
+    extConns.forEach(function(conn, ci) {
+      if (!machToEdges[conn.srcIdx]) machToEdges[conn.srcIdx] = [];
+      machToEdges[conn.srcIdx].push(ci);
+      if (!extToEdges[conn.tgtIdx]) extToEdges[conn.tgtIdx] = [];
+      extToEdges[conn.tgtIdx].push(ci);
+    });
+    window.__extEdgeMap = window.__extEdgeMap || {};
+    window.__extEdgeMap[graphId] = {machToEdges: machToEdges, extToEdges: extToEdges, conns: extConns, numMach: col4Uuids.length, numExt: extNodes.length};
 
     // Column-fold flags — computed after all node arrays are built
+    // Default col1 (Git+Omni) to folded on first render.
+    if (window.__graphColFolded[graphId + ':col1'] === undefined) {
+      window.__graphColFolded[graphId + ':col1'] = true;
+    }
+    var col1folded = !!colFoldedMap[graphId + ':col1'];
     var col3folded = !!(col3Nodes.length > 0 && colFoldedMap[graphId + ':col3']);
     // col4 is visible as long as at least one MachineSet has machines AND isn't folded
     var anyMachinesVisible = col4Nodes.length > 0;
@@ -4031,24 +4137,22 @@ const uiHTML = `<!DOCTYPE html>
         var ly = spreadMidY(leftCount, conn[0]);
         var ry = spreadMidY(rightCount, conn[1]);
         var bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<path d="M0,' + ly.toFixed(1) + ' H' + bx.toFixed(1) + ' V' + ry.toFixed(1) + ' H' + EW + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
         paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
     }
 
-    // Mixed-source SVG edge: conn = {srcCol, srcIdx, tgtIdx}
+    // Extension edge: conn = {srcIdx, tgtIdx}, all sources from col4 machines.
     function edgeSvgMixed(connections, rightCount) {
       var col4Off = Math.max(0, (maxH - col4TotalH) / 2);
       var paths = '';
-      connections.forEach(function(conn) {
-        var ly = conn.srcCol === 4
-          ? machY[conn.srcIdx] + col4Off
-          : spreadMidY(col3Nodes.length, conn.srcIdx);
+      connections.forEach(function(conn, ci) {
+        var ly = machY[conn.srcIdx] + col4Off;
         var ry = spreadMidY(rightCount, conn.tgtIdx);
         var bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
-        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
+        paths += '<path data-ci="' + ci + '" class="ext-edge" d="M0,' + ly.toFixed(1) + ' H' + bx.toFixed(1) + ' V' + ry.toFixed(1) + ' H' + EW + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<polygon data-ci="' + ci + '" class="ext-arrow" points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
     }
@@ -4078,7 +4182,7 @@ const uiHTML = `<!DOCTYPE html>
       var paths = '';
       col3Nodes.forEach(function(_, i) {
         var ly = spreadMidY(1, 0), ry = col3NodeY[i], bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx + ',' + ly.toFixed(1) + ' ' + bx + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<path d="M0,' + ly.toFixed(1) + ' H' + bx + ' V' + ry.toFixed(1) + ' H' + EW + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
         paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
@@ -4107,7 +4211,7 @@ const uiHTML = `<!DOCTYPE html>
         var ly = col3NodeY[gi];
         var ry = machY[fi] + col4Off;
         var bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<path d="M0,' + ly.toFixed(1) + ' H' + bx.toFixed(1) + ' V' + ry.toFixed(1) + ' H' + EW + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
         paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
@@ -4122,7 +4226,7 @@ const uiHTML = `<!DOCTYPE html>
       var ry = spreadMidY(1, 0);
       col1Y.forEach(function(ly) {
         var bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<path d="M0,' + ly.toFixed(1) + ' H' + bx.toFixed(1) + ' V' + ry.toFixed(1) + ' H' + EW + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
         paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
@@ -4159,9 +4263,9 @@ const uiHTML = `<!DOCTYPE html>
         '<button class="cluster-graph-zoom-btn" onclick="window.__graphZoom(\'reset\',\'' + graphId + '\')">&#8635;</button>' +
         '<button class="cluster-graph-zoom-btn" onclick="window.__graphZoom(\'in\',\'' + graphId + '\')">&#43;</button>' +
       '</div>' +
-      '<div class="cluster-graph-canvas" onwheel="window.__graphZoomWheel(event,this)" onmousedown="window.__graphDragStart(event,this)" onmousemove="window.__graphDragMove(event,this)" onmouseup="window.__graphDragEnd(this)" onmouseleave="window.__graphDragEnd(this)">' +
+      '<div class="cluster-graph-canvas" onclick="window.__graphClearHighlight(\'' + graphId + '\')" onwheel="window.__graphZoomWheel(event,this)" onmousedown="window.__graphDragStart(event,this)" onmousemove="window.__graphDragMove(event,this)" onmouseup="window.__graphDragEnd(this)" onmouseleave="window.__graphDragEnd(this)">' +
         '<div id="' + graphId + '" class="cluster-graph-inner" style="align-items:flex-start;gap:0;' + inlineTransform + '">' +
-          wrapColCompact(col1Nodes, COL1_GAP) + edge1 +
+          (col1folded ? '' : wrapColCompact(col1Nodes, COL1_GAP) + edge1) +
           wrapCol(col2Nodes) + edge2 +
           col3segment +
         '</div>' +
