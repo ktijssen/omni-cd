@@ -16,8 +16,8 @@ import (
 	"omni-cd/internal/auth"
 	"omni-cd/internal/config"
 	"omni-cd/internal/git"
-	"omni-cd/internal/omni"
 	oidcconfig "omni-cd/internal/oidc"
+	"omni-cd/internal/omni"
 	"omni-cd/internal/omniinstance"
 	"omni-cd/internal/reconciler"
 	"omni-cd/internal/state"
@@ -322,7 +322,7 @@ func main() {
 				} else {
 					foundDir := ""
 					for _, dir := range dirs {
-						if _, err := os.Stat(dir+"/"+id); err == nil {
+						if _, err := os.Stat(dir + "/" + id); err == nil {
 							foundDir = dir
 							break
 						}
@@ -525,7 +525,7 @@ func main() {
 				dirs := getClusterDirs()
 				foundDir := ""
 				for _, dir := range dirs {
-					if _, err := os.Stat(dir+"/"+id); err == nil {
+					if _, err := os.Stat(dir + "/" + id); err == nil {
 						foundDir = dir
 						break
 					}

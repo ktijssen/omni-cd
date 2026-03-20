@@ -50,10 +50,10 @@ type Server struct {
 	clients                map[*websocket.Conn]bool
 	clientsMu              sync.RWMutex
 	broadcast              chan []byte
-	authStore    *auth.Store
-	authDisabled bool
-	sessions     sync.Map // token (string) -> sessionInfo
-	loginBuckets sync.Map // IP (string) -> *loginBucket
+	authStore              *auth.Store
+	authDisabled           bool
+	sessions               sync.Map // token (string) -> sessionInfo
+	loginBuckets           sync.Map // IP (string) -> *loginBucket
 	// OIDC
 	oidcRT     *OIDCRuntime
 	oidcMu     sync.RWMutex
@@ -82,8 +82,8 @@ func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan s
 		broadcast:              make(chan []byte, 256),
 		authStore:              authStore,
 		authDisabled:           authDisabled,
-		oidcRT:    oidcRT,
-		oidcUsers: loadOIDCUserStore(oidcUsersPath),
+		oidcRT:                 oidcRT,
+		oidcUsers:              loadOIDCUserStore(oidcUsersPath),
 	}
 
 	// Load persisted sessions so users stay logged in across restarts.

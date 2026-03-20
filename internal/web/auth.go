@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	sessionCookieName  = "omnicd_session"
-	sessionDuration    = 24 * time.Hour
-	maxLoginFailures   = 5
-	loginLockDuration  = 15 * time.Minute
-	sessionFile        = "/data/auth/sessions.json"
+	sessionCookieName = "omnicd_session"
+	sessionDuration   = 24 * time.Hour
+	maxLoginFailures  = 5
+	loginLockDuration = 15 * time.Minute
+	sessionFile       = "/data/auth/sessions.json"
 )
 
 // loadSessions reads persisted sessions from disk and populates the in-memory map,

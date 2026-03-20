@@ -568,19 +568,19 @@ func (r *Reconciler) RefreshSingleCluster(dir, id string) {
 	}
 
 	r.state.UpsertClusterInfo(id, state.ResourceInfo{
-		ID:                id,
-		Type:              "Cluster",
-		Status:            status,
-		Diff:              diffOutput,
-		FileContent:       fileContent,
-		LiveContent:       liveContent,
-		LastSyncResult:    lastSyncResult,
-		LastSyncError:     lastSyncError,
-		LastSyncTime:      lastSyncTime,
-		LastSyncSHA:       lastSyncSHA,
-		LastSyncAuthor:    lastSyncAuthor,
-		LastSyncMessage:   lastSyncMessage,
-		SyncStatusSince:    func() time.Time {
+		ID:              id,
+		Type:            "Cluster",
+		Status:          status,
+		Diff:            diffOutput,
+		FileContent:     fileContent,
+		LiveContent:     liveContent,
+		LastSyncResult:  lastSyncResult,
+		LastSyncError:   lastSyncError,
+		LastSyncTime:    lastSyncTime,
+		LastSyncSHA:     lastSyncSHA,
+		LastSyncAuthor:  lastSyncAuthor,
+		LastSyncMessage: lastSyncMessage,
+		SyncStatusSince: func() time.Time {
 			if status != "outofsync" {
 				return time.Time{}
 			}

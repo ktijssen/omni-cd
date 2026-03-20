@@ -12,8 +12,8 @@ import (
 	"time"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
-	oidcconfig "omni-cd/internal/oidc"
 	"golang.org/x/oauth2"
+	oidcconfig "omni-cd/internal/oidc"
 )
 
 // OIDCRuntime holds the live OIDC provider and oauth2 config derived from an
@@ -374,7 +374,6 @@ func (s *Server) handleGetOIDCConfig(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
 // cleanupOIDCStates periodically removes state tokens that were never consumed
 // (e.g. the user closed the browser before completing the OIDC flow).
 func (s *Server) cleanupOIDCStates() {
@@ -391,5 +390,3 @@ func (s *Server) cleanupOIDCStates() {
 }
 
 // --- helpers ---
-
-
