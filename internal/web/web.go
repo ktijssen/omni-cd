@@ -86,6 +86,9 @@ func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan s
 		oidcUsers: loadOIDCUserStore(oidcUsersPath),
 	}
 
+	// Load persisted sessions so users stay logged in across restarts.
+	s.loadSessions()
+
 	// Start broadcast handler
 	go s.handleBroadcasts()
 
@@ -110,6 +113,9 @@ func (s *Server) Start() {
 	mux.HandleFunc("/login", s.handleLogin)
 	mux.HandleFunc("/logout", s.handleLogout)
 	mux.HandleFunc("/unauthorized", s.handleUnauthorized)
+	mux.HandleFunc("/api/login-config", s.handleLoginConfig)
+	mux.HandleFunc("/api/setup-status", s.handleSetupStatus)
+	mux.HandleFunc("/assets/", s.handleStaticAsset)
 
 	// OIDC SSO routes — public (the handlers check OIDC is enabled)
 	mux.HandleFunc("/auth/login", s.handleOIDCLogin)
@@ -119,6 +125,7 @@ func (s *Server) Start() {
 	mux.HandleFunc("/ws", s.requireRole("viewer", s.handleWebSocket))
 
 	// Read-only API endpoints — viewer+
+	mux.HandleFunc("/api/me", s.requireRole("viewer", s.handleMe))
 	mux.HandleFunc("/api/state", s.requireRole("viewer", s.handleState))
 	mux.HandleFunc("/api/logs/files", s.requireRole("viewer", s.handleLogFiles))
 	mux.HandleFunc("/api/logs/download", s.requireRole("viewer", s.handleLogDownload))

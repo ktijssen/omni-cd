@@ -813,3 +813,30 @@ func (s *Server) handleLogDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	http.ServeFile(w, r, path)
 }
+
+// handleMe returns the current user's identity and auth configuration.
+func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	type meResponse struct {
+		Username     string `json:"username"`
+		Role         string `json:"role"`
+		AuthDisabled bool   `json:"authDisabled"`
+		OIDCEnabled  bool   `json:"oidcEnabled"`
+	}
+	username := s.sessionUsername(r)
+	role := s.sessionRole(r)
+	if role == "" {
+		role = "admin"
+	}
+	resp := meResponse{
+		Username:     username,
+		Role:         role,
+		AuthDisabled: s.authDisabled,
+		OIDCEnabled:  s.oidcEnabled(),
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
