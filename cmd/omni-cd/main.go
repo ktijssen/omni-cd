@@ -404,6 +404,22 @@ func main() {
 			}
 		}()
 
+		// WatchMachineSetNodes: fires when Omni assigns/removes a machine from a
+		// MachineSet (e.g. during cluster creation / pool scaling). Forwarded to
+		// addPending so the topology graph updates in real time without waiting
+		// for the next full reconcile cycle.
+		go func() {
+			for {
+				ctx, cancel := context.WithCancel(context.Background())
+				err := omni.WatchMachineSetNodes(ctx, addPending)
+				cancel()
+				if err != nil {
+					logError("MachineSetNode watch failed, retrying in 5s", "error", err)
+				}
+				time.Sleep(5 * time.Second)
+			}
+		}()
+
 		// WatchMachineClasses: maintain in-memory cache of MC id -> YAML content.
 		// When content changes (not just bootstrap), apply auto-sync-enabled MCs
 		// immediately and diff the rest so the UI reflects the change right away.

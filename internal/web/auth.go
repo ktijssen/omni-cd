@@ -253,6 +253,7 @@ func (s *Server) cleanupLoginBuckets() {
 // renderLoginPage builds the full login HTML, injecting an optional error banner and the form/SSO button.
 func (s *Server) renderLoginPage(errorHTML string) string {
 	page := loginHTML
+	page = strings.ReplaceAll(page, "{{OMNI_LOGO_URI}}", omniLogoURI)
 	if errorHTML != "" {
 		page = strings.ReplaceAll(page, "<!--ERROR-->", errorHTML)
 	}

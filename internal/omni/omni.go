@@ -577,6 +577,36 @@ func WatchClusterConfigChanges(ctx context.Context, onChanged func(clusterID str
 	}
 }
 
+// WatchMachineSetNodes watches MachineSetNode resources and calls onChanged with
+// the cluster ID whenever a node is created, updated, or destroyed. This fires
+// when Omni assigns or removes a machine from a MachineSet — e.g. during cluster
+// creation or pool scaling — enabling the UI to reflect machine topology changes
+// in real time without waiting for the next full reconcile cycle.
+// Does NOT bootstrap initial state — only fires on actual changes.
+// Blocks until ctx is cancelled. Run in a goroutine.
+func WatchMachineSetNodes(ctx context.Context, onChanged func(clusterID string)) error {
+	ch := make(chan safe.WrappedStateEvent[*omniapi.MachineSetNode], 64)
+	msnMeta := resource.NewMetadata("default", omniapi.MachineSetNodeType, "", resource.VersionUndefined)
+	if err := safe.StateWatchKind[*omniapi.MachineSetNode](ctx, omniState, msnMeta, ch); err != nil {
+		return err
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case event := <-ch:
+			switch event.Type() {
+			case cosistate.Created, cosistate.Updated, cosistate.Destroyed:
+				if r, err := event.Resource(); err == nil {
+					if clusterID, ok := r.Metadata().Labels().Get(omniapi.LabelCluster); ok && clusterID != "" {
+						onChanged(clusterID)
+					}
+				}
+			}
+		}
+	}
+}
+
 // WatchMachineClasses watches MachineClass resources and maintains an in-memory
 // cache of id -> YAML content. onUpdate is called after bootstrap and on every change.
 // Blocks until ctx is cancelled. Run in a goroutine.

@@ -16,6 +16,22 @@ func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
 	html := strings.ReplaceAll(uiHTML, "{{APP_VERSION}}", s.version)
 	html = strings.ReplaceAll(html, "{{OMNI_LOGO_URI}}", omniLogoURI)
 	html = strings.ReplaceAll(html, "{{PROFILE_ICON_URI}}", profileIconURI)
+	html = strings.ReplaceAll(html, "{{REPOS_ICON}}", reposIconSVG)
+	html = strings.ReplaceAll(html, "{{USERS_ICON}}", usersIconSVG)
+	html = strings.ReplaceAll(html, "{{CLUSTERS_ICON}}", clustersIconSVG)
+	html = strings.ReplaceAll(html, "{{CODE_BRACKET_ICON}}", codeBracketIconSVG)
+	html = strings.ReplaceAll(html, "{{SYNCED_ICON}}", syncedIconSVG)
+	html = strings.ReplaceAll(html, "{{OUT_OF_SYNC_ICON}}", outOfSyncIconSVG)
+	html = strings.ReplaceAll(html, "{{FAILED_ICON}}", failedIconSVG)
+	html = strings.ReplaceAll(html, "{{GIT_ICON}}", gitIconSVG)
+	html = strings.ReplaceAll(html, "{{OMNI_ICON}}", omniIconSVG)
+	html = strings.ReplaceAll(html, "{{K8S_ICON}}", k8sIconSVG)
+	html = strings.ReplaceAll(html, "{{MACHINESET_ICON}}", machinesetIconSVG)
+	html = strings.ReplaceAll(html, "{{MACHINESET_POOL_MANUAL_ICON}}", machinesetPoolManualIconSVG)
+	html = strings.ReplaceAll(html, "{{MACHINESET_POOL_INFRA_ICON}}", machinesetPoolInfraIconSVG)
+	html = strings.ReplaceAll(html, "{{EXT_ICON}}", extIconSVG)
+	html = strings.ReplaceAll(html, "{{TALOS_ICON}}", talosIconSVG)
+	html = strings.ReplaceAll(html, "{{MACHINE_ICON}}", machineIconSVG)
 	username := s.sessionUsername(r)
 	html = strings.ReplaceAll(html, "{{LOGGED_IN_AS}}", username)
 	authDisabledVal := "false"
@@ -861,14 +877,32 @@ const uiHTML = `<!DOCTYPE html>
   .graph-ext-item { font-size: 11px; color: #5b5c64; padding: 3px 0 0 12px; font-family: 'SF Mono','Fira Code',monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* DAG graph - Argo CD style left-to-right layout */
+  .dag-node-wrap { position:relative; flex-shrink:0; }
   .dag-node { display:flex; align-items:stretch; background:#13141c; border:1px solid #2c2e38; border-radius:6px; overflow:hidden; height:100px; flex-shrink:0; }
   .dag-node.clickable:hover { border-color:#7d7d85; }
+  .dag-fold-btn { position:absolute; right:-10px; top:50%; transform:translateY(-50%); width:20px; height:20px; border-radius:50%; background:#1f222e; border:1px solid #3a3d4a; color:#9fa1a6; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:1; padding:0; line-height:1; transition:background 0.15s,color 0.15s,border-color 0.15s; }
+  .dag-fold-btn-left { position:absolute; left:-10px; top:50%; transform:translateY(-50%); width:20px; height:20px; border-radius:50%; background:#1f222e; border:1px solid #3a3d4a; color:#9fa1a6; font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:1; padding:0; line-height:1; transition:background 0.15s,color 0.15s,border-color 0.15s; }
+  .dag-fold-btn:hover,.dag-fold-btn-left:hover { background:#ff8b59; color:#fff; border-color:#ff8b59; }
+  ::view-transition-group(*) { animation-duration: 0.3s; animation-timing-function: cubic-bezier(0.4,0,0.2,1); }
+  ::view-transition-old(*) { animation-duration: 0.3s; animation-timing-function: cubic-bezier(0.4,0,0.2,1); }
+  ::view-transition-new(*) { animation-duration: 0.3s; animation-timing-function: cubic-bezier(0.4,0,0.2,1); }
   .dag-node-accent { width:3px; flex-shrink:0; }
-  .dag-node-icon { display:flex; align-items:center; justify-content:center; width:36px; flex-shrink:0; }
+  .dag-node-icon { display:flex; align-items:center; justify-content:center; width:36px; flex-shrink:0; color:#ff8b59; }
+  .dag-node-left-btn .dag-node-icon { padding-left:10px; }
   .dag-node-body { flex:1; padding:10px 10px 10px 6px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; min-width:0; }
   .dag-node-kind { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:#5b5c64; margin-bottom:2px; }
   .dag-node-name { font-size:13px; font-weight:600; color:#e8e8e9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .dag-node-meta { font-size:10px; color:#7d7d85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+  /* Extension edge highlight states */
+  .dag-node { transition: opacity 0.15s, box-shadow 0.15s; }
+  .dag-node.ext-hl-faded { opacity: 0.25; }
+  .dag-node.ext-hl-selected { box-shadow: 0 0 0 2px #ff8b59; }
+  .ext-edge { opacity: 1; transition: opacity 0.15s; }
+  .ext-arrow { opacity: 1; transition: opacity 0.15s; }
+  .ext-edge.ext-hl-active { opacity: 1; stroke: #ff8b59 !important; stroke-dasharray: none !important; }
+  .ext-arrow.ext-hl-active { opacity: 1; fill: #ff8b59 !important; }
+  .ext-edge.ext-hl-faded { opacity: 0.06; }
+  .ext-arrow.ext-hl-faded { opacity: 0.06; }
   .dag-node-badges { display:flex; gap:3px; margin-top:5px; flex-wrap:wrap; }
 
   /* Pagination */
@@ -1010,7 +1044,7 @@ const uiHTML = `<!DOCTYPE html>
   .sidebar-subgroup { display: none; flex-direction: column; gap: 2px; padding-left: 4px; }
   .sidebar-subgroup.open { display: flex; }
   .sidebar-subitem { padding-left: 24px !important; }
-  .sidebar-user { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #1f222e; }
+  .sidebar-user { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid #1f222e; }
   .sidebar-user-icon { width: 28px; height: 28px; flex-shrink: 0; opacity: 0.45; filter: invert(1); }
   .sidebar-user-text { flex: 1; min-width: 0; }
   .sidebar-user-label { font-size: 10px; color: #5b5c64; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
@@ -1277,9 +1311,9 @@ const uiHTML = `<!DOCTYPE html>
   var userRole = '{{USER_ROLE}}'; // "admin" or "viewer"
   var isAdmin = userRole === 'admin';
   if (footerEl) footerEl.textContent = 'Omni CD ' + appVersion + ' · Real-time updates';
-  var syncedIcon    = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.4731 2.53338C9.30774 2.0062 8.00444 1.8652 6.75333 2.13095C5.50222 2.39671 4.36877 3.05531 3.51836 4.01067C2.66795 4.96603 2.14508 6.16814 2.02605 7.44161C1.90701 8.71509 2.19804 9.99328 2.85667 11.0897C3.5153 12.1861 4.50707 13.0433 5.68725 13.5364C6.86744 14.0294 8.1743 14.1323 9.41713 13.8302C10.66 13.5282 11.7738 12.8368 12.596 11.8571C13.4182 10.8774 13.9058 9.66053 13.9877 8.38413C14.0054 8.10855 14.2431 7.89948 14.5187 7.91716C14.7943 7.93484 15.0033 8.17257 14.9856 8.44815C14.8901 9.93728 14.3212 11.3569 13.362 12.4999C12.4027 13.643 11.1033 14.4495 9.65332 14.802C8.20334 15.1544 6.67868 15.0343 5.3018 14.4591C3.92491 13.8839 2.76785 12.8838 1.99945 11.6046C1.23105 10.3255 0.891515 8.83427 1.03039 7.34855C1.16926 5.86283 1.77927 4.46036 2.77141 3.34578C3.76356 2.2312 5.08592 1.46282 6.54555 1.15278C8.00518 0.842728 9.52569 1.00723 10.8852 1.62227C11.1368 1.73609 11.2485 2.03232 11.1347 2.28391C11.0209 2.53551 10.7247 2.6472 10.4731 2.53338Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M13.8536 4.14645C14.0488 4.34171 14.0488 4.65829 13.8536 4.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L5.14645 7.85355C4.95118 7.65829 4.95118 7.34171 5.14645 7.14645C5.34171 6.95118 5.65829 6.95118 5.85355 7.14645L8 9.29289L13.1464 4.14645C13.3417 3.95118 13.6583 3.95118 13.8536 4.14645Z"/></svg>';
-  var outOfSyncIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px"><path d="M2.09 6.96 A6 6 0 0 1 13.8 6.45 L13.23 8.46 L12.35 6.84 A4.5 4.5 0 0 0 3.57 7.22 Z"/><path d="M13.91 9.04 A6 6 0 0 1 2.2 9.55 L2.77 7.54 L3.65 9.16 A4.5 4.5 0 0 0 12.43 8.78 Z"/></svg>';
-  var failedIcon    = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.4731 2.53338C9.30774 2.0062 8.00444 1.8652 6.75333 2.13095C5.50222 2.39671 4.36877 3.05531 3.51836 4.01067C2.66795 4.96603 2.14508 6.16814 2.02605 7.44161C1.90701 8.71509 2.19804 9.99328 2.85667 11.0897C3.5153 12.1861 4.50707 13.0433 5.68725 13.5364C6.86744 14.0294 8.1743 14.1323 9.41713 13.8302C10.66 13.5282 11.7738 12.8368 12.596 11.8571C13.4182 10.8774 13.9058 9.66053 13.9877 8.38413C14.0054 8.10855 14.2431 7.89948 14.5187 7.91716C14.7943 7.93484 15.0033 8.17257 14.9856 8.44815C14.8901 9.93728 14.3212 11.3569 13.362 12.4999C12.4027 13.643 11.1033 14.4495 9.65332 14.802C8.20334 15.1544 6.67868 15.0343 5.3018 14.4591C3.92491 13.8839 2.76785 12.8838 1.99945 11.6046C1.23105 10.3255 0.891515 8.83427 1.03039 7.34855C1.16926 5.86283 1.77927 4.46036 2.77141 3.34578C3.76356 2.2312 5.08592 1.46282 6.54555 1.15278C8.00518 0.842728 9.52569 1.00723 10.8852 1.62227C11.1368 1.73609 11.2485 2.03232 11.1347 2.28391C11.0209 2.53551 10.7247 2.6472 10.4731 2.53338Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M5.14645 5.14645C5.34171 4.95118 5.65829 4.95118 5.85355 5.14645L8 7.29289L10.1464 5.14645C10.3417 4.95118 10.6583 4.95118 10.8536 5.14645C11.0488 5.34171 11.0488 5.65829 10.8536 5.85355L8.70711 8L10.8536 10.1464C11.0488 10.3417 11.0488 10.6583 10.8536 10.8536C10.6583 11.0488 10.3417 11.0488 10.1464 10.8536L8 8.70711L5.85355 10.8536C5.65829 11.0488 5.34171 11.0488 5.14645 10.8536C4.95118 10.6583 4.95118 10.3417 5.14645 10.1464L7.29289 8L5.14645 5.85355C4.95118 5.65829 4.95118 5.34171 5.14645 5.14645Z"/></svg>';
+  var syncedIcon    = '{{SYNCED_ICON}}';
+  var outOfSyncIcon = '{{OUT_OF_SYNC_ICON}}';
+  var failedIcon    = '{{FAILED_ICON}}';
   var state = null;
   var loadingOverlay = document.getElementById('loading-overlay');
   var appLoaded = false; // resolved after first state message confirms server start time
@@ -2132,9 +2166,12 @@ const uiHTML = `<!DOCTYPE html>
       requestAnimationFrame(function() { if (gid) restoreGraphTransform(gid); });
     }
   }
+  function graphTransition(fn) {
+    if (document.startViewTransition) { document.startViewTransition(fn); } else { fn(); }
+  }
   window.__graphToggleColFold = function(key) {
     window.__graphColFolded[key] = !window.__graphColFolded[key];
-    reRenderGraph();
+    graphTransition(reRenderGraph);
   };
   window.__graphCollapseAll = function(graphId) {
     var inner = document.getElementById(graphId);
@@ -2143,13 +2180,60 @@ const uiHTML = `<!DOCTYPE html>
       var m = (el.getAttribute('onclick') || '').match(/__graphToggleColFold\('([^']+)'\)/);
       if (m) window.__graphColFolded[m[1]] = true;
     });
-    reRenderGraph();
+    window.__graphColFolded[graphId + ':col1'] = true;
+    graphTransition(reRenderGraph);
   };
   window.__graphExpandAll = function(graphId) {
     Object.keys(window.__graphColFolded).forEach(function(k) {
       if (k.indexOf(graphId + ':') === 0) window.__graphColFolded[k] = false;
     });
-    reRenderGraph();
+    graphTransition(reRenderGraph);
+  };
+
+  window.__graphClearHighlight = function(gid) {
+    var inner = document.getElementById(gid);
+    if (!inner) return;
+    inner.querySelectorAll('.ext-edge').forEach(function(el) { el.classList.remove('ext-hl-active', 'ext-hl-faded'); });
+    inner.querySelectorAll('.ext-arrow').forEach(function(el) { el.classList.remove('ext-hl-active', 'ext-hl-faded'); });
+    inner.querySelectorAll('.dag-node').forEach(function(el) { el.classList.remove('ext-hl-faded', 'ext-hl-selected'); });
+  };
+
+  window.__graphHighlightMachine = function(gid, mi, event) {
+    if (event) event.stopPropagation();
+    var map = window.__extEdgeMap && window.__extEdgeMap[gid];
+    var inner = document.getElementById(gid);
+    if (!inner) return;
+    var mn = document.getElementById('mn-' + gid + '-' + mi);
+    if (mn && mn.classList.contains('ext-hl-selected')) { window.__graphClearHighlight(gid); return; }
+    window.__graphClearHighlight(gid);
+    if (!map) return;
+    if (mn) mn.classList.add('ext-hl-selected');
+    var activeEdges = map.machToEdges[mi] || [];
+    var edgeSet = {}, extSet = {};
+    activeEdges.forEach(function(ci) { edgeSet[ci] = true; extSet[map.conns[ci].tgtIdx] = true; });
+    inner.querySelectorAll('.ext-edge').forEach(function(el) { el.classList.add(edgeSet[+el.dataset.ci] ? 'ext-hl-active' : 'ext-hl-faded'); });
+    inner.querySelectorAll('.ext-arrow').forEach(function(el) { el.classList.add(edgeSet[+el.dataset.ci] ? 'ext-hl-active' : 'ext-hl-faded'); });
+    for (var i = 0; i < map.numMach; i++) { var n = document.getElementById('mn-' + gid + '-' + i); if (n && i !== mi) n.classList.add('ext-hl-faded'); }
+    for (var j = 0; j < map.numExt; j++) { var e = document.getElementById('en-' + gid + '-' + j); if (e) e.classList.add(extSet[j] ? 'ext-hl-selected' : 'ext-hl-faded'); }
+  };
+
+  window.__graphHighlightExt = function(gid, ei, event) {
+    if (event) event.stopPropagation();
+    var map = window.__extEdgeMap && window.__extEdgeMap[gid];
+    var inner = document.getElementById(gid);
+    if (!inner) return;
+    var en = document.getElementById('en-' + gid + '-' + ei);
+    if (en && en.classList.contains('ext-hl-selected')) { window.__graphClearHighlight(gid); return; }
+    window.__graphClearHighlight(gid);
+    if (!map) return;
+    if (en) en.classList.add('ext-hl-selected');
+    var activeEdges = map.extToEdges[ei] || [];
+    var edgeSet = {}, machSet = {};
+    activeEdges.forEach(function(ci) { edgeSet[ci] = true; machSet[map.conns[ci].srcIdx] = true; });
+    inner.querySelectorAll('.ext-edge').forEach(function(el) { el.classList.add(edgeSet[+el.dataset.ci] ? 'ext-hl-active' : 'ext-hl-faded'); });
+    inner.querySelectorAll('.ext-arrow').forEach(function(el) { el.classList.add(edgeSet[+el.dataset.ci] ? 'ext-hl-active' : 'ext-hl-faded'); });
+    for (var i = 0; i < map.numMach; i++) { var n = document.getElementById('mn-' + gid + '-' + i); if (n) n.classList.add(machSet[i] ? 'ext-hl-selected' : 'ext-hl-faded'); }
+    for (var j = 0; j < map.numExt; j++) { var e = document.getElementById('en-' + gid + '-' + j); if (e && j !== ei) e.classList.add('ext-hl-faded'); }
   };
 
   function badgeClass(st) {
@@ -2667,8 +2751,8 @@ const uiHTML = `<!DOCTYPE html>
     var showSettings = settingsOpen || settingsRoutes.indexOf(currentRoute) >= 0;
 
     var navItems = [
-      { label: 'Clusters',        icon: '◈', href: '/clusters' },
-      { label: 'Machine Classes', icon: '▦', href: '/machineclasses' },
+      { label: 'Clusters',        icon: '{{CLUSTERS_ICON}}', href: '/clusters' },
+      { label: 'Machine Classes', icon: '{{CODE_BRACKET_ICON}}', href: '/machineclasses' },
       null,
       { label: 'Logs',            icon: '≡', href: '/logs' },
     ];
@@ -2676,7 +2760,6 @@ const uiHTML = `<!DOCTYPE html>
       '<img class="logo sidebar-logo-img" src="{{OMNI_LOGO_URI}}" alt="Omni">' +
       '<div class="sidebar-logo-text">Omni <span>CD</span></div>' +
     '</div>' +
-    (loggedInAs ? '<div class="sidebar-user"><img class="sidebar-user-icon" src="{{PROFILE_ICON_URI}}" alt="user"><div class="sidebar-user-text"><div class="sidebar-user-label">Logged in as:</div><div class="sidebar-user-name">' + escHtml(loggedInAs) + '</div></div></div>' : '') +
     '<div class="sidebar-nav">';
     navItems.forEach(function(item) {
       if (!item) { html += '<div class="sidebar-sep"></div>'; return; }
@@ -2692,9 +2775,9 @@ const uiHTML = `<!DOCTYPE html>
     var instanceLabel = 'Instances' + (state && !state.omniConfigured ? ' <span style="color:#fb923c">●</span>' : '');
     var subItems = [
       { label: instanceLabel, icon: '⬡', href: '/instances' },
-      { label: 'Repos',       icon: '⎇', href: '/repos' },
+      { label: 'Repos',       icon: '{{REPOS_ICON}}', href: '/repos' },
     ];
-    if (!authDisabled && isAdmin) subItems.push({ label: 'Users', icon: '◉', href: '/users' });
+    if (!authDisabled && isAdmin) subItems.push({ label: 'Users', icon: '{{USERS_ICON}}', href: '/users' });
     html += '<button class="sidebar-item' + (settingsActive ? ' active' : '') + '" onclick="window.__toggleSettings()" title="Settings" style="width:100%;background:none;border:none;cursor:pointer;">' +
       '<span class="sidebar-item-icon">⚙</span>' +
       '<span class="sidebar-item-label">Settings</span>' +
@@ -2712,6 +2795,7 @@ const uiHTML = `<!DOCTYPE html>
 
     html += '</div>' +
       '<div class="sidebar-footer">' +
+        (loggedInAs ? '<div class="sidebar-user"><img class="sidebar-user-icon" src="{{PROFILE_ICON_URI}}" alt="user"><div class="sidebar-user-text"><div class="sidebar-user-label">Logged in as:</div><div class="sidebar-user-name">' + escHtml(loggedInAs) + '</div></div></div>' : '') +
         '<a class="sidebar-item" href="/logout" style="color:#7d7d85;" title="Sign out">' +
           '<span class="sidebar-item-icon">⏻</span>' +
           '<span class="sidebar-item-label">Sign out</span>' +
@@ -3781,12 +3865,16 @@ const uiHTML = `<!DOCTYPE html>
       borderColor = '#f87171';
 
     // Build node groups (col 3)
+    var mcProvMap = {};
+    (state && state.machineClasses || []).forEach(function(mc) { mcProvMap[mc.id] = mc.provisionType || 'manual'; });
+    function mcProvisionType(mcName) { return mcName ? (mcProvMap[mcName] || 'manual') : ''; }
     var nodeGroups = [];
     var cpMachines = cp.machines || [];
     nodeGroups.push({
       kind: 'MachineSet',
       label: cp.name || 'control-planes',
       machineClass: cp.machineClass || '',
+      provisionType: mcProvisionType(cp.machineClass),
       machines: cpMachines,
       count: cp.count || 0,
       exts: cp.extensions || [],
@@ -3799,6 +3887,7 @@ const uiHTML = `<!DOCTYPE html>
         kind: 'MachineSet',
         label: wk.name || 'workers',
         machineClass: wk.machineClass || '',
+        provisionType: mcProvisionType(wk.machineClass),
         machines: wkMachines,
         count: wk.count || 0,
         exts: wk.extensions || [],
@@ -3834,11 +3923,13 @@ const uiHTML = `<!DOCTYPE html>
 
     // DAG node builder — optional width, nameStyle, onclickExpr params
     // onclickExpr: raw JS expression string placed in an onclick attribute
-    function dagNode(kind, name, metaHtml, badgesHtml, accentColor, iconSvg, width, nameStyle, onclickExpr) {
+    function dagNode(kind, name, metaHtml, badgesHtml, accentColor, iconSvg, width, nameStyle, onclickExpr, nodeId, foldOnclick, folded, leftFoldOnclick, leftFolded) {
       var w = width || NW;
-      var cls = 'dag-node' + (onclickExpr ? ' clickable' : '');
+      var cls = 'dag-node' + (onclickExpr ? ' clickable' : '') + (leftFoldOnclick ? ' dag-node-left-btn' : '');
       var clickAttr = onclickExpr ? ' onclick="' + onclickExpr + '"' : '';
-      return '<div class="' + cls + '" style="border-color:' + accentColor + ';width:' + w + 'px;"' + clickAttr + '>' +
+      var idAttr = nodeId ? ' id="' + nodeId + '"' : '';
+      var vtStyle = nodeId ? 'view-transition-name:' + nodeId + ';' : '';
+      var card = '<div class="' + cls + '"' + idAttr + ' style="width:' + w + 'px;' + vtStyle + '"' + clickAttr + '>' +
         '<div class="dag-node-icon">' + iconSvg + '</div>' +
         '<div class="dag-node-body">' +
           '<div class="dag-node-kind">' + escHtml(kind) + '</div>' +
@@ -3847,28 +3938,29 @@ const uiHTML = `<!DOCTYPE html>
           (badgesHtml ? '<div class="dag-node-badges">' + badgesHtml + '</div>' : '') +
         '</div>' +
       '</div>';
+      if (!foldOnclick && !leftFoldOnclick) return card;
+      var foldBtn = foldOnclick ? '<button class="dag-fold-btn" onclick="event.stopPropagation();' + foldOnclick + '">' + (folded ? '+' : '&#8722;') + '</button>' : '';
+      var leftFoldBtn = leftFoldOnclick ? '<button class="dag-fold-btn-left" onclick="event.stopPropagation();' + leftFoldOnclick + '">' + (leftFolded ? '+' : '&#8722;') + '</button>' : '';
+      return '<div class="dag-node-wrap">' + leftFoldBtn + card + foldBtn + '</div>';
     }
 
     // Icons
-    var gitIcon = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="4.5" cy="4.5" r="2" stroke="#3b82f6" stroke-width="1.5"/><circle cx="11.5" cy="4.5" r="2" stroke="#3b82f6" stroke-width="1.5"/><circle cx="4.5" cy="11.5" r="2" stroke="#3b82f6" stroke-width="1.5"/><line x1="4.5" y1="6.5" x2="4.5" y2="9.5" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/><line x1="4.5" y1="6.5" x2="11.5" y2="6.5" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/></svg>';
-    var omniIcon = '<svg width="16" height="16" viewBox="0 0 1000 1008" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="og0" x1="499" y1="1171" x2="499" y2="-27" gradientUnits="userSpaceOnUse"><stop stop-color="#E8312C"/><stop offset="0.615" stop-color="#E2335A"/><stop offset="1" stop-color="#F77216"/></linearGradient><linearGradient id="og1" x1="1016" y1="1017" x2="93" y2="94" gradientUnits="userSpaceOnUse"><stop stop-color="#E8312C"/><stop offset="0.615" stop-color="#E2335A"/><stop offset="1" stop-color="#F77216"/></linearGradient></defs><path d="M388 84.8C449.6 23.3 549.4 23.3 610.9 84.8L915.8 389.8C977.4 451.3 977.4 551.1 915.8 612.6L610.9 917.6C549.4 979.1 449.6 979.1 388 917.6L83.1 612.6C21.6 551.1 21.6 451.3 83.1 389.8Z" stroke="url(#og0)" stroke-width="72"/><path d="M132 251.9C132 186.5 185 133.4 250.5 133.4H749.1C814.5 133.4 867.6 186.5 867.6 251.9V750.5C867.6 815.9 814.5 869 749.1 869H250.5C185 869 132 815.9 132 750.5Z" stroke="url(#og1)" stroke-width="78"/></svg>';
+    var gitIcon   = '{{GIT_ICON}}';
+    var omniIcon  = '{{OMNI_ICON}}';
     // Kubernetes logo (blue hexagon + 6-spoke helm wheel, 100x100 viewBox for crisp rendering)
-    var k8sIcon = '<svg width="16" height="16" viewBox="0 0 100 100"><polygon points="50,4 91,27 91,73 50,96 9,73 9,27" fill="#326CE5"/><g transform="translate(50,50)"><circle r="24" stroke="#fff" stroke-width="5.5" fill="none"/><circle r="9" fill="#fff"/><line x1="0" y1="-9" x2="0" y2="-21.2" stroke="#fff" stroke-width="5" stroke-linecap="round"/><line x1="7.79" y1="-4.5" x2="18.36" y2="-10.6" stroke="#fff" stroke-width="5" stroke-linecap="round"/><line x1="7.79" y1="4.5" x2="18.36" y2="10.6" stroke="#fff" stroke-width="5" stroke-linecap="round"/><line x1="0" y1="9" x2="0" y2="21.2" stroke="#fff" stroke-width="5" stroke-linecap="round"/><line x1="-7.79" y1="4.5" x2="-18.36" y2="10.6" stroke="#fff" stroke-width="5" stroke-linecap="round"/><line x1="-7.79" y1="-4.5" x2="-18.36" y2="-10.6" stroke="#fff" stroke-width="5" stroke-linecap="round"/></g></svg>';
-    var cpIcon  = k8sIcon;
-    var wpIcon  = k8sIcon;
-    var extIcon = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15M3.4 3.4l1.77 1.77M10.83 10.83l1.77 1.77M3.4 12.6l1.77-1.77M10.83 5.17l1.77-1.77" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    var k8sIcon         = '{{K8S_ICON}}';
+    var machinesetIcon          = '{{MACHINESET_ICON}}';
+    var machinesetPoolManualIcon = '{{MACHINESET_POOL_MANUAL_ICON}}';
+    var machinesetPoolInfraIcon  = '{{MACHINESET_POOL_INFRA_ICON}}';
+    function msIcon(g) {
+      return g.provisionType === 'auto' ? machinesetPoolInfraIcon : machinesetPoolManualIcon;
+    }
+    var extIcon   = '{{EXT_ICON}}';
     // Talos logo — actual SVG paths scaled to 16x16 via viewBox (three sweeping arms, red→orange gradient)
-    var talosIcon = '<svg width="16" height="16" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"><defs>' +
-      '<linearGradient id="tg0" x1="70" y1="182" x2="839" y2="182" gradientUnits="userSpaceOnUse"><stop stop-color="#E8312C"/><stop offset="0.615" stop-color="#E2335A"/><stop offset="1" stop-color="#F77216"/></linearGradient>' +
-      '<linearGradient id="tg1" x1="30" y1="221" x2="414" y2="886" gradientUnits="userSpaceOnUse"><stop stop-color="#E8312C"/><stop offset="0.615" stop-color="#E2335A"/><stop offset="1" stop-color="#F77216"/></linearGradient>' +
-      '<linearGradient id="tg2" x1="540" y1="965" x2="924" y2="300" gradientUnits="userSpaceOnUse"><stop stop-color="#E8312C"/><stop offset="0.615" stop-color="#E2335A"/><stop offset="1" stop-color="#F77216"/></linearGradient>' +
-      '</defs>' +
-      '<path d="M161.5 100C161.5 102.6 162.6 105.2 164.4 107.1C169.3 112.1 174.3 117.1 179.3 122.1C311.6 253.5 416.4 317.7 499.6 318.5C582.4 319.3 688.3 254.7 823.2 121C827.2 117.2 831 113.3 834.7 109.5L835.7 108.5C837.6 106.6 838.6 104 838.6 101.4C838.6 101 838.6 100.7 838.6 100.4C838.4 97.4 836.8 94.7 834.3 93C809.2 75.5 782.8 59.9 755.9 46.8C752 44.9 747.4 45.7 744.3 48.7C636.8 154.1 550.2 211.8 500.6 211.4C449.7 210.9 362.9 152.7 256.2 47.6C253.1 44.6 248.5 43.8 244.6 45.7C217.8 58.6 191.3 74.1 166 91.5C163.5 93.3 161.9 96 161.7 99L161.5 100Z" fill="url(#tg0)"/>' +
-      '<path d="M5.1 340.5C7.4 339.1 10.1 338.7 12.7 339.4C19.5 341.1 26.3 343 33.1 344.8C213.1 393.7 321.1 452.2 363.4 523.9C405.4 595.3 402.4 719.2 354.2 903C352.8 908.3 351.4 913.5 349.9 918.7L349.6 920C348.8 922.6 347.2 924.8 344.8 926.1C344.6 926.3 344.3 926.4 344 926.6C341.3 927.9 338.2 927.9 335.5 926.6C307.7 913.5 281 898.5 256.2 881.8C252.7 879.3 251 874.9 252.1 870.8C289.5 725 296.3 621.1 271.1 578.4C245.2 534.5 151.4 488.4 7 448.6C2.9 447.5 -0.1 443.8 -0.4 439.6C-2.6 409.9 -2.5 379.2 0 348.5C0.3 345.5 1.8 342.8 4.3 341.1C4.5 340.9 4.8 340.7 5.1 340.5Z" fill="url(#tg1)"/>' +
-      '<path d="M656.3 926.8C654 925.5 652.3 923.3 651.6 920.8C649.7 914 647.9 907.2 646.1 900.4C598.4 720.1 595.1 597.3 636.1 524.8C676.8 452.7 785.7 393.3 968.9 343.3C974.2 341.8 979.4 340.4 984.7 339.1L986 338.7C988.6 338.1 991.3 338.4 993.7 339.8C993.9 339.9 994.2 340.1 994.5 340.2C997 341.9 998.5 344.7 998.7 347.7C1001.3 378.2 1001.6 408.8 999.5 438.7C999.2 443 996.2 446.6 992.1 447.8C847.1 488.2 753.8 534.3 729.3 577.5C704.3 621.8 711.3 726.1 749 871.1C750.1 875.2 748.4 879.6 744.9 882C720.3 898.8 693.6 914 665.8 927.2C663.1 928.5 660 928.5 657.2 927.2C657 927.1 656.7 926.9 656.4 926.8Z" fill="url(#tg2)"/>' +
-      '</svg>';
+    var talosIcon = '{{TALOS_ICON}}';
+    var machineIconSVG = '{{MACHINE_ICON}}';
     function machIcon(c) {
-      return '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="9" rx="1.5" stroke="' + c + '" stroke-width="1.5"/><path d="M4 4V3M8 4V2M12 4V3" stroke="' + c + '" stroke-width="1.5" stroke-linecap="round"/></svg>';
+      return machineIconSVG;
     }
 
     // Col 1: Git + Omni
@@ -3878,8 +3970,8 @@ const uiHTML = `<!DOCTYPE html>
     var omniMeta = (omniVersion ? escHtml(omniVersion) : '') +
       (omniStatus ? (omniVersion ? ' &middot; ' : '') + '<span style="color:' + omniColor + '">' + escHtml(omniStatus) + '</span>' : '');
     var col1Nodes = [
-      dagNode('Git', gitRepoName, gitMeta, '', '#3b82f6', gitIcon),
-      dagNode('Omni', omniEndpointDisplay || 'Omni Instance', omniMeta, '', omniColor, omniIcon)
+      dagNode('Git', gitRepoName, gitMeta, '', '#3b82f6', gitIcon, undefined, undefined, undefined, 'gt-' + graphId),
+      dagNode('Omni', omniEndpointDisplay || 'Omni Instance', omniMeta, '', omniColor, omniIcon, undefined, undefined, undefined, 'om-' + graphId)
     ];
 
     // Col 3: Node groups (ControlPlane + Workers) + cluster-level extensions (same visual level)
@@ -3887,24 +3979,22 @@ const uiHTML = `<!DOCTYPE html>
     // Built before col2 so we can show the fold-badge count on the Cluster card.
     var clusterExtsList = cluster.clusterExtensions || [];
     var col3Nodes = nodeGroups.map(function(g, gi) {
-      var mcLabel = g.machineClass ? escHtml(g.machineClass) : 'Manual';
+      var mcLabel = g.machineClass ? escHtml(g.machineClass) : '';
       var meta = g.isPool
-        ? (g.count + ' node' + (g.count !== 1 ? 's' : '') + ' - ' + mcLabel)
-        : (g.machines.length + ' machine' + (g.machines.length !== 1 ? 's' : '') + ' - ' + mcLabel);
-      var msonclick = g.machines.length > 0 ? 'window.__graphToggleColFold(\'' + graphId + ':col4:' + gi + '\')' : '';
+        ? (g.count + ' node' + (g.count !== 1 ? 's' : '') + (mcLabel ? ' \u00b7 ' + mcLabel : ''))
+        : (g.machines.length + ' machine' + (g.machines.length !== 1 ? 's' : '') + (mcLabel ? ' \u00b7 ' + mcLabel : ''));
       var giFolded = g.machines.length > 0 && !!colFoldedMap[graphId + ':col4:' + gi];
-      var foldBadge = giFolded ? '<span class="fold-badge">+' + g.machines.length + '</span>' : '';
-      return dagNode(g.kind, g.label, meta, foldBadge, g.color, cpIcon, undefined, undefined, msonclick);
-    }).concat(clusterExtsList.map(function(ext) {
-      return dagNode('Extension', ext, '', '', '#6366f1', extIcon);
-    }));
+      var msFoldOnclick = g.machines.length > 0 ? 'window.__graphToggleColFold(\'' + graphId + ':col4:' + gi + '\')' : '';
+      return dagNode(g.kind, g.label, meta, '', g.color, machinesetIcon, undefined, undefined, undefined, 'ms-' + graphId + '-' + gi, msFoldOnclick, giFolded);
+    });
 
     // Col 2: Cluster — clicking collapses/expands the MachineSet column
     var clusterMeta = 'Talos ' + escHtml(cluster.talosVersion || '\u2014') + ' &middot; K8s ' + escHtml(cluster.kubernetesVersion || '\u2014');
-    var col2onclick = 'window.__graphToggleColFold(\'' + graphId + ':col3\')';
     var col3foldedEarly = !!(col3Nodes.length > 0 && colFoldedMap[graphId + ':col3']);
-    var clusterFoldBadge = col3foldedEarly ? '<span class="fold-badge">+' + col3Nodes.length + '</span>' : '';
-    var col2Nodes = [dagNode('Cluster', cluster.id, clusterMeta, clusterFoldBadge, borderColor, talosIcon, undefined, undefined, col2onclick)];
+    var col2FoldOnclick = 'window.__graphToggleColFold(\'' + graphId + ':col3\')';
+    var col1FoldOnclick = 'window.__graphToggleColFold(\'' + graphId + ':col1\')';
+    var col1foldedEarly = !!colFoldedMap[graphId + ':col1'];
+    var col2Nodes = [dagNode('Cluster', cluster.id, clusterMeta, '', borderColor, talosIcon, undefined, undefined, undefined, 'cl-' + graphId, col2FoldOnclick, col3foldedEarly, col1FoldOnclick, col1foldedEarly)];
 
     // Col 4 (optional): Individual machines — per-MachineSet fold, full UUID, monospace name, wider card
     var col4Nodes = [], machineConnections = [], col4Uuids = [];
@@ -3929,8 +4019,10 @@ const uiHTML = `<!DOCTYPE html>
           machineConnections.push([gi, flatIdx]);
           col4Uuids.push(mid);
           var hn = hostnames[mid] ? escHtml(hostnames[mid]) : '';
-          col4Nodes.push(dagNode('Machine', mid, hn, '', g.color, machIcon(g.color), NW_MACH,
-            'font-family:\'SF Mono\',\'Fira Code\',monospace;font-size:11px;'));
+          var machNodeId = 'mn-' + graphId + '-' + flatIdx;
+          var machOnclick = 'window.__graphHighlightMachine(\'' + graphId + '\',' + flatIdx + ',event)';
+          col4Nodes.push(dagNode('Machine', mid, hn, '', g.color, msIcon(g), NW_MACH,
+            'font-family:\'SF Mono\',\'Fira Code\',monospace;font-size:11px;', machOnclick, machNodeId));
           localIdx++;
         });
         var gs = g.machines.length;
@@ -3939,37 +4031,57 @@ const uiHTML = `<!DOCTYPE html>
       col4TotalH = yOff;
     }
 
-    // Extensions: collect unique names from nodeGroup and machine sources.
-    // Cluster-level extensions are placed directly in col3 (alongside nodeGroups).
-    // extConns stores {srcKeys, srcIdx, tgtIdx} for variable-height SVG routing.
-    var extNodes = [], extNameToIdx = {}, extConns = [];
-    function addExt(name) {
-      if (!(name in extNameToIdx)) {
-        var eidx = extNodes.length;
-        extNameToIdx[name] = eidx;
-        extNodes.push(dagNode('Extension', name, '', '', '#6366f1', extIcon));
-      }
-      return extNameToIdx[name];
-    }
-    // NodeGroup-level extensions → connect from each visible machine in that group.
-    // If the MachineSet is collapsed its machines aren't in machineConnections, so
-    // no extension links are drawn for it.
+    // Extensions: all routed from individual machines (col4).
+    // Cluster-level → every visible machine. Group-level → machines in that group. Machine-level → that machine only.
+    // Collect raw connections first so we can sort extension names alphabetically before building nodes.
+    var machExtMap = cluster.machineExtensions || {};
+    var rawExtConns = [];
+    col4Uuids.forEach(function(uuid, mi) {
+      clusterExtsList.forEach(function(ext) { rawExtConns.push({srcIdx: mi, name: ext}); });
+    });
     machineConnections.forEach(function(mc) {
       var gi = mc[0], mi = mc[1];
-      nodeGroups[gi].exts.forEach(function(ext) {
-        extConns.push({srcCol: 4, srcIdx: mi, tgtIdx: addExt(ext)});
-      });
+      nodeGroups[gi].exts.forEach(function(ext) { rawExtConns.push({srcIdx: mi, name: ext}); });
     });
-    // Machine-level extensions → connect from that specific machine card.
-    var machExtMap = cluster.machineExtensions || {};
     col4Uuids.forEach(function(uuid, mi) {
-      (machExtMap[uuid] || []).forEach(function(ext) {
-        extConns.push({srcCol: 4, srcIdx: mi, tgtIdx: addExt(ext)});
-      });
+      (machExtMap[uuid] || []).forEach(function(ext) { rawExtConns.push({srcIdx: mi, name: ext}); });
+    });
+    // Build sorted extension nodes.
+    var extNameSet = {};
+    rawExtConns.forEach(function(c) { extNameSet[c.name] = true; });
+    var sortedExtNames = Object.keys(extNameSet).sort();
+    var extNodes = [], extNameToIdx = {};
+    sortedExtNames.forEach(function(name, eidx) {
+      extNameToIdx[name] = eidx;
+      var extNodeId = 'en-' + graphId + '-' + eidx;
+      var extOnclick = 'window.__graphHighlightExt(\'' + graphId + '\',' + eidx + ',event)';
+      extNodes.push(dagNode('Extension', name, '', '', '#ff8b59', extIcon, undefined, undefined, extOnclick, extNodeId));
+    });
+    // Deduplicate connections and map to sorted indices.
+    var extConnSeen = {}, extConns = [];
+    rawExtConns.forEach(function(c) {
+      var tgtIdx = extNameToIdx[c.name];
+      var key = c.srcIdx + ':' + tgtIdx;
+      if (!extConnSeen[key]) { extConnSeen[key] = true; extConns.push({srcIdx: c.srcIdx, tgtIdx: tgtIdx}); }
     });
     var hasExtensions = extNodes.length > 0;
+    // Build machine↔extension edge index maps for highlight interactions.
+    var machToEdges = {}, extToEdges = {};
+    extConns.forEach(function(conn, ci) {
+      if (!machToEdges[conn.srcIdx]) machToEdges[conn.srcIdx] = [];
+      machToEdges[conn.srcIdx].push(ci);
+      if (!extToEdges[conn.tgtIdx]) extToEdges[conn.tgtIdx] = [];
+      extToEdges[conn.tgtIdx].push(ci);
+    });
+    window.__extEdgeMap = window.__extEdgeMap || {};
+    window.__extEdgeMap[graphId] = {machToEdges: machToEdges, extToEdges: extToEdges, conns: extConns, numMach: col4Uuids.length, numExt: extNodes.length};
 
     // Column-fold flags — computed after all node arrays are built
+    // Default col1 (Git+Omni) to folded on first render.
+    if (window.__graphColFolded[graphId + ':col1'] === undefined) {
+      window.__graphColFolded[graphId + ':col1'] = true;
+    }
+    var col1folded = !!colFoldedMap[graphId + ':col1'];
     var col3folded = !!(col3Nodes.length > 0 && colFoldedMap[graphId + ':col3']);
     // col4 is visible as long as at least one MachineSet has machines AND isn't folded
     var anyMachinesVisible = col4Nodes.length > 0;
@@ -4025,24 +4137,22 @@ const uiHTML = `<!DOCTYPE html>
         var ly = spreadMidY(leftCount, conn[0]);
         var ry = spreadMidY(rightCount, conn[1]);
         var bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<path d="M0,' + ly.toFixed(1) + ' H' + bx.toFixed(1) + ' V' + ry.toFixed(1) + ' H' + EW + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
         paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
     }
 
-    // Mixed-source SVG edge: conn = {srcCol, srcIdx, tgtIdx}
+    // Extension edge: conn = {srcIdx, tgtIdx}, all sources from col4 machines.
     function edgeSvgMixed(connections, rightCount) {
       var col4Off = Math.max(0, (maxH - col4TotalH) / 2);
       var paths = '';
-      connections.forEach(function(conn) {
-        var ly = conn.srcCol === 4
-          ? machY[conn.srcIdx] + col4Off
-          : spreadMidY(col3Nodes.length, conn.srcIdx);
+      connections.forEach(function(conn, ci) {
+        var ly = machY[conn.srcIdx] + col4Off;
         var ry = spreadMidY(rightCount, conn.tgtIdx);
         var bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
-        paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
+        paths += '<path data-ci="' + ci + '" class="ext-edge" d="M0,' + ly.toFixed(1) + ' H' + bx.toFixed(1) + ' V' + ry.toFixed(1) + ' H' + EW + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<polygon data-ci="' + ci + '" class="ext-arrow" points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
     }
@@ -4072,7 +4182,7 @@ const uiHTML = `<!DOCTYPE html>
       var paths = '';
       col3Nodes.forEach(function(_, i) {
         var ly = spreadMidY(1, 0), ry = col3NodeY[i], bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx + ',' + ly.toFixed(1) + ' ' + bx + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<path d="M0,' + ly.toFixed(1) + ' H' + bx + ' V' + ry.toFixed(1) + ' H' + EW + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
         paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
@@ -4101,7 +4211,7 @@ const uiHTML = `<!DOCTYPE html>
         var ly = col3NodeY[gi];
         var ry = machY[fi] + col4Off;
         var bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<path d="M0,' + ly.toFixed(1) + ' H' + bx.toFixed(1) + ' V' + ry.toFixed(1) + ' H' + EW + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
         paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
@@ -4116,7 +4226,7 @@ const uiHTML = `<!DOCTYPE html>
       var ry = spreadMidY(1, 0);
       col1Y.forEach(function(ly) {
         var bx = EW * 0.5;
-        paths += '<path d="M0,' + ly.toFixed(1) + ' C' + bx.toFixed(1) + ',' + ly.toFixed(1) + ' ' + bx.toFixed(1) + ',' + ry.toFixed(1) + ' ' + EW + ',' + ry.toFixed(1) + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
+        paths += '<path d="M0,' + ly.toFixed(1) + ' H' + bx.toFixed(1) + ' V' + ry.toFixed(1) + ' H' + EW + '" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>';
         paths += '<polygon points="' + EW + ',' + ry.toFixed(1) + ' ' + (EW-5) + ',' + (ry-3).toFixed(1) + ' ' + (EW-5) + ',' + (ry+3).toFixed(1) + '" fill="#5b5c64"/>';
       });
       return '<svg width="' + EW + '" height="' + maxH + '" style="flex-shrink:0;">' + paths + '</svg>';
@@ -4153,9 +4263,9 @@ const uiHTML = `<!DOCTYPE html>
         '<button class="cluster-graph-zoom-btn" onclick="window.__graphZoom(\'reset\',\'' + graphId + '\')">&#8635;</button>' +
         '<button class="cluster-graph-zoom-btn" onclick="window.__graphZoom(\'in\',\'' + graphId + '\')">&#43;</button>' +
       '</div>' +
-      '<div class="cluster-graph-canvas" onwheel="window.__graphZoomWheel(event,this)" onmousedown="window.__graphDragStart(event,this)" onmousemove="window.__graphDragMove(event,this)" onmouseup="window.__graphDragEnd(this)" onmouseleave="window.__graphDragEnd(this)">' +
+      '<div class="cluster-graph-canvas" onclick="window.__graphClearHighlight(\'' + graphId + '\')" onwheel="window.__graphZoomWheel(event,this)" onmousedown="window.__graphDragStart(event,this)" onmousemove="window.__graphDragMove(event,this)" onmouseup="window.__graphDragEnd(this)" onmouseleave="window.__graphDragEnd(this)">' +
         '<div id="' + graphId + '" class="cluster-graph-inner" style="align-items:flex-start;gap:0;' + inlineTransform + '">' +
-          wrapColCompact(col1Nodes, COL1_GAP) + edge1 +
+          (col1folded ? '' : wrapColCompact(col1Nodes, COL1_GAP) + edge1) +
           wrapCol(col2Nodes) + edge2 +
           col3segment +
         '</div>' +

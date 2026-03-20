@@ -310,6 +310,16 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 				hash = hash*31 + uint64(b)
 			}
 		}
+		// Include machine topology so additions/removals during cluster creation
+		// are detected and broadcast to the UI without waiting for a full reconcile.
+		// Hash the worker group count explicitly so adding/removing an entire
+		// worker group (MachineSet) is always detected, even when its machine
+		// list happens to be empty.
+		hash = hash*31 + uint64(len(c.ControlPlane.Machines))
+		hash = hash*31 + uint64(len(c.Workers))
+		for _, wg := range c.Workers {
+			hash = hash*31 + uint64(len(wg.Machines))
+		}
 	}
 	for _, m := range snapshot.MachineClasses {
 		for _, b := range []byte(m.Status) {

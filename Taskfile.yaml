@@ -161,7 +161,8 @@ tasks:
     desc: Restart docker compose services
     dir: '{{.COMPOSE_PATH}}'
     cmds:
-      - docker compose restart
+      - docker compose down
+      - docker compose up -d
 
   # Cleanup tasks
   clean:

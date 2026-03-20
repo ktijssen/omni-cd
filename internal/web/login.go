@@ -6,13 +6,16 @@ const loginHTML = `<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Omni CD · Login</title>
-<link rel="icon" type="image/svg+xml" href="https://mintlify.s3.us-west-1.amazonaws.com/siderolabs-fe86397c/images/omni.svg">
+<link rel="icon" type="image/svg+xml" href="{{OMNI_LOGO_URI}}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #1b1b1d;
-    color: #e4e4e7;
+    font-family: Roboto, sans-serif;
+    background: #101118;
+    color: #e8e8e9;
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -37,10 +40,10 @@ const loginHTML = `<!DOCTYPE html>
     color: #fff;
     letter-spacing: -0.4px;
   }
-  .login-logo-text span { color: #FB326E; }
+  .login-logo-text span { color: #ff8b59; }
   .login-card {
-    background: #27272a;
-    border: 1px solid #3f3f46;
+    background: #1f222e;
+    border: 1px solid #2a2d3a;
     border-radius: 14px;
     padding: 28px 28px 24px;
   }
@@ -76,20 +79,20 @@ const loginHTML = `<!DOCTYPE html>
   }
   .login-field input {
     width: 100%;
-    background: #18181b;
-    border: 1px solid #3f3f46;
+    background: #101118;
+    border: 1px solid #2a2d3a;
     border-radius: 8px;
-    color: #e4e4e7;
+    color: #e8e8e9;
     font-size: 14px;
     padding: 10px 14px;
     outline: none;
     transition: border-color 0.15s;
   }
-  .login-field input:focus { border-color: #FB326E; }
+  .login-field input:focus { border-color: #ff8b59; }
   .login-field input::placeholder { color: #52525b; }
   .login-btn {
     width: 100%;
-    background: #FB326E;
+    background: #ff8b59;
     color: #fff;
     border: none;
     border-radius: 8px;
@@ -100,8 +103,8 @@ const loginHTML = `<!DOCTYPE html>
     margin-top: 8px;
     transition: background 0.2s;
   }
-  .login-btn:hover { background: #e0285f; }
-  .login-btn:active { background: #c92255; }
+  .login-btn:hover { background: #e67a4a; }
+  .login-btn:active { background: #cc5e35; }
   .login-footer {
     text-align: center;
     font-size: 11px;
@@ -111,10 +114,10 @@ const loginHTML = `<!DOCTYPE html>
   .sso-btn {
     display: block;
     width: 100%;
-    background: #18181b;
-    border: 1px solid #3f3f46;
+    background: #101118;
+    border: 1px solid #2a2d3a;
     border-radius: 8px;
-    color: #e4e4e7;
+    color: #e8e8e9;
     font-size: 14px;
     font-weight: 600;
     padding: 11px;
@@ -122,7 +125,7 @@ const loginHTML = `<!DOCTYPE html>
     text-decoration: none;
     transition: border-color 0.15s, background 0.15s;
   }
-  .sso-btn:hover { border-color: #FB326E; background: #27272a; }
+  .sso-btn:hover { border-color: #ff8b59; background: #1f222e; }
   .login-divider {
     display: flex;
     align-items: center;
@@ -136,14 +139,14 @@ const loginHTML = `<!DOCTYPE html>
     content: '';
     flex: 1;
     height: 1px;
-    background: #3f3f46;
+    background: #2a2d3a;
   }
 </style>
 </head>
 <body>
 <div class="login-wrap">
   <div class="login-logo">
-    <img src="https://mintlify.s3.us-west-1.amazonaws.com/siderolabs-fe86397c/images/omni.svg" alt="Omni">
+    <img src="{{OMNI_LOGO_URI}}" alt="Omni">
     <span class="login-logo-text">Omni <span>CD</span></span>
   </div>
   <div class="login-card">
