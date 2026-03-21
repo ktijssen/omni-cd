@@ -162,28 +162,28 @@ async function submit() {
 .auth-btn {
   display: block;
   width: 100%;
-  background: none;
-  border: 1px solid #2c2e38;
+  background: #1e2130;
+  border: 1px solid #3d4059;
   border-radius: 8px;
-  color: #9fa1a6;
+  color: #c4c4c9;
   font-size: 13px;
   font-weight: 500;
   padding: 10px;
   cursor: pointer;
   margin-top: 8px;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
   text-align: center;
   text-decoration: none;
   font-family: inherit;
   box-sizing: border-box;
 }
-.auth-btn:hover { border-color: #ff8b59; color: #ff8b59; }
+.auth-btn:hover { border-color: #ff8b59; background: #ff8b59; color: #fff; }
 .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .auth-btn-submit { background: #ff8b59; border-color: #ff8b59; color: #fff; }
-.auth-btn-submit:hover:not(:disabled) { background: linear-gradient(rgba(255,255,255,0.12), rgba(255,255,255,0.12)) #ff8b59; border-color: #ff8b59; color: #fff; }
+.auth-btn-submit:hover:not(:disabled) { background: #d97040; border-color: #d97040; color: #fff; }
 .auth-btn-submit:disabled { background: #ff8b59; opacity: 0.5; }
 .auth-btn-oidc { margin-top: 0; background: #ff8b59; border-color: #ff8b59; color: #fff; }
-.auth-btn-oidc:hover { background: linear-gradient(rgba(255,255,255,0.12), rgba(255,255,255,0.12)) #ff8b59; border-color: #ff8b59; color: #fff; }
+.auth-btn-oidc:hover { background: #d97040; border-color: #d97040; color: #fff; }
 .auth-divider {
   display: flex;
   align-items: center;

@@ -22,37 +22,37 @@
       <div class="header-buttons" style="margin-bottom:8px">
         <a
           v-if="state?.omniEndpoint"
-          class="btn-sort btn-primary"
+          class="btn-omni"
           style="text-decoration:none"
           :href="omniClusterUrl"
           target="_blank"
         >&#8599; Open in Omni</a>
         <template v-if="authStore.isAdmin()">
           <button
-            class="btn-sort btn-primary"
+            class="btn-omni"
             :disabled="!!actionPending"
             @click="refreshCluster"
           >↺ {{ actionPending === 'refresh' ? 'Refreshing...' : 'Refresh' }}</button>
           <button
             v-if="cluster.status !== 'deleting' && (cluster.status === 'unmanaged' || cluster.status === 'orphaned')"
-            class="btn-sort btn-primary"
+            class="btn-omni"
             @click="exportCluster"
           >↓ Export</button>
           <button
             v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'"
-            class="btn-sort btn-primary"
+            class="btn-omni"
             :disabled="!!actionPending"
             @click="syncCluster"
           >⇅ {{ actionPending === 'sync' ? 'Syncing...' : 'Sync' }}</button>
           <button
             v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'"
-            class="btn-sort btn-primary auto-sync"
+            class="btn-omni auto-sync"
             :class="{ active: cluster.autoSync !== false }"
             @click="toggleAutoSync"
           >{{ cluster.autoSync === false ? '○ Auto-Sync: Off' : '● Auto-Sync: On' }}</button>
           <button
             v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged'"
-            class="btn-sort btn-primary"
+            class="btn-omni"
             @click="deleteCluster"
           >✕ Delete</button>
         </template>
@@ -206,9 +206,9 @@
             :placeholder="confirmModal.requireInput"
           />
           <div class="confirm-actions">
-            <button class="btn-sort btn-primary" @click="confirmModal = null">Cancel</button>
+            <button class="btn-omni" @click="confirmModal = null">Cancel</button>
             <button
-              class="btn-sort btn-primary"
+              class="btn-omni"
               :disabled="!!(confirmModal.requireInput && confirmInput !== confirmModal.requireInput)"
               @click="doConfirm"
             >OK</button>

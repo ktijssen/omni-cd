@@ -332,6 +332,9 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 		for _, b := range []byte(m.Status) {
 			hash = hash*31 + uint64(b)
 		}
+		if m.AutoSync != nil && *m.AutoSync {
+			hash = hash*31 + 1
+		}
 	}
 	return hash
 }

@@ -4,7 +4,7 @@
       <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Instances</h1>
       <button
         v-if="authStore.isAdmin()"
-        class="btn-sort btn-primary"
+        class="btn-omni"
         :disabled="isConfigured"
         style="margin-left:auto"
         @click="openModal()"
@@ -28,11 +28,11 @@
           </div>
           <div v-if="testResult" :style="testResultStyle" style="font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;">{{ testResult }}</div>
           <div v-if="authStore.isAdmin()" class="info-card-actions">
-            <button class="btn-sort btn-primary" :disabled="testPending" @click="testConnection">
+            <button class="btn-omni" :disabled="testPending" @click="testConnection">
               {{ testPending ? 'Testing…' : 'Test Connection' }}
             </button>
-            <button class="btn-sort btn-primary" :disabled="!!state?.omniEnvLocked" :title="state?.omniEnvLocked ? 'Configured via environment variables' : ''" @click="openModal()">Edit</button>
-            <button class="btn-sort btn-primary" :disabled="!!state?.omniEnvLocked" :title="state?.omniEnvLocked ? 'Configured via environment variables' : ''" @click="deleteInstance">Delete</button>
+            <button class="btn-omni" :disabled="!!state?.omniEnvLocked" :title="state?.omniEnvLocked ? 'Configured via environment variables' : ''" @click="openModal()">Edit</button>
+            <button class="btn-omni" :disabled="!!state?.omniEnvLocked" :title="state?.omniEnvLocked ? 'Configured via environment variables' : ''" @click="deleteInstance">Delete</button>
           </div>
         </div>
       </div>
@@ -61,9 +61,9 @@
         <div v-if="modalTestResult" :style="modalTestResultStyle" style="display:block;margin-top:4px;font-size:12px;padding:6px 10px;border-radius:6px;">{{ modalTestResult }}</div>
         <div v-if="formError" class="repo-form-error">{{ formError }}</div>
         <div class="repo-form-actions">
-          <button class="btn-sort btn-primary" @click="closeModal">Cancel</button>
-          <button class="btn-sort btn-primary" :disabled="modalTestPending" @click="testModalConnection">{{ modalTestPending ? 'Testing…' : 'Test Connection' }}</button>
-          <button class="btn-sort btn-primary" :disabled="savePending" @click="save">{{ savePending ? 'Saving…' : 'Save' }}</button>
+          <button class="btn-omni" @click="closeModal">Cancel</button>
+          <button class="btn-omni" :disabled="modalTestPending" @click="testModalConnection">{{ modalTestPending ? 'Testing…' : 'Test Connection' }}</button>
+          <button class="btn-omni" :disabled="savePending" @click="save">{{ savePending ? 'Saving…' : 'Save' }}</button>
         </div>
       </div>
     </div>
@@ -77,8 +77,8 @@
         </div>
         <input class="repo-form-input" v-model="confirmInput" :placeholder="state?.omniEndpoint || 'endpoint URL'" style="margin-bottom:14px;" />
         <div class="repo-form-actions" style="margin-top:0">
-          <button class="btn-sort btn-primary" @click="showConfirm = false">Cancel</button>
-          <button class="btn-sort btn-primary" :disabled="confirmInput !== (state?.omniEndpoint || '')" @click="confirmDelete">Delete</button>
+          <button class="btn-omni" @click="showConfirm = false">Cancel</button>
+          <button class="btn-omni" :disabled="confirmInput !== (state?.omniEndpoint || '')" @click="confirmDelete">Delete</button>
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@
       <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Repositories</h1>
       <button
         v-if="authStore.isAdmin()"
-        class="btn-sort btn-primary"
+        class="btn-omni"
         :disabled="!state?.omniConfigured && !state?.omniEnvLocked"
         :title="(!state?.omniConfigured && !state?.omniEnvLocked) ? 'Configure an Omni instance before adding a repository' : ''"
         @click="openRepoModal(null)"
@@ -65,12 +65,12 @@
 
         <div v-if="authStore.isAdmin()" class="info-card-actions">
           <button
-            class="btn-sort btn-primary"
+            class="btn-omni"
             :disabled="testingRepo === rc.name"
             @click="testRepoConnection(rc.name)"
           >{{ testingRepo === rc.name ? 'Testing...' : 'Test Connection' }}</button>
-          <button class="btn-sort btn-primary" @click="openRepoModal(rc)">Edit</button>
-          <button class="btn-sort btn-primary" @click="deleteRepo(rc.name)">Delete</button>
+          <button class="btn-omni" @click="openRepoModal(rc)">Edit</button>
+          <button class="btn-omni" @click="deleteRepo(rc.name)">Delete</button>
         </div>
       </div>
     </div>
@@ -83,8 +83,8 @@
         <div style="font-size:13px;color:#9fa1a6;margin-bottom:8px;">{{ deleteConfirm.inputPrompt }}</div>
         <input class="repo-form-input" v-model="deleteConfirmInput" :placeholder="deleteConfirm.requireInput" style="margin-bottom:14px;" />
         <div class="repo-form-actions" style="margin-top:0">
-          <button class="btn-sort btn-primary" @click="deleteConfirm = null">Cancel</button>
-          <button class="btn-sort btn-primary" :disabled="deleteConfirmInput !== deleteConfirm.requireInput" @click="doDeleteRepo">OK</button>
+          <button class="btn-omni" @click="deleteConfirm = null">Cancel</button>
+          <button class="btn-omni" :disabled="deleteConfirmInput !== deleteConfirm.requireInput" @click="doDeleteRepo">OK</button>
         </div>
       </div>
     </div>
@@ -136,11 +136,11 @@
           :style="{ background: repoTestResult.ok ? '#052e16' : '#3f1515', color: repoTestResult.ok ? '#4ade80' : '#f87171' }"
         >{{ repoTestResult.text }}</div>
         <div class="repo-form-actions">
-          <button class="btn-sort btn-primary" @click="closeRepoModal">Cancel</button>
-          <button class="btn-sort btn-primary" :disabled="modalTesting" @click="testModalConnection">
+          <button class="btn-omni" @click="closeRepoModal">Cancel</button>
+          <button class="btn-omni" :disabled="modalTesting" @click="testModalConnection">
             {{ modalTesting ? 'Testing...' : 'Test Connection' }}
           </button>
-          <button class="btn-sort btn-primary" @click="saveRepo">Save</button>
+          <button class="btn-omni" @click="saveRepo">Save</button>
         </div>
       </div>
     </div>

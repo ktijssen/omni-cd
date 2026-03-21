@@ -291,11 +291,21 @@
   .breadcrumb-current { color:#fff; font-family:'SF Mono','Fira Code',monospace; font-size:16px; font-weight:600; }
   .panel-nav-link { cursor: pointer; transition: color 0.15s; }
   .panel-nav-link:hover { color: #ff8b59; }
-  .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 16px; padding: 16px 0; }
+  .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 16px; padding: 16px 0; }
   .cluster-card { background: #15161e; border: 1px solid #2c2e38; border-radius: 12px; overflow: hidden; display: flex; }
   .cluster-card.clickable { cursor: pointer; }
   .cluster-card.clickable:hover { border-color: #7d7d85; }
   .cluster-card-actions { display: flex; gap: 6px; padding: 2px 0 0; margin-top: auto; flex-wrap: nowrap; }
+  .btn-omni { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 6px 16px; font-size: 13px; border-radius: 4px; border: 1px solid #3d4059; background: #1e2130; color: #c4c4c9; cursor: pointer; transition: border-color 0.2s, background 0.2s, color 0.2s; white-space: nowrap; font-family: inherit; }
+  .btn-omni:hover  { border-color: #ff8b59; background: #ff8b59; color: #fff; }
+  .btn-omni:focus  { outline: none; }
+  .btn-omni:focus-visible { outline: 2px solid #ff8b59; outline-offset: 2px; }
+  .btn-omni:active { border-color: #d97040; background: #d97040; color: #fff; }
+  .btn-omni:disabled { cursor: not-allowed; border-color: #494b61; background: #252737; color: #6b7080; }
+  .btn-omni.auto-sync.active { border-color: #ff8b59; color: #ff8b59; background: rgba(255,139,89,0.1); }
+  .btn-omni.auto-sync.active:hover { border-color: #ff8b59; background: #ff8b59; color: #fff; }
+  .btn-omni.active { border-color: #ff8b59; background: rgba(255,139,89,0.15); color: #ff8b59; }
+  .btn-omni.active:hover { border-color: #ff8b59; background: #ff8b59; color: #fff; }
   .btn-sort.sync:hover    { border-color: #fb923c; color: #fb923c; background: rgba(251,146,60,0.08); }
   .btn-sort.refresh:hover { border-color: #22d3ee; color: #22d3ee; background: rgba(34,211,238,0.08); }
   .btn-sort.danger:hover  { border-color: #f87171; color: #f87171; background: rgba(248,113,113,0.08); }
@@ -332,7 +342,7 @@
   .cluster-health-bar-seg--destroying  { background: #f43f5e; }
   .cluster-health-bar-seg--reconfiguring { background: #a78bfa; }
   .cluster-health-summary { font-size: 12px; color: #7d7d85; white-space: nowrap; }
-  .cluster-card-body { flex: 1; padding: 12px 14px; min-width: 0; display: flex; flex-direction: column; }
+  .cluster-card-body { flex: 1; padding: 16px 18px; min-width: 0; display: flex; flex-direction: column; }
   .cluster-card-header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
   .cluster-card-title { font-size: 15px; font-weight: 600; color: #fff; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cluster-card-title.clickable { color: inherit; }
@@ -357,8 +367,8 @@
     line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-all;
-    max-height: 300px;
-    overflow-y: auto;
+    max-height: none;
+    overflow-y: visible;
     color: #9fa1a6;
   }
   .diff-viewer::-webkit-scrollbar { width: 6px; }
@@ -601,7 +611,7 @@
   .drawer-body::-webkit-scrollbar-thumb { background: #2c2e38; border-radius: 4px; }
 
   /* Machine classes grid */
-  .mc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 12px; }
+  .mc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 12px; }
   .mc-card { background: #15161e; border: 1px solid #2c2e38; border-radius: 12px; overflow: hidden; display: flex; }
   .mc-card.clickable { cursor: pointer; }
   .mc-card.clickable:hover { border-color: #7d7d85; }
@@ -611,7 +621,7 @@
   .mc-card[data-status="failed"] .mc-card-accent { background: #f87171; }
   .mc-card[data-status="outofsync"] .mc-card-accent { background: #fb923c; }
   .mc-card[data-status="syncing"] .mc-card-accent { background: #2dd4bf; }
-  .mc-card-header { flex: 1; padding: 12px 14px; min-width: 0; display: flex; flex-direction: column; }
+  .mc-card-header { flex: 1; padding: 16px 18px; min-width: 0; display: flex; flex-direction: column; }
   .mc-card-title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
   .mc-card-name {
     font-size: 13px;

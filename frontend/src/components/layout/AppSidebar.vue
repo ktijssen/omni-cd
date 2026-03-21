@@ -43,7 +43,7 @@
         </div>
       </button>
 
-      <div class="sidebar-subgroup" :class="{ open: settingsOpen || isSettingsActive }">
+      <div class="sidebar-subgroup" :class="{ open: settingsOpen }">
         <RouterLink
           to="/instances"
           class="sidebar-item sidebar-subitem"
@@ -127,15 +127,20 @@ const authStore = useAuthStore()
 const settingsRoutes = ['/instances', '/repos', '/users']
 const isSettingsActive = computed(() => settingsRoutes.includes(route.path))
 
-const settingsOpen = ref(localStorage.getItem('sidebar-settings-open') === '1')
+const settingsOpen = ref(
+  localStorage.getItem('sidebar-settings-open') === '1' || settingsRoutes.includes(route.path)
+)
 
 function toggleSettings() {
   settingsOpen.value = !settingsOpen.value
   localStorage.setItem('sidebar-settings-open', settingsOpen.value ? '1' : '0')
 }
 
-// Close sidebar on navigation (mobile)
-watch(() => route.path, () => emit('close'))
+// Close sidebar on navigation (mobile); open settings group when navigating into a settings route
+watch(() => route.path, (path) => {
+  emit('close')
+  if (settingsRoutes.includes(path)) settingsOpen.value = true
+})
 
 // User menu
 const userMenuOpen = ref(false)

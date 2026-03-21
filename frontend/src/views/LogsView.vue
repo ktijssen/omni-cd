@@ -3,8 +3,8 @@
     <div class="header">
       <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Logs</h1>
       <div class="header-buttons" style="margin-left:auto;display:flex;align-items:center;gap:8px">
-        <button class="btn-sort btn-primary" @click="openLogFilesModal">Show Logs</button>
-        <button class="btn-sort btn-primary" @click="downloadTodaysLogs">Download Today's Logs</button>
+        <button class="btn-omni" @click="openLogFilesModal">Show Logs</button>
+        <button class="btn-omni" @click="downloadTodaysLogs">Download Today's Logs</button>
       </div>
     </div>
 
@@ -14,18 +14,24 @@
         v-model="logsSearch"
         type="text"
         placeholder="Search logs..."
-        style="background:#13141c;border:1px solid #2c2e38;border-radius:4px;color:#e8e8e9;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;"
+        style="background:#1e2130;border:1px solid #3d4059;border-radius:4px;color:#c4c4c9;font-size:13px;padding:6px 12px;outline:none;width:200px;font-family:inherit;transition:border-color 0.2s;"
+        @focus="($event.target as HTMLInputElement).style.borderColor='#ff8b59'"
+        @blur="($event.target as HTMLInputElement).style.borderColor='#3d4059'"
       />
       <select
         v-model="logsComponentFilter"
-        style="background:#13141c;border:1px solid #2c2e38;border-radius:4px;color:#e8e8e9;font-size:12px;padding:3px 8px;outline:none;font-family:inherit;cursor:pointer"
+        style="background:#1e2130;border:1px solid #3d4059;border-radius:4px;color:#c4c4c9;font-size:13px;padding:6px 12px;outline:none;font-family:inherit;cursor:pointer;transition:border-color 0.2s;"
+        @focus="($event.target as HTMLSelectElement).style.borderColor='#ff8b59'"
+        @blur="($event.target as HTMLSelectElement).style.borderColor='#3d4059'"
       >
         <option value="">All components</option>
         <option v-for="c in uniqueComponents" :key="c" :value="c">{{ c }}</option>
       </select>
       <select
         v-model="logsOrder"
-        style="background:#13141c;border:1px solid #2c2e38;border-radius:4px;color:#e8e8e9;font-size:12px;padding:3px 8px;outline:none;font-family:inherit;cursor:pointer"
+        style="background:#1e2130;border:1px solid #3d4059;border-radius:4px;color:#c4c4c9;font-size:13px;padding:6px 12px;outline:none;font-family:inherit;cursor:pointer;transition:border-color 0.2s;"
+        @focus="($event.target as HTMLSelectElement).style.borderColor='#ff8b59'"
+        @blur="($event.target as HTMLSelectElement).style.borderColor='#3d4059'"
       >
         <option value="oldest">Oldest first</option>
         <option value="newest">Newest first</option>
@@ -33,13 +39,13 @@
       <button
         v-for="lv in levelButtons"
         :key="lv"
-        class="btn-sort btn-primary"
+        class="btn-omni"
         :class="{ active: logsLevelFilter === lv }"
         @click="toggleLevel(lv)"
       >{{ lv }}</button>
       <button
         v-if="logsSearch || logsLevelFilter || logsComponentFilter"
-        class="btn-sort"
+        class="btn-omni"
         @click="clearFilters"
       >✕ Clear</button>
       <span style="font-size:11px;color:#5b5c64;margin-left:4px">{{ filteredLogs.length }} / {{ allLogs.length }}</span>
@@ -89,7 +95,7 @@
                 <td style="padding:6px 8px;color:#e8e8e9">{{ f.date }}</td>
                 <td style="padding:6px 8px;color:#7d7d85;text-align:right">{{ formatBytes(f.size) }}</td>
                 <td style="padding:6px 8px;text-align:right">
-                  <button class="btn-sort btn-primary" @click="downloadLogFile(f.date)">Download</button>
+                  <button class="btn-omni" @click="downloadLogFile(f.date)">Download</button>
                 </td>
               </tr>
             </tbody>

@@ -16,8 +16,8 @@
           </div>
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn-sort btn-primary" @click="openEditProfile">Edit Profile</button>
-          <button class="btn-sort btn-primary" @click="openChangePassword">Change Password</button>
+          <button class="btn-omni" @click="openEditProfile">Edit Profile</button>
+          <button class="btn-omni" @click="openChangePassword">Change Password</button>
         </div>
       </div>
     </template>
@@ -42,8 +42,8 @@
             <div style="font-size:11px;color:#5b5c64;margin-top:2px">Last seen: {{ formatDate(user.lastSeen) }}</div>
           </div>
           <span :style="{ fontSize: '12px', fontWeight: '600', color: roleColor(user.role), marginRight: '8px' }">{{ roleLabel(user.role) }}</span>
-          <button class="btn-sort btn-primary" @click="openEditOIDCUser(user)">Edit Role</button>
-          <button class="btn-sort btn-primary" @click="openDeleteOIDCUser(user)">Delete</button>
+          <button class="btn-omni" @click="openEditOIDCUser(user)">Edit Role</button>
+          <button class="btn-omni" @click="openDeleteOIDCUser(user)">Delete</button>
         </div>
       </div>
     </div>
@@ -83,8 +83,8 @@
           </div>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
-          <button class="btn-sort btn-primary" @click="showChangePassword = false">Cancel</button>
-          <button class="btn-sort btn-primary" :disabled="!changePwAllMet" @click="submitChangePassword">Change Password</button>
+          <button class="btn-omni" @click="showChangePassword = false">Cancel</button>
+          <button class="btn-omni" :disabled="!changePwAllMet" @click="submitChangePassword">Change Password</button>
         </div>
       </div>
     </div>
@@ -103,8 +103,8 @@
           <input v-model="editProfileForm.displayName" class="repo-form-input" type="text" placeholder="Your name" autocomplete="name" />
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
-          <button class="btn-sort btn-primary" @click="showEditProfile = false">Cancel</button>
-          <button class="btn-sort btn-primary" @click="submitEditProfile">Save</button>
+          <button class="btn-omni" @click="showEditProfile = false">Cancel</button>
+          <button class="btn-omni" @click="submitEditProfile">Save</button>
         </div>
       </div>
     </div>
@@ -133,8 +133,8 @@
           </div>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
-          <button class="btn-sort btn-primary" @click="editOIDCUser = null">Cancel</button>
-          <button class="btn-sort btn-primary" @click="submitEditOIDCUser">Save</button>
+          <button class="btn-omni" @click="editOIDCUser = null">Cancel</button>
+          <button class="btn-omni" @click="submitEditOIDCUser">Save</button>
         </div>
       </div>
     </div>
@@ -151,8 +151,8 @@
         </p>
         <div style="color:#f87171;font-size:13px;min-height:18px;margin-bottom:8px;">{{ deleteOIDCError }}</div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
-          <button class="btn-sort btn-primary" @click="deleteOIDCUser = null">Cancel</button>
-          <button class="btn-sort btn-primary" @click="submitDeleteOIDCUser">Delete</button>
+          <button class="btn-omni" @click="deleteOIDCUser = null">Cancel</button>
+          <button class="btn-omni" @click="submitDeleteOIDCUser">Delete</button>
         </div>
       </div>
     </div>

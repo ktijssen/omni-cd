@@ -4,10 +4,10 @@
       <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Machine Classes</h1>
       <div class="header-buttons" style="display:flex;align-items:center;gap:8px;">
         <template v-if="authStore.isAdmin()">
-          <button class="btn-sort btn-primary" :disabled="isRunning" @click="doRefreshMC">
+          <button class="btn-omni" :disabled="isRunning" @click="doRefreshMC">
             {{ isRunning ? 'Refreshing...' : 'Refresh' }}
           </button>
-          <button class="btn-sort btn-primary" :disabled="isRunning" @click="doSyncAll">
+          <button class="btn-omni" :disabled="isRunning" @click="doSyncAll">
             {{ isRunning ? 'Syncing...' : 'Sync' }}
           </button>
         </template>
@@ -15,7 +15,9 @@
           v-model="mcSearch"
           type="text"
           placeholder="Search machine classes..."
-          style="background:#13141c;border:1px solid #2c2e38;border-radius:4px;color:#e8e8e9;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;"
+          style="background:#1e2130;border:1px solid #3d4059;border-radius:4px;color:#c4c4c9;font-size:13px;padding:6px 12px;outline:none;width:200px;font-family:inherit;transition:border-color 0.2s;"
+          @focus="($event.target as HTMLInputElement).style.borderColor='#ff8b59'"
+          @blur="($event.target as HTMLInputElement).style.borderColor='#3d4059'"
         />
       </div>
     </div>
@@ -32,18 +34,18 @@
         <button
           v-for="f in statusFilters"
           :key="f.key"
-          class="btn-sort"
+          class="btn-omni"
           :class="{ active: activeFilters.has(f.key) }"
           @click="toggleFilter(f.key)"
         >{{ f.label }}</button>
 
         <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-          <button class="btn-sort" :class="{ active: true }" @click="toggleSort">{{ sortAZ ? 'A→Z' : 'Z→A' }}</button>
+          <button class="btn-omni" :class="{ active: true }" @click="toggleSort">{{ sortAZ ? 'A→Z' : 'Z→A' }}</button>
           <div class="page-size-bar">
             <button
               v-for="n in [10, 15, 20, 0]"
               :key="n"
-              class="page-size-btn"
+              class="btn-omni"
               :class="{ active: pageSize === n }"
               @click="setPageSize(n)"
             >{{ n === 0 ? 'All' : n }}</button>
@@ -75,7 +77,7 @@
                   <span class="mc-card-name">{{ mc.id }}</span>
                   <a
                     v-if="state?.omniEndpoint"
-                    class="btn-sort btn-primary"
+                    class="btn-omni"
                     style="font-size:10px;padding:1px 6px;text-decoration:none;flex-shrink:0"
                     :href="state.omniEndpoint.replace(/\/$/, '') + '/machine-classes/' + mc.id"
                     target="_blank"
@@ -187,26 +189,26 @@
                 <div class="mc-card-divider" style="margin-top:8px"></div>
                 <div class="cluster-card-actions" v-if="authStore.isAdmin()">
                   <template v-if="mc.status === 'unmanaged'">
-                    <button class="btn-sort btn-primary" @click.stop="exportMC(mc)">↓ Export</button>
+                    <button class="btn-omni" @click.stop="exportMC(mc)">↓ Export</button>
                     <button
-                      class="btn-sort btn-primary"
+                      class="btn-omni"
                       :disabled="clustersUsingMC(mc.id).length > 0"
                       :title="clustersUsingMC(mc.id).length > 0 ? 'In use by: ' + clustersUsingMC(mc.id).join(', ') : ''"
                       @click.stop="deleteMC(mc)"
                     >✕ Delete</button>
                   </template>
                   <template v-else>
-                    <button class="btn-sort" :disabled="!!actionPending[mc.id]" @click.stop="refreshSingleMC(mc)">
+                    <button class="btn-omni" :disabled="!!actionPending[mc.id]" @click.stop="refreshSingleMC(mc)">
                       ↺ {{ actionPending[mc.id] === 'refresh' ? 'Refreshing...' : 'Refresh' }}
                     </button>
-                    <button class="btn-sort" @click.stop="syncMC(mc)">⇅ Sync</button>
+                    <button class="btn-omni" :disabled="!!actionPending[mc.id]" @click.stop="syncMC(mc)">⇅ {{ actionPending[mc.id] === 'sync' ? 'Syncing...' : 'Sync' }}</button>
                     <button
-                      class="btn-sort btn-primary auto-sync"
+                      class="btn-omni auto-sync"
                       :class="{ active: mc.autoSync === true }"
-                      @click.stop="toggleMCAutoSync(mc)"
+                      @click.stop="toggleMCAutoSync(mc, $event)"
                     >{{ mc.autoSync === true ? '● Auto-Sync: On' : '○ Auto-Sync: Off' }}</button>
                     <button
-                      class="btn-sort btn-primary"
+                      class="btn-omni"
                       :disabled="clustersUsingMC(mc.id).length > 0"
                       :title="clustersUsingMC(mc.id).length > 0 ? 'In use by: ' + clustersUsingMC(mc.id).join(', ') : ''"
                       @click.stop="deleteMC(mc)"
@@ -239,7 +241,7 @@
       <div class="repo-modal-box" style="width:1000px;max-width:95vw;height:90vh;display:flex;flex-direction:column;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
           <div class="repo-modal-title" style="margin-bottom:0">{{ detailModal.id }}</div>
-          <button class="btn-sort btn-primary" @click="detailModal = null" style="padding:2px 10px;font-size:13px;">✕</button>
+          <button class="btn-omni" @click="detailModal = null" style="padding:2px 10px;font-size:13px;">✕</button>
         </div>
         <!-- Tabs -->
         <div class="cluster-detail-tabs-bar" style="margin:0 -24px 12px;padding:0 16px;background:#1f222e;">
@@ -314,9 +316,9 @@
           :placeholder="confirmModal.requireInput"
         />
         <div class="modal-actions">
-          <button class="repo-form-cancel" @click="confirmModal = null">Cancel</button>
+          <button class="btn-omni" @click="confirmModal = null">Cancel</button>
           <button
-            class="btn-reconcile"
+            class="btn-omni"
             :disabled="!!(confirmModal.requireInput && confirmInput !== confirmModal.requireInput)"
             @click="doConfirm"
           >Confirm</button>
@@ -716,15 +718,21 @@ async function refreshSingleMC(mc: ResourceInfo) {
 }
 
 async function syncMC(mc: ResourceInfo) {
-  await fetch('/api/sync-machineclass', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: mc.id }),
-  })
-  await fetch('/api/reconcile', { method: 'POST' })
+  if (actionPending[mc.id]) return
+  actionPending[mc.id] = 'sync'
+  try {
+    await fetch('/api/sync-machineclass', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: mc.id }),
+    })
+    await fetch('/api/reconcile', { method: 'POST' })
+    setTimeout(() => { delete actionPending[mc.id] }, 5000)
+  } catch { delete actionPending[mc.id] }
 }
 
-async function toggleMCAutoSync(mc: ResourceInfo) {
+async function toggleMCAutoSync(mc: ResourceInfo, event: MouseEvent) {
+  (event.currentTarget as HTMLElement).blur()
   await fetch('/api/set-mc-autosync', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

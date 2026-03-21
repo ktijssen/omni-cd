@@ -5,10 +5,10 @@
       <div class="header-buttons">
         <template v-if="authStore.isAdmin()">
           <span v-if="isRunning" class="spinner"></span>
-          <button class="btn-sort btn-primary" :disabled="isRunning" @click="triggerCheck">
+          <button class="btn-omni" :disabled="isRunning" @click="triggerCheck">
             {{ gitRunning ? 'Refreshing...' : 'Refresh' }}
           </button>
-          <button class="btn-sort btn-primary" :disabled="isRunning" @click="triggerReconcile">
+          <button class="btn-omni" :disabled="isRunning" @click="triggerReconcile">
             {{ syncRunning ? 'Syncing...' : 'Sync' }}
           </button>
         </template>
@@ -16,7 +16,9 @@
           v-model="clusterSearch"
           type="text"
           placeholder="Search clusters..."
-          style="background:#13141c;border:1px solid #2c2e38;border-radius:4px;color:#e8e8e9;font-size:12px;padding:3px 8px;outline:none;width:180px;font-family:inherit;margin-left:8px;"
+          style="background:#1e2130;border:1px solid #3d4059;border-radius:4px;color:#c4c4c9;font-size:13px;padding:6px 12px;outline:none;width:200px;font-family:inherit;transition:border-color 0.2s;margin-left:8px;"
+          @focus="($event.target as HTMLInputElement).style.borderColor='#ff8b59'"
+          @blur="($event.target as HTMLInputElement).style.borderColor='#3d4059'"
         />
       </div>
     </div>
@@ -142,17 +144,17 @@
         <button
           v-for="def in visibleSyncDefs"
           :key="def.key"
-          class="btn-sort"
+          class="btn-omni"
           :class="{ active: !!clusterSyncFilters[def.key] }"
           @click="toggleSyncFilter(def.key)"
         >{{ def.label }}</button>
         <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
-          <button class="btn-sort active" @click="toggleSort">{{ sortAZ ? 'A→Z' : 'Z→A' }}</button>
+          <button class="btn-omni active" @click="toggleSort">{{ sortAZ ? 'A→Z' : 'Z→A' }}</button>
           <div class="page-size-bar">
             <button
               v-for="n in [5, 10, 15, 20, 0]"
               :key="n"
-              class="page-size-btn"
+              class="btn-omni"
               :class="{ active: pageSize === n }"
               @click="setPageSize(n)"
             >{{ n === 0 ? 'All' : n }}</button>
@@ -186,7 +188,7 @@
                   <span class="cluster-card-title">{{ cluster.id }}</span>
                   <a
                     v-if="state?.omniEndpoint"
-                    class="btn-sort btn-primary"
+                    class="btn-omni"
                     style="font-size:11px;padding:1px 6px;text-decoration:none"
                     :href="omniClusterUrl(cluster.id)"
                     target="_blank"
@@ -280,34 +282,34 @@
               <!-- Actions -->
               <div v-if="authStore.isAdmin()" class="cluster-card-actions" @click.stop>
                 <button
-                  class="btn-sort btn-primary"
+                  class="btn-omni"
                   :disabled="!!clusterActionPending[cluster.id]"
                   @click="refreshCluster(cluster)"
                   title="Re-read live state from Omni"
                 >↺ {{ clusterActionPending[cluster.id] === 'refresh' ? 'Refreshing...' : 'Refresh' }}</button>
                 <button
                   v-if="cluster.status !== 'deleting' && (cluster.status === 'unmanaged' || cluster.status === 'orphaned')"
-                  class="btn-sort btn-primary"
+                  class="btn-omni"
                   @click="exportCluster(cluster)"
                   title="Export cluster as YAML template"
                 >↓ Export</button>
                 <button
                   v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'"
-                  class="btn-sort btn-primary"
+                  class="btn-omni"
                   :disabled="!!clusterActionPending[cluster.id]"
                   @click="syncCluster(cluster)"
                   title="Force sync this cluster from Git"
                 >⇅ {{ clusterActionPending[cluster.id] === 'sync' ? 'Syncing...' : 'Sync' }}</button>
                 <button
                   v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'"
-                  class="btn-sort btn-primary auto-sync"
+                  class="btn-omni auto-sync"
                   :class="{ active: cluster.autoSync !== false }"
                   @click="toggleAutoSync(cluster)"
                   title="Toggle per-cluster auto sync"
                 >{{ cluster.autoSync === false ? '○ Auto-Sync: Off' : '● Auto-Sync: On' }}</button>
                 <button
                   v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged'"
-                  class="btn-sort btn-primary"
+                  class="btn-omni"
                   @click="deleteCluster(cluster)"
                   title="Delete this cluster from Omni"
                 >✕ Delete</button>
@@ -349,9 +351,9 @@
             :placeholder="confirmModal.requireInput"
           />
           <div class="confirm-actions">
-            <button class="btn-sort btn-primary" @click="confirmModal = null">Cancel</button>
+            <button class="btn-omni" @click="confirmModal = null">Cancel</button>
             <button
-              class="btn-sort btn-primary"
+              class="btn-omni"
               :disabled="!!(confirmModal.requireInput && confirmInput !== confirmModal.requireInput)"
               @click="doConfirm"
             >OK</button>

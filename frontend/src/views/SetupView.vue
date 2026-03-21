@@ -222,12 +222,12 @@ async function submit() {
   padding: 10px;
   cursor: pointer;
   margin-top: 4px;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
   text-align: center;
   font-family: inherit;
   box-sizing: border-box;
 }
-.auth-btn:hover:not(:disabled) { background: #ffb899; border-color: #ffb899; color: #fff; }
+.auth-btn:hover:not(:disabled) { background: #d97040; border-color: #d97040; color: #fff; }
 .auth-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .auth-footer {
   margin-top: 20px;

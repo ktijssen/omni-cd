@@ -546,6 +546,23 @@ func main() {
 			logInfo("Machine class delete triggered", "trigger", "web UI", "machineclass", mcID)
 			go func(id string) {
 				rec.DeleteSingleMachineClass(id)
+				// Re-diff after deletion so the MC immediately shows as Out of Sync
+				// (still in Git but no longer in Omni) without waiting for the next
+				// scheduled reconcile.
+				gc := buildMultiClient()
+				results := gc.SyncAll()
+				currentRepos := appState.GetRepoConfigs()
+				repoByName := make(map[string]config.RepoConfig, len(currentRepos))
+				for _, rc := range currentRepos {
+					repoByName[rc.Name] = rc
+				}
+				for _, r := range results {
+					if r.Err != nil {
+						continue
+					}
+					rc := repoByName[r.Name]
+					rec.DiffMachineClasses(r.RepoDir + "/" + rc.MCPath)
+				}
 			}(mcID)
 		case mcID := <-triggerMCRefreshSingle:
 			logInfo("Single machine class refresh triggered", "trigger", "web UI", "machineclass", mcID)
