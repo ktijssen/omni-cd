@@ -4,6 +4,7 @@
       <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Machine Classes</h1>
       <div class="header-buttons" style="display:flex;align-items:center;gap:8px;">
         <template v-if="authStore.isAdmin()">
+          <span v-if="isRunning" class="spinner"></span>
           <button class="btn-omni" :disabled="isRunning" @click="doRefreshMC">
             {{ isRunning ? 'Refreshing...' : 'Refresh' }}
           </button>
@@ -370,7 +371,9 @@ function toggleFilter(key: string) {
   currentPage.value = 1
 }
 
-const isRunning = computed(() => state.value?.lastReconcile?.status === 'running')
+const reconcileRunning = computed(() => state.value?.lastReconcile?.status === 'running')
+const refreshPending = ref(false)
+const isRunning = computed(() => reconcileRunning.value || refreshPending.value)
 
 const machineClasses = computed(() => {
   const list = (state.value?.machineClasses ?? []).slice()
@@ -697,7 +700,11 @@ function goToCluster(id: string) {
 }
 
 async function doRefreshMC() {
-  await fetch('/api/refresh-mc', { method: 'POST' })
+  refreshPending.value = true
+  try {
+    await fetch('/api/refresh-mc', { method: 'POST' })
+    setTimeout(() => { refreshPending.value = false }, 5000)
+  } catch { refreshPending.value = false }
 }
 
 async function doSyncAll() {
