@@ -91,13 +91,13 @@ tasks:
   deps:tidy:
     desc: Tidy Go dependencies
     cmds:
-      - go mod tidy
+      - go mod tidy -e
 
   deps:update:
     desc: Update all dependencies
     cmds:
       - go get -u ./cmd/... ./internal/...
-      - go mod tidy
+      - go mod tidy -e
 
   # Docker tasks
   docker:build:
