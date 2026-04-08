@@ -568,19 +568,19 @@ func (r *Reconciler) RefreshSingleCluster(dir, id string) {
 	}
 
 	r.state.UpsertClusterInfo(id, state.ResourceInfo{
-		ID:                id,
-		Type:              "Cluster",
-		Status:            status,
-		Diff:              diffOutput,
-		FileContent:       fileContent,
-		LiveContent:       liveContent,
-		LastSyncResult:    lastSyncResult,
-		LastSyncError:     lastSyncError,
-		LastSyncTime:      lastSyncTime,
-		LastSyncSHA:       lastSyncSHA,
-		LastSyncAuthor:    lastSyncAuthor,
-		LastSyncMessage:   lastSyncMessage,
-		SyncStatusSince:    func() time.Time {
+		ID:              id,
+		Type:            "Cluster",
+		Status:          status,
+		Diff:            diffOutput,
+		FileContent:     fileContent,
+		LiveContent:     liveContent,
+		LastSyncResult:  lastSyncResult,
+		LastSyncError:   lastSyncError,
+		LastSyncTime:    lastSyncTime,
+		LastSyncSHA:     lastSyncSHA,
+		LastSyncAuthor:  lastSyncAuthor,
+		LastSyncMessage: lastSyncMessage,
+		SyncStatusSince: func() time.Time {
 			if status != "outofsync" {
 				return time.Time{}
 			}
@@ -870,9 +870,10 @@ func (r *Reconciler) DeleteClusters(dir string) {
 		if !omni.IsClusterTemplateManaged(id) {
 			r.logDebug("Cluster not managed by templates, ignoring", "component", "Clusters", "cluster", id)
 			unmanaged = append(unmanaged, state.ResourceInfo{
-				ID:     id,
-				Type:   "Cluster",
-				Status: "unmanaged",
+				ID:        id,
+				Type:      "Cluster",
+				Status:    "unmanaged",
+				CreatedAt: omni.GetClusterCreatedAt(id),
 			})
 			continue
 		}
@@ -968,6 +969,9 @@ func (r *Reconciler) DeleteClusters(dir string) {
 		for _, u := range unmanaged {
 			if rich, ok := existingMap[u.ID]; ok {
 				rich.Status = "unmanaged" // ensure status is correct
+				if rich.CreatedAt.IsZero() {
+					rich.CreatedAt = u.CreatedAt
+				}
 				final = append(final, rich)
 			} else {
 				final = append(final, u)
@@ -1043,9 +1047,10 @@ func (r *Reconciler) DeleteClustersAll(dirs []string, liveIDs []string) {
 		if !omni.IsClusterTemplateManaged(id) {
 			r.logDebug("Cluster not managed by templates, ignoring", "component", "Clusters", "cluster", id)
 			unmanaged = append(unmanaged, state.ResourceInfo{
-				ID:     id,
-				Type:   "Cluster",
-				Status: "unmanaged",
+				ID:        id,
+				Type:      "Cluster",
+				Status:    "unmanaged",
+				CreatedAt: omni.GetClusterCreatedAt(id),
 			})
 			continue
 		}
@@ -1126,6 +1131,9 @@ func (r *Reconciler) DeleteClustersAll(dirs []string, liveIDs []string) {
 		for _, u := range unmanaged {
 			if rich, ok := existingMap[u.ID]; ok {
 				rich.Status = "unmanaged"
+				if rich.CreatedAt.IsZero() {
+					rich.CreatedAt = u.CreatedAt
+				}
 				final = append(final, rich)
 			} else {
 				final = append(final, u)

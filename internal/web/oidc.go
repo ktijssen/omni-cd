@@ -12,8 +12,8 @@ import (
 	"time"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
-	oidcconfig "omni-cd/internal/oidc"
 	"golang.org/x/oauth2"
+	oidcconfig "omni-cd/internal/oidc"
 )
 
 // OIDCRuntime holds the live OIDC provider and oauth2 config derived from an
@@ -311,6 +311,7 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		AuthMethod:  "oidc",
 		Role:        role,
 	})
+	s.saveSessions()
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    sessionToken,
@@ -332,9 +333,11 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 
 // handleUnauthorized serves the /unauthorized page shown to OIDC users with the "none" role.
 func (s *Server) handleUnauthorized(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-	w.WriteHeader(http.StatusForbidden)
-	fmt.Fprint(w, unauthorizedHTML)
+	if s.authDisabled {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	serveIndexHTML(w)
 }
 
 // --- OIDC config API ---
@@ -371,7 +374,6 @@ func (s *Server) handleGetOIDCConfig(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
 // cleanupOIDCStates periodically removes state tokens that were never consumed
 // (e.g. the user closed the browser before completing the OIDC flow).
 func (s *Server) cleanupOIDCStates() {
@@ -388,42 +390,3 @@ func (s *Server) cleanupOIDCStates() {
 }
 
 // --- helpers ---
-
-
-// unauthorizedHTML is the page shown to OIDC users whose role is "none".
-const unauthorizedHTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Omni CD · Access Denied</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #1b1b1d; color: #e4e4e7;
-    min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  }
-  .wrap { text-align: center; max-width: 400px; padding: 24px; }
-  .icon { font-size: 48px; margin-bottom: 16px; }
-  h1 { font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 8px; }
-  p { font-size: 14px; color: #71717a; margin-bottom: 24px; line-height: 1.5; }
-  a {
-    display: inline-block;
-    background: #FB326E; color: #fff;
-    border-radius: 8px; padding: 10px 20px;
-    font-size: 14px; font-weight: 600; text-decoration: none;
-  }
-  a:hover { background: #e0285f; }
-</style>
-</head>
-<body>
-<div class="wrap">
-  <div class="icon">🚫</div>
-  <h1>Access Denied</h1>
-  <p>Your account does not have permission to access Omni CD.<br>
-     Contact your administrator to request access.</p>
-  <a href="/logout">Sign out</a>
-</div>
-</body>
-</html>`

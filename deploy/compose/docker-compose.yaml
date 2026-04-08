@@ -11,6 +11,7 @@ services:
       - AUTH_DISABLED=${AUTH_DISABLED:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - LOG_RETENTION_DAYS=${LOG_RETENTION_DAYS:-7}
+      - OIDC_ENABLED=${OIDC_ENABLED:-false}
       - OIDC_ISSUER_URL=${OIDC_ISSUER_URL}
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
@@ -24,11 +25,11 @@ services:
       - OIDC_DEFAULT_ROLE=${OIDC_DEFAULT_ROLE}
       - OIDC_INSECURE=${OIDC_INSECURE:-false}
     ports:
-      - "${WEB_PORT:-8080}:8080"
+      - "${WEB_PORT:-8080}:${WEB_PORT:-8080}"
     volumes:
       - ./data:/data
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:${WEB_PORT:-8080}/"]
+      test: ["CMD", "sh", "-c", "wget -qO- http://localhost:$$WEB_PORT/"]
       interval: 30s
       timeout: 5s
       retries: 3

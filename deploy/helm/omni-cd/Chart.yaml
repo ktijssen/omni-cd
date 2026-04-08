@@ -1,0 +1,6 @@
+apiVersion: v2
+name: omni-cd
+description: GitOps continuous delivery tool for Sidero Omni cluster management
+type: application
+version: 0.2.1
+appVersion: 0.2.1

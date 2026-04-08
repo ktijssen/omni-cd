@@ -78,6 +78,7 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 				AuthMethod:  old.AuthMethod,
 				Role:        old.Role,
 			})
+			s.saveSessions()
 		}
 	}
 

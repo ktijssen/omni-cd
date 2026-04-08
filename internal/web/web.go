@@ -47,13 +47,14 @@ type Server struct {
 	logDir                 string
 	port                   string
 	version                string
+	webhookSecret          string
 	clients                map[*websocket.Conn]bool
 	clientsMu              sync.RWMutex
 	broadcast              chan []byte
-	authStore    *auth.Store
-	authDisabled bool
-	sessions     sync.Map // token (string) -> sessionInfo
-	loginBuckets sync.Map // IP (string) -> *loginBucket
+	authStore              *auth.Store
+	authDisabled           bool
+	sessions               sync.Map // token (string) -> sessionInfo
+	loginBuckets           sync.Map // IP (string) -> *loginBucket
 	// OIDC
 	oidcRT     *OIDCRuntime
 	oidcMu     sync.RWMutex
@@ -62,7 +63,7 @@ type Server struct {
 }
 
 // New creates a new web server.
-func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, triggerOmniConfigured chan struct{}, omniInstanceFile string, logDir string, port string, version string, authStore *auth.Store, authDisabled bool, oidcRT *OIDCRuntime) *Server {
+func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, triggerOmniConfigured chan struct{}, omniInstanceFile string, logDir string, port string, version string, authStore *auth.Store, authDisabled bool, oidcRT *OIDCRuntime, webhookSecret string) *Server {
 	s := &Server{
 		appState:               appState,
 		triggerHard:            triggerHard,
@@ -82,9 +83,13 @@ func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan s
 		broadcast:              make(chan []byte, 256),
 		authStore:              authStore,
 		authDisabled:           authDisabled,
-		oidcRT:    oidcRT,
-		oidcUsers: loadOIDCUserStore(oidcUsersPath),
+		oidcRT:                 oidcRT,
+		webhookSecret:          webhookSecret,
+		oidcUsers:              loadOIDCUserStore(oidcUsersPath),
 	}
+
+	// Load persisted sessions so users stay logged in across restarts.
+	s.loadSessions()
 
 	// Start broadcast handler
 	go s.handleBroadcasts()
@@ -110,15 +115,22 @@ func (s *Server) Start() {
 	mux.HandleFunc("/login", s.handleLogin)
 	mux.HandleFunc("/logout", s.handleLogout)
 	mux.HandleFunc("/unauthorized", s.handleUnauthorized)
+	mux.HandleFunc("/api/login-config", s.handleLoginConfig)
+	mux.HandleFunc("/api/setup-status", s.handleSetupStatus)
+	mux.HandleFunc("/assets/", s.handleStaticAsset)
 
 	// OIDC SSO routes — public (the handlers check OIDC is enabled)
 	mux.HandleFunc("/auth/login", s.handleOIDCLogin)
 	mux.HandleFunc("/auth/callback", s.handleOIDCCallback)
 
+	// Webhook endpoint — public, protected by HMAC secret
+	mux.HandleFunc("/api/webhook", s.handleWebhook)
+
 	// WebSocket endpoint — viewer+
 	mux.HandleFunc("/ws", s.requireRole("viewer", s.handleWebSocket))
 
 	// Read-only API endpoints — viewer+
+	mux.HandleFunc("/api/me", s.requireRole("viewer", s.handleMe))
 	mux.HandleFunc("/api/state", s.requireRole("viewer", s.handleState))
 	mux.HandleFunc("/api/logs/files", s.requireRole("viewer", s.handleLogFiles))
 	mux.HandleFunc("/api/logs/download", s.requireRole("viewer", s.handleLogDownload))
@@ -324,6 +336,9 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 	for _, m := range snapshot.MachineClasses {
 		for _, b := range []byte(m.Status) {
 			hash = hash*31 + uint64(b)
+		}
+		if m.AutoSync != nil && *m.AutoSync {
+			hash = hash*31 + 1
 		}
 	}
 	return hash

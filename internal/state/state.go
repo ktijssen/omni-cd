@@ -186,8 +186,8 @@ type AppState struct {
 	logFile             *os.File
 	logFileDate         string // "2006-01-02"
 	logRetentionDays    int
-	stateFile           string       // Path to state file
-	repoFile            string       // Path to repos.json
+	stateFile           string        // Path to state file
+	repoFile            string        // Path to repos.json
 	changeCh            chan struct{} // Closed/sent on every state mutation
 }
 

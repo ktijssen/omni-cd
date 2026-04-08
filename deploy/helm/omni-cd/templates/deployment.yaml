@@ -1,0 +1,146 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "omni-cd.fullname" . }}
+  labels:
+    {{- include "omni-cd.labels" . | nindent 4 }}
+  {{- with .Values.podAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "omni-cd.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "omni-cd.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: omni-cd
+          image: "{{ .Values.image.repository }}:{{ include "omni-cd.imageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: WEB_PORT
+              value: {{ .Values.config.webPort | quote }}
+            - name: REFRESH_INTERVAL
+              value: {{ .Values.config.refreshInterval | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+            - name: LOG_RETENTION_DAYS
+              value: {{ .Values.config.logRetentionDays | quote }}
+            - name: AUTH_DISABLED
+              value: {{ .Values.config.authDisabled | quote }}
+            {{- if .Values.oidc.enabled }}
+            - name: OIDC_ENABLED
+              value: "true"
+            - name: OIDC_ISSUER_URL
+              value: {{ .Values.oidc.issuerUrl | quote }}
+            - name: OIDC_CLIENT_ID
+              value: {{ .Values.oidc.clientId | quote }}
+            - name: OIDC_REDIRECT_URL
+              value: {{ .Values.oidc.redirectUrl | quote }}
+            - name: OIDC_SCOPES
+              value: {{ .Values.oidc.scopes | quote }}
+            - name: OIDC_GROUPS_CLAIM
+              value: {{ .Values.oidc.groupsClaim | quote }}
+            - name: OIDC_ADMIN_GROUPS
+              value: {{ .Values.oidc.adminGroups | quote }}
+            - name: OIDC_ADMIN_EMAILS
+              value: {{ .Values.oidc.adminEmails | quote }}
+            - name: OIDC_VIEWER_GROUPS
+              value: {{ .Values.oidc.viewerGroups | quote }}
+            - name: OIDC_VIEWER_EMAILS
+              value: {{ .Values.oidc.viewerEmails | quote }}
+            - name: OIDC_DEFAULT_ROLE
+              value: {{ .Values.oidc.defaultRole | quote }}
+            - name: OIDC_INSECURE
+              value: {{ .Values.oidc.insecure | quote }}
+            {{- end }}
+            # Sensitive values from secret
+            - name: OMNI_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret | default (include "omni-cd.fullname" .) }}
+                  key: OMNI_ENDPOINT
+            - name: OMNI_SERVICE_ACCOUNT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret | default (include "omni-cd.fullname" .) }}
+                  key: OMNI_SERVICE_ACCOUNT_KEY
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret | default (include "omni-cd.fullname" .) }}
+                  key: ADMIN_PASSWORD
+            {{- if .Values.config.webhookSecret }}
+            - name: WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret | default (include "omni-cd.fullname" .) }}
+                  key: WEBHOOK_SECRET
+            {{- end }}
+            {{- if .Values.oidc.enabled }}
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret | default (include "omni-cd.fullname" .) }}
+                  key: OIDC_CLIENT_SECRET
+            {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "omni-cd.fullname" . }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

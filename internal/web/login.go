@@ -1,174 +1,145 @@
 package web
 
-const loginHTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Omni CD · Login</title>
-<link rel="icon" type="image/svg+xml" href="{{OMNI_LOGO_URI}}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: Roboto, sans-serif;
-    background: #101118;
-    color: #e8e8e9;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .login-wrap {
-    width: 100%;
-    max-width: 380px;
-    padding: 24px;
-  }
-  .login-logo {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    margin-bottom: 32px;
-  }
-  .login-logo img { width: 32px; height: 32px; }
-  .login-logo-text {
-    font-size: 20px;
-    font-weight: 700;
-    color: #fff;
-    letter-spacing: -0.4px;
-  }
-  .login-logo-text span { color: #ff8b59; }
-  .login-card {
-    background: #1f222e;
-    border: 1px solid #2a2d3a;
-    border-radius: 14px;
-    padding: 28px 28px 24px;
-  }
-  .login-title {
-    font-size: 15px;
-    font-weight: 600;
-    color: #fff;
-    margin-bottom: 4px;
-  }
-  .login-sub {
-    font-size: 12px;
-    color: #71717a;
-    margin-bottom: 24px;
-  }
-  .login-error {
-    background: rgba(248, 113, 113, 0.1);
-    border: 1px solid rgba(248, 113, 113, 0.3);
-    border-radius: 8px;
-    color: #f87171;
-    font-size: 13px;
-    padding: 10px 14px;
-    margin-bottom: 16px;
-  }
-  .login-field { margin-bottom: 16px; }
-  .login-field label {
-    display: block;
-    font-size: 12px;
-    font-weight: 500;
-    color: #a1a1aa;
-    margin-bottom: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-  .login-field input {
-    width: 100%;
-    background: #101118;
-    border: 1px solid #2a2d3a;
-    border-radius: 8px;
-    color: #e8e8e9;
-    font-size: 14px;
-    padding: 10px 14px;
-    outline: none;
-    transition: border-color 0.15s;
-  }
-  .login-field input:focus { border-color: #ff8b59; }
-  .login-field input::placeholder { color: #52525b; }
-  .login-btn {
-    width: 100%;
-    background: #ff8b59;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    padding: 11px;
-    cursor: pointer;
-    margin-top: 8px;
-    transition: background 0.2s;
-  }
-  .login-btn:hover { background: #e67a4a; }
-  .login-btn:active { background: #cc5e35; }
-  .login-footer {
-    text-align: center;
-    font-size: 11px;
-    color: #52525b;
-    margin-top: 24px;
-  }
-  .sso-btn {
-    display: block;
-    width: 100%;
-    background: #101118;
-    border: 1px solid #2a2d3a;
-    border-radius: 8px;
-    color: #e8e8e9;
-    font-size: 14px;
-    font-weight: 600;
-    padding: 11px;
-    text-align: center;
-    text-decoration: none;
-    transition: border-color 0.15s, background 0.15s;
-  }
-  .sso-btn:hover { border-color: #ff8b59; background: #1f222e; }
-  .login-divider {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 16px 0;
-    color: #52525b;
-    font-size: 12px;
-  }
-  .login-divider::before,
-  .login-divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: #2a2d3a;
-  }
-</style>
-</head>
-<body>
-<div class="login-wrap">
-  <div class="login-logo">
-    <img src="{{OMNI_LOGO_URI}}" alt="Omni">
-    <span class="login-logo-text">Omni <span>CD</span></span>
-  </div>
-  <div class="login-card">
-    <div class="login-title">Sign in</div>
-    <div class="login-sub">Enter your credentials to continue</div>
-    <!--ERROR-->
-    <!--LOCAL_FORM-->
-    <!--OIDC_BUTTON-->
-  </div>
-  <div class="login-footer">Omni CD · Real-time updates</div>
-</div>
-</body>
-</html>`
+import (
+	"encoding/json"
+	"fmt"
+	"io/fs"
+	"log/slog"
+	"net/http"
+	"time"
+)
 
-const localFormHTML = `<form method="POST" action="/login">
-      <div class="login-field">
-        <label for="username">Username</label>
-        <input id="username" name="username" type="text" placeholder="username" autocomplete="username" required autofocus>
-      </div>
-      <div class="login-field">
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required>
-      </div>
-      <button class="login-btn" type="submit">Sign in</button>
-    </form>`
+// handleLoginConfig returns JSON describing which auth methods are available.
+func (s *Server) handleLoginConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{
+		"oidcEnabled": s.oidcEnabled(),
+		"localAuth":   s.authStore != nil,
+	})
+}
+
+// handleLogin serves GET /login (login page) and POST /login (credential check).
+func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		// Auth disabled or already authenticated → go home.
+		if s.authDisabled {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+		if cookie, err := r.Cookie(sessionCookieName); err == nil && s.validSession(cookie.Value) {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+		serveIndexHTML(w)
+
+	case http.MethodPost:
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MB limit
+		ip := clientIP(r)
+		bucket := s.loginBucketFor(ip)
+
+		bucket.mu.Lock()
+		if time.Now().Before(bucket.lockedUntil) {
+			bucket.mu.Unlock()
+			slog.Warn("Login blocked — too many failed attempts", "ip", ip, "component", "Auth")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Too many failed attempts — try again in 15 minutes"})
+			return
+		}
+		bucket.mu.Unlock()
+
+		username := r.FormValue("username")
+		password := r.FormValue("password")
+
+		if s.authStore != nil && s.authStore.Validate(username, password) {
+			// Reset failure counter on success.
+			bucket.mu.Lock()
+			bucket.failures = 0
+			bucket.lockedUntil = time.Time{}
+			bucket.mu.Unlock()
+
+			token, err := generateToken()
+			if err != nil {
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			displayName := s.authStore.GetDisplayName(username)
+			s.sessions.Store(token, sessionInfo{LoginTime: time.Now(), Username: username, DisplayName: displayName})
+			s.saveSessions()
+			http.SetCookie(w, &http.Cookie{
+				Name:     sessionCookieName,
+				Value:    token,
+				Path:     "/",
+				HttpOnly: true,
+				Secure:   isSecure(r),
+				SameSite: http.SameSiteLaxMode,
+				MaxAge:   int(sessionDuration.Seconds()),
+			})
+			slog.Info("User logged in", "username", username, "ip", ip, "component", "Auth")
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+			return
+		}
+
+		// Bad credentials — increment failure counter.
+		bucket.mu.Lock()
+		bucket.failures++
+		if bucket.failures >= maxLoginFailures {
+			bucket.lockedUntil = time.Now().Add(loginLockDuration)
+			bucket.failures = 0
+		}
+		bucket.mu.Unlock()
+
+		slog.Warn("Failed login attempt", "username", username, "ip", ip, "component", "Auth")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid username or password"})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleLogout clears the session cookie and redirects to /login (or / when auth is disabled).
+func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	if cookie, err := r.Cookie(sessionCookieName); err == nil {
+		s.sessions.Delete(cookie.Value)
+		s.saveSessions()
+		slog.Info("User logged out", "remote", r.RemoteAddr, "component", "Auth")
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   -1,
+	})
+	if s.authDisabled {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	http.Redirect(w, r, "/login", http.StatusFound)
+}
+
+// serveIndexHTML reads dist/index.html from the embedded FS and writes it to w.
+func serveIndexHTML(w http.ResponseWriter) {
+	data, err := distFS.ReadFile("dist/index.html")
+	if err != nil {
+		http.Error(w, "UI not built. Run: cd frontend && npm run build", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprint(w, string(data))
+}
+
+// handleStaticAsset serves files under /assets/ from the embedded dist FS without auth.
+func (s *Server) handleStaticAsset(w http.ResponseWriter, r *http.Request) {
+	sub, err := fs.Sub(distFS, "dist")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	http.FileServerFS(sub).ServeHTTP(w, r)
+}

@@ -1,14 +1,35 @@
 # Build output
 bin/
 
+# Frontend
+frontend/node_modules/
+frontend/dist/
+internal/web/dist/
+
 # Runtime state
 deploy/compose/data/
 
 # Environment files
 deploy/compose/.env
+.env
+*.env
+
+# Helm
+deploy/helm/*/charts/
+deploy/helm/*/*.tgz
 
 # docs
 docs/*.md
 
 # backup files
 *.bak
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

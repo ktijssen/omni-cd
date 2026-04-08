@@ -3,21 +3,73 @@ package web
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
+	"encoding/json"
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	sessionCookieName  = "omnicd_session"
-	sessionDuration    = 24 * time.Hour
-	maxLoginFailures   = 5
-	loginLockDuration  = 15 * time.Minute
+	sessionCookieName = "omnicd_session"
+	sessionDuration   = 24 * time.Hour
+	maxLoginFailures  = 5
+	loginLockDuration = 15 * time.Minute
+	sessionFile       = "/data/auth/sessions.json"
 )
+
+// loadSessions reads persisted sessions from disk and populates the in-memory map,
+// skipping any that have already expired.
+func (s *Server) loadSessions() {
+	data, err := os.ReadFile(sessionFile)
+	if os.IsNotExist(err) {
+		return
+	}
+	if err != nil {
+		slog.Warn("Could not read session file", "err", err, "component", "Auth")
+		return
+	}
+	var saved map[string]sessionInfo
+	if err := json.Unmarshal(data, &saved); err != nil {
+		slog.Warn("Could not parse session file", "err", err, "component", "Auth")
+		return
+	}
+	loaded := 0
+	for token, info := range saved {
+		if time.Since(info.LoginTime) < sessionDuration {
+			s.sessions.Store(token, info)
+			loaded++
+		}
+	}
+	slog.Info("Loaded persisted sessions", "count", loaded, "component", "Auth")
+}
+
+// saveSessions writes all active, non-expired sessions to disk so they survive restarts.
+func (s *Server) saveSessions() {
+	m := make(map[string]sessionInfo)
+	s.sessions.Range(func(key, value any) bool {
+		info := value.(sessionInfo)
+		if time.Since(info.LoginTime) < sessionDuration {
+			m[key.(string)] = info
+		}
+		return true
+	})
+	data, err := json.Marshal(m)
+	if err != nil {
+		slog.Warn("Could not marshal sessions", "err", err, "component", "Auth")
+		return
+	}
+	if err := os.MkdirAll("/data/auth", 0700); err != nil {
+		slog.Warn("Could not create auth dir", "err", err, "component", "Auth")
+		return
+	}
+	if err := os.WriteFile(sessionFile, data, 0600); err != nil {
+		slog.Warn("Could not write session file", "err", err, "component", "Auth")
+	}
+}
 
 // loginBucket tracks failed login attempts for one IP address.
 type loginBucket struct {
@@ -87,8 +139,8 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		// No users configured yet — force first-time setup regardless of OIDC.
-		if s.authStore != nil && s.authStore.IsEmpty() {
+		// No local users configured and OIDC is not active — force first-time setup.
+		if s.authStore != nil && s.authStore.IsEmpty() && !s.oidcEnabled() {
 			if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/ws" {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
@@ -248,118 +300,4 @@ func (s *Server) cleanupLoginBuckets() {
 			return true
 		})
 	}
-}
-
-// renderLoginPage builds the full login HTML, injecting an optional error banner and the form/SSO button.
-func (s *Server) renderLoginPage(errorHTML string) string {
-	page := loginHTML
-	page = strings.ReplaceAll(page, "{{OMNI_LOGO_URI}}", omniLogoURI)
-	if errorHTML != "" {
-		page = strings.ReplaceAll(page, "<!--ERROR-->", errorHTML)
-	}
-	page = strings.ReplaceAll(page, "<!--LOCAL_FORM-->", localFormHTML)
-	if s.oidcEnabled() {
-		page = strings.ReplaceAll(page, "<!--OIDC_BUTTON-->", `<div class="login-divider"><span>or</span></div><a href="/auth/login" class="sso-btn">Sign in with SSO</a>`)
-	} else {
-		page = strings.ReplaceAll(page, "<!--OIDC_BUTTON-->", "")
-	}
-	return page
-}
-
-// handleLogin serves GET /login (login page) and POST /login (credential check).
-func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		// Already authenticated → go home.
-		if cookie, err := r.Cookie(sessionCookieName); err == nil && s.validSession(cookie.Value) {
-			http.Redirect(w, r, "/", http.StatusFound)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, s.renderLoginPage(""))
-
-	case http.MethodPost:
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MB limit
-		ip := clientIP(r)
-		bucket := s.loginBucketFor(ip)
-
-		bucket.mu.Lock()
-		if time.Now().Before(bucket.lockedUntil) {
-			bucket.mu.Unlock()
-			slog.Warn("Login blocked — too many failed attempts", "ip", ip, "component", "Auth")
-			w.Header().Set("Content-Type", "text/html")
-			w.WriteHeader(http.StatusTooManyRequests)
-			fmt.Fprint(w, s.renderLoginPage(`<div class="login-error">Too many failed attempts — try again in 15 minutes</div>`))
-			return
-		}
-		bucket.mu.Unlock()
-
-		username := r.FormValue("username")
-		password := r.FormValue("password")
-
-		if s.authStore != nil && s.authStore.Validate(username, password) {
-			// Reset failure counter on success.
-			bucket.mu.Lock()
-			bucket.failures = 0
-			bucket.lockedUntil = time.Time{}
-			bucket.mu.Unlock()
-
-			token, err := generateToken()
-			if err != nil {
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-				return
-			}
-			displayName := s.authStore.GetDisplayName(username)
-			s.sessions.Store(token, sessionInfo{LoginTime: time.Now(), Username: username, DisplayName: displayName})
-			http.SetCookie(w, &http.Cookie{
-				Name:     sessionCookieName,
-				Value:    token,
-				Path:     "/",
-				HttpOnly: true,
-				Secure:   isSecure(r),
-				SameSite: http.SameSiteLaxMode,
-				MaxAge:   int(sessionDuration.Seconds()),
-			})
-			slog.Info("User logged in", "username", username, "ip", ip, "component", "Auth")
-			http.Redirect(w, r, "/", http.StatusFound)
-			return
-		}
-
-		// Bad credentials — increment failure counter.
-		bucket.mu.Lock()
-		bucket.failures++
-		if bucket.failures >= maxLoginFailures {
-			bucket.lockedUntil = time.Now().Add(loginLockDuration)
-			bucket.failures = 0
-		}
-		bucket.mu.Unlock()
-
-		slog.Warn("Failed login attempt", "username", username, "ip", ip, "component", "Auth")
-		w.Header().Set("Content-Type", "text/html")
-		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprint(w, s.renderLoginPage(`<div class="login-error">Invalid username or password</div>`))
-
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-// handleLogout clears the session cookie and redirects to /login (or / when auth is disabled).
-func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	if cookie, err := r.Cookie(sessionCookieName); err == nil {
-		s.sessions.Delete(cookie.Value)
-		slog.Info("User logged out", "remote", r.RemoteAddr, "component", "Auth")
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionCookieName,
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		MaxAge:   -1,
-	})
-	if s.authDisabled {
-		http.Redirect(w, r, "/", http.StatusFound)
-		return
-	}
-	http.Redirect(w, r, "/login", http.StatusFound)
 }

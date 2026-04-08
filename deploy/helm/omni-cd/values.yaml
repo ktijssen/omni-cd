@@ -1,0 +1,76 @@
+image:
+  repository: ghcr.io/ktijssen/omni-cd
+  tag: ""  # defaults to appVersion
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: omni-cd.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Omni connection
+omni:
+  endpoint: ""
+  serviceAccountKey: ""
+
+# Application config
+config:
+  refreshInterval: "300"
+  webPort: "8080"
+  logLevel: "INFO"
+  logRetentionDays: "7"
+  authDisabled: "false"
+  adminPassword: ""
+  webhookSecret: ""
+
+# OIDC
+oidc:
+  enabled: false
+  issuerUrl: ""
+  clientId: ""
+  clientSecret: ""
+  redirectUrl: ""
+  scopes: ""
+  groupsClaim: ""
+  adminGroups: ""
+  adminEmails: ""
+  viewerGroups: ""
+  viewerEmails: ""
+  defaultRole: ""
+  insecure: "false"
+
+# Store sensitive values in an existing secret instead of values.yaml
+# Secret must contain keys matching the env var names
+existingSecret: ""
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 1Gi
+
+resources: {}
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

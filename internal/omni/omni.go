@@ -30,9 +30,9 @@ import (
 // ============================================================
 
 var (
-	omniClient           *client.Client //nolint:unused
-	omniState            cosistate.State
-	omniEndpoint         string
+	omniClient            *client.Client //nolint:unused
+	omniState             cosistate.State
+	omniEndpoint          string
 	omniServiceAccountKey string
 )
 
@@ -47,9 +47,9 @@ var (
 
 // machineClassCache caches the latest MachineClass content from WatchMachineClasses.
 var (
-	mcCacheMu           sync.RWMutex
+	mcCacheMu            sync.RWMutex
 	cachedMachineClasses map[string]string // id -> YAML content
-	mcCacheReady        bool
+	mcCacheReady         bool
 )
 
 // CacheClusterSnapshot stores the latest IDs and tearing-down set from the
@@ -1497,7 +1497,6 @@ func parseResourceFormat(yamlContent string) ClusterTemplateInfo {
 			})
 		}
 	}
-
 
 	if len(machExtEntries) > 0 {
 		info.MachineExtensions = make(map[string][]string)

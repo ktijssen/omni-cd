@@ -16,8 +16,8 @@ import (
 	"omni-cd/internal/auth"
 	"omni-cd/internal/config"
 	"omni-cd/internal/git"
-	"omni-cd/internal/omni"
 	oidcconfig "omni-cd/internal/oidc"
+	"omni-cd/internal/omni"
 	"omni-cd/internal/omniinstance"
 	"omni-cd/internal/reconciler"
 	"omni-cd/internal/state"
@@ -139,7 +139,7 @@ func main() {
 	}
 
 	// Start the web UI server early — needed for the setup UI in unconfigured mode.
-	webServer := web.New(appState, triggerHard, triggerSoft, triggerRefreshCluster, triggerDeleteCluster, triggerDeleteMC, triggerMCRefresh, triggerMCRefreshSingle, triggerRepoChange, triggerOmniConfigured, instanceFile, logDir, cfg.WebPort, version, authStore, cfg.AuthDisabled, oidcRT)
+	webServer := web.New(appState, triggerHard, triggerSoft, triggerRefreshCluster, triggerDeleteCluster, triggerDeleteMC, triggerMCRefresh, triggerMCRefreshSingle, triggerRepoChange, triggerOmniConfigured, instanceFile, logDir, cfg.WebPort, version, authStore, cfg.AuthDisabled, oidcRT, cfg.WebhookSecret)
 	webServer.Start()
 
 	// Set up graceful shutdown
@@ -322,7 +322,7 @@ func main() {
 				} else {
 					foundDir := ""
 					for _, dir := range dirs {
-						if _, err := os.Stat(dir+"/"+id); err == nil {
+						if _, err := os.Stat(dir + "/" + id); err == nil {
 							foundDir = dir
 							break
 						}
@@ -525,7 +525,7 @@ func main() {
 				dirs := getClusterDirs()
 				foundDir := ""
 				for _, dir := range dirs {
-					if _, err := os.Stat(dir+"/"+id); err == nil {
+					if _, err := os.Stat(dir + "/" + id); err == nil {
 						foundDir = dir
 						break
 					}
@@ -546,6 +546,23 @@ func main() {
 			logInfo("Machine class delete triggered", "trigger", "web UI", "machineclass", mcID)
 			go func(id string) {
 				rec.DeleteSingleMachineClass(id)
+				// Re-diff after deletion so the MC immediately shows as Out of Sync
+				// (still in Git but no longer in Omni) without waiting for the next
+				// scheduled reconcile.
+				gc := buildMultiClient()
+				results := gc.SyncAll()
+				currentRepos := appState.GetRepoConfigs()
+				repoByName := make(map[string]config.RepoConfig, len(currentRepos))
+				for _, rc := range currentRepos {
+					repoByName[rc.Name] = rc
+				}
+				for _, r := range results {
+					if r.Err != nil {
+						continue
+					}
+					rc := repoByName[r.Name]
+					rec.DiffMachineClasses(r.RepoDir + "/" + rc.MCPath)
+				}
 			}(mcID)
 		case mcID := <-triggerMCRefreshSingle:
 			logInfo("Single machine class refresh triggered", "trigger", "web UI", "machineclass", mcID)

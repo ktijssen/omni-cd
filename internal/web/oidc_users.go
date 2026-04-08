@@ -162,6 +162,7 @@ func (s *Server) handleOIDCUsers(w http.ResponseWriter, r *http.Request) {
 			}
 			return true
 		})
+		s.saveSessions()
 		slog.Info("SSO user deleted", "email", body.Email, "component", "OIDC")
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 		return
