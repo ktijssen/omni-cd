@@ -1,8 +1,13 @@
 package web
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,6 +29,57 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	snapshot := s.appState.Snapshot()
 	json.NewEncoder(w).Encode(snapshot)
+}
+
+// handleWebhook accepts push events from GitHub (and in future GitLab) and
+// triggers a soft reconcile. The endpoint is public but protected by an
+// HMAC-SHA256 signature when WEBHOOK_SECRET is set.
+func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1 MiB limit
+	if err != nil {
+		http.Error(w, "Failed to read body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate HMAC signature when a secret is configured.
+	if s.webhookSecret != "" {
+		sig := r.Header.Get("X-Hub-Signature-256")
+		if sig == "" {
+			http.Error(w, "Missing signature", http.StatusUnauthorized)
+			return
+		}
+		mac := hmac.New(sha256.New, []byte(s.webhookSecret))
+		mac.Write(body)
+		expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+		if !hmac.Equal([]byte(sig), []byte(expected)) {
+			http.Error(w, "Invalid signature", http.StatusUnauthorized)
+			return
+		}
+	}
+
+	// Only act on push events; ignore everything else silently.
+	event := r.Header.Get("X-GitHub-Event")
+	if event != "push" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ignored", "event": event})
+		return
+	}
+
+	slog.Info("Webhook push event received, triggering soft reconcile", "component", "Web")
+	select {
+	case s.triggerSoft <- struct{}{}:
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
+	default:
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"status": "already running"})
+	}
 }
 
 // handleReconcile triggers a hard reconcile.

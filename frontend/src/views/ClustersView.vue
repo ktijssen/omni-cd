@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div class="header" style="border-bottom:none;">
-      <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Clusters</h1>
-      <div class="header-buttons">
+    <div class="header" style="border-bottom:none;flex-direction:column;align-items:stretch;gap:8px;">
+      <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;white-space:nowrap;">Clusters</h1>
+      <div style="display:flex;align-items:center;gap:8px;">
         <template v-if="authStore.isAdmin()">
           <span v-if="isRunning" class="spinner"></span>
           <button class="btn-omni" :disabled="isRunning" @click="triggerCheck">
@@ -16,10 +16,14 @@
           v-model="clusterSearch"
           type="text"
           placeholder="Search clusters..."
-          style="background:#1e2130;border:1px solid #3d4059;border-radius:4px;color:#c4c4c9;font-size:13px;padding:6px 12px;outline:none;width:200px;font-family:inherit;transition:border-color 0.2s;margin-left:8px;"
+          style="background:#1e2130;border:1px solid #3d4059;border-radius:4px;color:#c4c4c9;font-size:13px;padding:6px 12px;outline:none;width:200px;font-family:inherit;transition:border-color 0.2s;"
           @focus="($event.target as HTMLInputElement).style.borderColor='#ff8b59'"
           @blur="($event.target as HTMLInputElement).style.borderColor='#3d4059'"
         />
+        <div class="page-size-bar" style="margin-left:auto;">
+          <button class="btn-omni" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" title="Tile view">⊞</button>
+          <button class="btn-omni" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'" title="List view">☰</button>
+        </div>
       </div>
     </div>
 
@@ -139,25 +143,74 @@
         </div>
       </div>
 
-      <!-- Toolbar: sync filter buttons + sort + page size -->
+      <!-- Toolbar: sort + filter + page size -->
       <div style="display:flex;align-items:center;gap:8px;padding:0 0 12px;flex-wrap:wrap;">
-        <button
-          v-for="def in visibleSyncDefs"
-          :key="def.key"
-          class="btn-omni"
-          :class="{ active: !!clusterSyncFilters[def.key] }"
-          @click="toggleSyncFilter(def.key)"
-        >{{ def.label }}</button>
         <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
-          <button class="btn-omni active" @click="toggleSort">{{ sortAZ ? 'A→Z' : 'Z→A' }}</button>
-          <div class="page-size-bar">
-            <button
-              v-for="n in [5, 10, 15, 20, 0]"
-              :key="n"
-              class="btn-omni"
-              :class="{ active: pageSize === n }"
-              @click="setPageSize(n)"
-            >{{ n === 0 ? 'All' : n }}</button>
+          <div class="filter-dropdown-wrap">
+            <button class="filter-select-btn" :class="{ active: activeSyncFilterCount > 0 }" @click="filterMenuOpen = !filterMenuOpen">
+              <span class="filter-select-label">
+                <label>Status</label>
+                <span>{{ activeSyncFilterCount > 0 ? activeSyncFilterLabels : 'All' }}</span>
+              </span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;transition:transform 0.2s" :style="{ transform: filterMenuOpen ? 'rotate(180deg)' : 'none' }"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14645 5.14645C3.34171 4.95118 3.65829 4.95118 3.85355 5.14645L8 9.29289L12.1464 5.14645C12.3417 4.95118 12.6583 4.95118 12.8536 5.14645C13.0488 5.34171 13.0488 5.65829 12.8536 5.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L3.14645 5.85355C2.95118 5.65829 2.95118 5.34171 3.14645 5.14645Z"/></svg>
+            </button>
+            <div v-if="filterMenuOpen" class="cluster-list-menu" style="min-width:180px;right:0;left:auto;">
+              <div class="cluster-list-menu-section-label">Sync Status</div>
+              <button
+                v-for="def in visibleSyncDefs"
+                :key="def.key"
+                class="cluster-list-menu-item"
+                :class="{ active: !!clusterSyncFilters[def.key] }"
+                @click="toggleSyncFilter(def.key)"
+              >{{ !!clusterSyncFilters[def.key] ? '✓ ' : '\u00a0\u00a0 ' }}{{ def.label }}</button>
+              <div class="cluster-list-menu-divider"></div>
+              <div class="cluster-list-menu-section-label">Health</div>
+              <button
+                v-for="def in healthDefs"
+                :key="def.key"
+                class="cluster-list-menu-item"
+                :class="{ active: clusterStatusFilter === def.key }"
+                @click="setClusterFilter(def.key)"
+              >{{ clusterStatusFilter === def.key ? '✓ ' : '\u00a0\u00a0 ' }}{{ def.label }}</button>
+              <div v-if="activeSyncFilterCount > 0" class="cluster-list-menu-divider"></div>
+              <button v-if="activeSyncFilterCount > 0" class="cluster-list-menu-item" style="color:#9fa1a6" @click="clearSyncFilters(); filterMenuOpen = false">Clear filters</button>
+            </div>
+          </div>
+          <div class="filter-dropdown-wrap">
+            <button class="filter-select-btn" @click="sortMenuOpen = !sortMenuOpen">
+              <span class="filter-select-label">
+                <label>Sort</label>
+                <span>{{ sortLabel }}</span>
+              </span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;transition:transform 0.2s" :style="{ transform: sortMenuOpen ? 'rotate(180deg)' : 'none' }"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14645 5.14645C3.34171 4.95118 3.65829 4.95118 3.85355 5.14645L8 9.29289L12.1464 5.14645C12.3417 4.95118 12.6583 4.95118 12.8536 5.14645C13.0488 5.34171 13.0488 5.65829 12.8536 5.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L3.14645 5.85355C2.95118 5.65829 2.95118 5.34171 3.14645 5.14645Z"/></svg>
+            </button>
+            <div v-if="sortMenuOpen" class="cluster-list-menu" style="min-width:180px;right:0;left:auto;">
+              <button
+                v-for="def in sortDefs"
+                :key="def.key"
+                class="cluster-list-menu-item"
+                :class="{ active: sortKey === def.key }"
+                @click="setSort(def.key)"
+              >{{ sortKey === def.key ? '✓ ' : '\u00a0\u00a0 ' }}{{ def.label }}</button>
+            </div>
+          </div>
+          <div class="filter-dropdown-wrap">
+            <button class="filter-select-btn" @click="pageSizeMenuOpen = !pageSizeMenuOpen">
+              <span class="filter-select-label">
+                <label>Show</label>
+                <span>{{ pageSize === 0 ? 'All' : pageSize }}</span>
+              </span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;transition:transform 0.2s" :style="{ transform: pageSizeMenuOpen ? 'rotate(180deg)' : 'none' }"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14645 5.14645C3.34171 4.95118 3.65829 4.95118 3.85355 5.14645L8 9.29289L12.1464 5.14645C12.3417 4.95118 12.6583 4.95118 12.8536 5.14645C13.0488 5.34171 13.0488 5.65829 12.8536 5.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L3.14645 5.85355C2.95118 5.65829 2.95118 5.34171 3.14645 5.14645Z"/></svg>
+            </button>
+            <div v-if="pageSizeMenuOpen" class="cluster-list-menu" style="min-width:100px;right:0;left:auto;">
+              <button
+                v-for="n in [5, 10, 15, 20, 0]"
+                :key="n"
+                class="cluster-list-menu-item"
+                :class="{ active: pageSize === n }"
+                @click="setPageSize(n); pageSizeMenuOpen = false"
+              >{{ pageSize === n ? '✓ ' : '\u00a0\u00a0 ' }}{{ n === 0 ? 'All' : n }}</button>
+            </div>
           </div>
         </div>
       </div>
@@ -171,7 +224,7 @@
 
       <template v-else>
         <!-- Cluster grid -->
-        <div class="cluster-grid">
+        <div v-if="viewMode === 'grid'" class="cluster-grid">
           <div
             v-for="cluster in pageClusters"
             :key="cluster.id"
@@ -318,6 +371,90 @@
           </div>
         </div>
 
+        <!-- Cluster list -->
+        <table v-else class="cluster-list-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Sync</th>
+              <th>Health</th>
+              <th>Talos</th>
+              <th>Kubernetes</th>
+              <th>Repo</th>
+              <th>Last Sync</th>
+              <th v-if="authStore.isAdmin()"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="cluster in pageClusters"
+              :key="cluster.id"
+              class="cluster-list-row"
+              :data-status="cluster.status || 'idle'"
+              @click="goToCluster(cluster.id)"
+            >
+              <td class="cluster-list-name">
+                {{ cluster.id }}
+                <a
+                  v-if="state?.omniEndpoint"
+                  class="btn-omni"
+                  style="font-size:11px;padding:1px 6px;text-decoration:none;margin-left:6px"
+                  :href="omniClusterUrl(cluster.id)"
+                  target="_blank"
+                  @click.stop
+                  title="Open in Omni"
+                >&#8599;</a>
+              </td>
+              <td :style="{ color: mgmtColor(cluster) }">{{ mgmtBadge(cluster) }}</td>
+              <td :style="{ color: syncColor(cluster) }" v-html="syncText(cluster)"></td>
+              <td :style="{ color: healthColor(cluster) }" v-html="healthText(cluster)"></td>
+              <td style="color:#c4c4c9">{{ cluster.talosVersion || '—' }}</td>
+              <td style="color:#c4c4c9">{{ cluster.kubernetesVersion || '—' }}</td>
+              <td style="color:#9fa1a6">{{ cluster.repoName || '—' }}</td>
+              <td style="color:#9fa1a6">
+                <span v-if="!isZeroTime(cluster.lastSyncTime)" :title="fmtDateTime(cluster.lastSyncTime)">{{ ago(cluster.lastSyncTime) }}</span>
+                <span v-else>—</span>
+              </td>
+              <td v-if="authStore.isAdmin()" class="cluster-list-actions" @click.stop>
+                <div class="cluster-list-menu-wrap">
+                  <button class="cluster-list-menu-btn" @click="openMenuId = openMenuId === cluster.id ? null : cluster.id">⋮</button>
+                  <div v-if="openMenuId === cluster.id" class="cluster-list-menu">
+                    <button
+                      class="cluster-list-menu-item"
+                      :disabled="!!clusterActionPending[cluster.id]"
+                      @click="refreshCluster(cluster); openMenuId = null"
+                    >↺ {{ clusterActionPending[cluster.id] === 'refresh' ? 'Refreshing...' : 'Refresh' }}</button>
+                    <button
+                      v-if="cluster.status !== 'deleting' && (cluster.status === 'unmanaged' || cluster.status === 'orphaned')"
+                      class="cluster-list-menu-item"
+                      @click="exportCluster(cluster); openMenuId = null"
+                    >↓ Export</button>
+                    <button
+                      v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'"
+                      class="cluster-list-menu-item"
+                      :disabled="!!clusterActionPending[cluster.id]"
+                      @click="syncCluster(cluster); openMenuId = null"
+                    >⇅ {{ clusterActionPending[cluster.id] === 'sync' ? 'Syncing...' : 'Sync' }}</button>
+                    <button
+                      v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged' && cluster.status !== 'orphaned'"
+                      class="cluster-list-menu-item"
+                      :class="{ active: cluster.autoSync !== false }"
+                      @click="toggleAutoSync(cluster); openMenuId = null"
+                    >{{ cluster.autoSync === false ? '○ Auto-Sync: Off' : '● Auto-Sync: On' }}</button>
+                    <div v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged'" class="cluster-list-menu-divider"></div>
+                    <button
+                      v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged'"
+                      class="cluster-list-menu-item danger"
+                      @click="deleteCluster(cluster); openMenuId = null"
+                    >✕ Delete</button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
         <!-- Pagination -->
         <div v-if="pageSize > 0 && displayClusters.length > pageSize" class="pagination">
           <button class="page-btn" :disabled="currentPage === 1" @click="currentPage--">&laquo;</button>
@@ -365,7 +502,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive } from 'vue'
+import { computed, ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/appStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -379,9 +516,15 @@ const authStore = useAuthStore()
 const state = computed(() => appStore.state)
 const allClusters = computed(() => {
   const list = (state.value?.clusters ?? []).slice()
-  return sortAZ.value
-    ? list.sort((a, b) => a.id.localeCompare(b.id))
-    : list.sort((a, b) => b.id.localeCompare(a.id))
+  const ts = (v?: string) => v ? new Date(v).getTime() : 0
+  switch (sortKey.value) {
+    case 'name-desc':     return list.sort((a, b) => b.id.localeCompare(a.id))
+    case 'lastsync-desc': return list.sort((a, b) => ts(b.lastSyncTime as string) - ts(a.lastSyncTime as string))
+    case 'lastsync-asc':  return list.sort((a, b) => ts(a.lastSyncTime as string) - ts(b.lastSyncTime as string))
+    case 'created-desc':  return list.sort((a, b) => ts(b.createdAt as string) - ts(a.createdAt as string))
+    case 'created-asc':   return list.sort((a, b) => ts(a.createdAt as string) - ts(b.createdAt as string))
+    default:              return list.sort((a, b) => a.id.localeCompare(b.id))
+  }
 })
 
 // Health bar counts
@@ -414,8 +557,25 @@ const healthTotal = computed(() =>
 const clusterStatusFilter = ref<string | null>(null)
 const clusterSyncFilters = reactive<Record<string, boolean>>({})
 const clusterSearch = ref('')
-const sortAZ = ref(true)
+type SortKey = 'name-asc' | 'name-desc' | 'lastsync-desc' | 'lastsync-asc' | 'created-desc' | 'created-asc'
+const sortKey = ref<SortKey>('name-asc')
+const sortMenuOpen = ref(false)
+const pageSizeMenuOpen = ref(false)
+const sortDefs: { key: SortKey; label: string }[] = [
+  { key: 'name-asc',      label: 'Name A→Z' },
+  { key: 'name-desc',     label: 'Name Z→A' },
+  { key: 'lastsync-desc', label: 'Last Sync (newest)' },
+  { key: 'lastsync-asc',  label: 'Last Sync (oldest)' },
+  { key: 'created-desc',  label: 'Created (newest)' },
+  { key: 'created-asc',   label: 'Created (oldest)' },
+]
+const sortLabel = computed(() => sortDefs.find(d => d.key === sortKey.value)?.label ?? 'Sort')
 const pageSize = ref(10)
+const viewMode = ref<'grid' | 'list'>(
+  (localStorage.getItem('clustersViewMode') as 'grid' | 'list') || 'grid'
+)
+watch(viewMode, v => localStorage.setItem('clustersViewMode', v))
+const openMenuId = ref<string | null>(null)
 const currentPage = ref(1)
 const clusterActionPending = reactive<Record<string, string>>({})
 const reconcileRunning = ref(false)
@@ -425,12 +585,24 @@ const syncRunning = computed(() => reconcileRunning.value || state.value?.lastRe
 const gitRunning = computed(() => gitRefreshing.value)
 const isRunning = computed(() => syncRunning.value || gitRunning.value)
 
+const filterMenuOpen = ref(false)
+
 const syncDefs = [
-  { key: 'synced',    label: 'Synced' },
-  { key: 'outofsync', label: 'Out of Sync' },
   { key: 'failed',    label: 'Failed' },
-  { key: 'unmanaged', label: 'Unmanaged' },
+  { key: 'managed',   label: 'Managed' },
+  { key: 'outofsync', label: 'Out of Sync' },
   { key: 'orphaned',  label: 'Orphaned' },
+  { key: 'synced',    label: 'Synced' },
+  { key: 'unmanaged', label: 'Unmanaged' },
+]
+
+const healthDefs = [
+  { key: 'ready',         label: 'Ready' },
+  { key: 'not-ready',     label: 'Not Ready' },
+  { key: 'scaling-up',    label: 'Scaling Up' },
+  { key: 'scaling-down',  label: 'Scaling Down' },
+  { key: 'destroying',    label: 'Destroying' },
+  { key: 'reconfiguring', label: 'Reconfiguring' },
 ]
 
 const visibleSyncDefs = computed(() => {
@@ -443,9 +615,21 @@ const visibleSyncDefs = computed(() => {
       : st === 'unmanaged' ? 'unmanaged'
       : st === 'orphaned' ? 'orphaned'
       : null
-    if (key) presentKeys.add(key)
+    if (key) { presentKeys.add(key); presentKeys.add('managed') }
   })
   return syncDefs.filter(d => presentKeys.has(d.key))
+})
+
+const activeSyncFilterCount = computed(() =>
+  Object.values(clusterSyncFilters).filter(Boolean).length + (clusterStatusFilter.value ? 1 : 0)
+)
+const activeSyncFilterLabels = computed(() => {
+  const parts = syncDefs.filter(d => clusterSyncFilters[d.key]).map(d => d.label)
+  if (clusterStatusFilter.value) {
+    const h = healthDefs.find(d => d.key === clusterStatusFilter.value)
+    if (h) parts.push(h.label)
+  }
+  return parts.join(', ')
 })
 
 const displayClusters = computed(() => {
@@ -469,13 +653,17 @@ const displayClusters = computed(() => {
       }
     }
     if (activeSyncKeys.length > 0) {
+      const isManaged = st !== 'unmanaged' && st !== 'orphaned'
       const syncKey = (st === 'success' || st === 'applied' || st === 'synced') ? 'synced'
         : st === 'outofsync' ? 'outofsync'
         : st === 'failed' ? 'failed'
         : st === 'unmanaged' ? 'unmanaged'
         : st === 'orphaned' ? 'orphaned'
         : null
-      if (!syncKey || !clusterSyncFilters[syncKey]) return false
+      const matches =
+        (clusterSyncFilters['managed'] && isManaged) ||
+        (syncKey && clusterSyncFilters[syncKey])
+      if (!matches) return false
     }
     return true
   })
@@ -524,8 +712,14 @@ function toggleSyncFilter(key: string) {
   clusterSyncFilters[key] = !clusterSyncFilters[key]
   currentPage.value = 1
 }
-function toggleSort() {
-  sortAZ.value = !sortAZ.value
+function clearSyncFilters() {
+  Object.keys(clusterSyncFilters).forEach(k => { clusterSyncFilters[k] = false })
+  clusterStatusFilter.value = null
+  currentPage.value = 1
+}
+function setSort(key: SortKey) {
+  sortKey.value = key
+  sortMenuOpen.value = false
   currentPage.value = 1
 }
 function setPageSize(n: number) {
@@ -650,6 +844,14 @@ function omniClusterUrl(id: string): string {
   const ep = (state.value?.omniEndpoint || '').replace(/\/$/, '')
   return ep + '/clusters/' + id
 }
+
+function closeMenu(e: MouseEvent) {
+  const t = e.target as HTMLElement
+  if (!t.closest('.cluster-list-menu-wrap')) openMenuId.value = null
+  if (!t.closest('.filter-dropdown-wrap')) { filterMenuOpen.value = false; sortMenuOpen.value = false; pageSizeMenuOpen.value = false }
+}
+onMounted(() => document.addEventListener('click', closeMenu))
+onUnmounted(() => document.removeEventListener('click', closeMenu))
 
 function goToCluster(id: string) {
   router.push(`/clusters/${encodeURIComponent(id)}`)

@@ -47,6 +47,7 @@ type Server struct {
 	logDir                 string
 	port                   string
 	version                string
+	webhookSecret          string
 	clients                map[*websocket.Conn]bool
 	clientsMu              sync.RWMutex
 	broadcast              chan []byte
@@ -62,7 +63,7 @@ type Server struct {
 }
 
 // New creates a new web server.
-func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, triggerOmniConfigured chan struct{}, omniInstanceFile string, logDir string, port string, version string, authStore *auth.Store, authDisabled bool, oidcRT *OIDCRuntime) *Server {
+func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, triggerOmniConfigured chan struct{}, omniInstanceFile string, logDir string, port string, version string, authStore *auth.Store, authDisabled bool, oidcRT *OIDCRuntime, webhookSecret string) *Server {
 	s := &Server{
 		appState:               appState,
 		triggerHard:            triggerHard,
@@ -83,6 +84,7 @@ func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan s
 		authStore:              authStore,
 		authDisabled:           authDisabled,
 		oidcRT:                 oidcRT,
+		webhookSecret:          webhookSecret,
 		oidcUsers:              loadOIDCUserStore(oidcUsersPath),
 	}
 
@@ -120,6 +122,9 @@ func (s *Server) Start() {
 	// OIDC SSO routes — public (the handlers check OIDC is enabled)
 	mux.HandleFunc("/auth/login", s.handleOIDCLogin)
 	mux.HandleFunc("/auth/callback", s.handleOIDCCallback)
+
+	// Webhook endpoint — public, protected by HMAC secret
+	mux.HandleFunc("/api/webhook", s.handleWebhook)
 
 	// WebSocket endpoint — viewer+
 	mux.HandleFunc("/ws", s.requireRole("viewer", s.handleWebSocket))

@@ -139,7 +139,7 @@ func main() {
 	}
 
 	// Start the web UI server early — needed for the setup UI in unconfigured mode.
-	webServer := web.New(appState, triggerHard, triggerSoft, triggerRefreshCluster, triggerDeleteCluster, triggerDeleteMC, triggerMCRefresh, triggerMCRefreshSingle, triggerRepoChange, triggerOmniConfigured, instanceFile, logDir, cfg.WebPort, version, authStore, cfg.AuthDisabled, oidcRT)
+	webServer := web.New(appState, triggerHard, triggerSoft, triggerRefreshCluster, triggerDeleteCluster, triggerDeleteMC, triggerMCRefresh, triggerMCRefreshSingle, triggerRepoChange, triggerOmniConfigured, instanceFile, logDir, cfg.WebPort, version, authStore, cfg.AuthDisabled, oidcRT, cfg.WebhookSecret)
 	webServer.Start()
 
 	// Set up graceful shutdown

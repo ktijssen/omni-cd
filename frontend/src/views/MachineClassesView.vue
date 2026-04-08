@@ -1,8 +1,8 @@
 <template>
   <div class="container">
-    <div class="header" style="border-bottom:none;">
-      <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Machine Classes</h1>
-      <div class="header-buttons" style="display:flex;align-items:center;gap:8px;">
+    <div class="header" style="border-bottom:none;flex-direction:column;align-items:stretch;gap:8px;">
+      <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;white-space:nowrap;">Machine Classes</h1>
+      <div style="display:flex;align-items:center;gap:8px;">
         <template v-if="authStore.isAdmin()">
           <span v-if="isRunning" class="spinner"></span>
           <button class="btn-omni" :disabled="isRunning" @click="doRefreshMC">
@@ -20,6 +20,10 @@
           @focus="($event.target as HTMLInputElement).style.borderColor='#ff8b59'"
           @blur="($event.target as HTMLInputElement).style.borderColor='#3d4059'"
         />
+        <div class="page-size-bar" style="margin-left:auto;">
+          <button class="btn-omni" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" title="Tile view">⊞</button>
+          <button class="btn-omni" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'" title="List view">☰</button>
+        </div>
       </div>
     </div>
 
@@ -31,25 +35,63 @@
     <template v-else>
       <!-- Toolbar -->
       <div style="display:flex;align-items:center;gap:8px;padding:0 0 12px;flex-wrap:wrap;">
-        <!-- Status filters -->
-        <button
-          v-for="f in statusFilters"
-          :key="f.key"
-          class="btn-omni"
-          :class="{ active: activeFilters.has(f.key) }"
-          @click="toggleFilter(f.key)"
-        >{{ f.label }}</button>
-
         <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
-          <button class="btn-omni" :class="{ active: true }" @click="toggleSort">{{ sortAZ ? 'A→Z' : 'Z→A' }}</button>
-          <div class="page-size-bar">
-            <button
-              v-for="n in [10, 15, 20, 0]"
-              :key="n"
-              class="btn-omni"
-              :class="{ active: pageSize === n }"
-              @click="setPageSize(n)"
-            >{{ n === 0 ? 'All' : n }}</button>
+          <!-- Status filter dropdown -->
+          <div class="filter-dropdown-wrap">
+            <button class="filter-select-btn" :class="{ active: activeFilterCount > 0 }" @click="filterMenuOpen = !filterMenuOpen">
+              <span class="filter-select-label">
+                <label>Status</label>
+                <span>{{ activeFilterCount > 0 ? activeFilterLabels : 'All' }}</span>
+              </span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;transition:transform 0.2s" :style="{ transform: filterMenuOpen ? 'rotate(180deg)' : 'none' }"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14645 5.14645C3.34171 4.95118 3.65829 4.95118 3.85355 5.14645L8 9.29289L12.1464 5.14645C12.3417 4.95118 12.6583 4.95118 12.8536 5.14645C13.0488 5.34171 13.0488 5.65829 12.8536 5.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L3.14645 5.85355C2.95118 5.65829 2.95118 5.34171 3.14645 5.14645Z"/></svg>
+            </button>
+            <div v-if="filterMenuOpen" class="cluster-list-menu" style="min-width:160px;right:0;left:auto;">
+              <button
+                v-for="f in statusFilters"
+                :key="f.key"
+                class="cluster-list-menu-item"
+                :class="{ active: activeFilters.has(f.key) }"
+                @click="toggleFilter(f.key)"
+              >{{ activeFilters.has(f.key) ? '✓ ' : '\u00a0\u00a0 ' }}{{ f.label }}</button>
+              <div v-if="activeFilterCount > 0" class="cluster-list-menu-divider"></div>
+              <button v-if="activeFilterCount > 0" class="cluster-list-menu-item" style="color:#9fa1a6" @click="clearFilters(); filterMenuOpen = false">Clear filters</button>
+            </div>
+          </div>
+          <div class="filter-dropdown-wrap">
+            <button class="filter-select-btn" @click="sortMenuOpen = !sortMenuOpen">
+              <span class="filter-select-label">
+                <label>Sort</label>
+                <span>{{ sortLabel }}</span>
+              </span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;transition:transform 0.2s" :style="{ transform: sortMenuOpen ? 'rotate(180deg)' : 'none' }"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14645 5.14645C3.34171 4.95118 3.65829 4.95118 3.85355 5.14645L8 9.29289L12.1464 5.14645C12.3417 4.95118 12.6583 4.95118 12.8536 5.14645C13.0488 5.34171 13.0488 5.65829 12.8536 5.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L3.14645 5.85355C2.95118 5.65829 2.95118 5.34171 3.14645 5.14645Z"/></svg>
+            </button>
+            <div v-if="sortMenuOpen" class="cluster-list-menu" style="min-width:180px;right:0;left:auto;">
+              <button
+                v-for="def in sortDefs"
+                :key="def.key"
+                class="cluster-list-menu-item"
+                :class="{ active: sortKey === def.key }"
+                @click="setSort(def.key)"
+              >{{ sortKey === def.key ? '✓ ' : '\u00a0\u00a0 ' }}{{ def.label }}</button>
+            </div>
+          </div>
+          <div class="filter-dropdown-wrap">
+            <button class="filter-select-btn" @click="pageSizeMenuOpen = !pageSizeMenuOpen">
+              <span class="filter-select-label">
+                <label>Show</label>
+                <span>{{ pageSize === 0 ? 'All' : pageSize }}</span>
+              </span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;transition:transform 0.2s" :style="{ transform: pageSizeMenuOpen ? 'rotate(180deg)' : 'none' }"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14645 5.14645C3.34171 4.95118 3.65829 4.95118 3.85355 5.14645L8 9.29289L12.1464 5.14645C12.3417 4.95118 12.6583 4.95118 12.8536 5.14645C13.0488 5.34171 13.0488 5.65829 12.8536 5.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L3.14645 5.85355C2.95118 5.65829 2.95118 5.34171 3.14645 5.14645Z"/></svg>
+            </button>
+            <div v-if="pageSizeMenuOpen" class="cluster-list-menu" style="min-width:100px;right:0;left:auto;">
+              <button
+                v-for="n in [5, 10, 15, 20, 0]"
+                :key="n"
+                class="cluster-list-menu-item"
+                :class="{ active: pageSize === n }"
+                @click="setPageSize(n); pageSizeMenuOpen = false"
+              >{{ pageSize === n ? '✓ ' : '\u00a0\u00a0 ' }}{{ n === 0 ? 'All' : n }}</button>
+            </div>
           </div>
         </div>
       </div>
@@ -60,7 +102,7 @@
       </div>
 
       <template v-else>
-        <div class="mc-grid">
+        <div v-if="viewMode === 'grid'" class="mc-grid">
           <div
             v-for="mc in pageMCs"
             :key="mc.id"
@@ -222,6 +264,105 @@
           </div>
         </div>
 
+        <!-- Machine class list -->
+        <table v-else class="cluster-list-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Sync</th>
+              <th>Used By</th>
+              <th>Repo</th>
+              <th>Last Sync</th>
+              <th v-if="authStore.isAdmin()"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="mc in pageMCs"
+              :key="mc.id"
+              class="cluster-list-row"
+              :class="{ clickable: hasDetails(mc) }"
+              :data-status="mc.status || 'idle'"
+              @click="hasDetails(mc) && openDetail(mc)"
+            >
+              <td class="cluster-list-name">
+                {{ mc.id }}
+                <a
+                  v-if="state?.omniEndpoint"
+                  class="btn-omni"
+                  style="font-size:11px;padding:1px 6px;text-decoration:none;margin-left:6px"
+                  :href="state.omniEndpoint.replace(/\/$/, '') + '/machine-classes/' + mc.id"
+                  target="_blank"
+                  @click.stop
+                  title="Open in Omni"
+                >&#8599;</a>
+              </td>
+              <td :style="{ color: mc.status === 'unmanaged' ? '#5b5c64' : '#7d7d85' }">
+                {{ mc.status === 'unmanaged' ? 'Unmanaged' : 'Managed' }}
+              </td>
+              <td>
+                <span v-if="mc.status === 'unmanaged'" style="color:#5b5c64">—</span>
+                <span v-else :style="{ color: syncStatusColor(mc.status) }" v-html="syncStatusText(mc)"></span>
+              </td>
+              <td>
+                <span v-if="clustersUsingMC(mc.id).length === 0" style="color:#5b5c64">—</span>
+                <span v-else class="mc-used-by" style="flex-wrap:wrap;gap:3px">
+                  <span
+                    v-for="cid in clustersUsingMC(mc.id).slice(0, 3)"
+                    :key="cid"
+                    class="mc-used-by-chip"
+                    @click.stop="goToCluster(cid)"
+                  >{{ cid }}</span>
+                  <span v-if="clustersUsingMC(mc.id).length > 3" style="color:#7d7d85;font-size:11px">+{{ clustersUsingMC(mc.id).length - 3 }} more</span>
+                </span>
+              </td>
+              <td style="color:#9fa1a6">{{ mc.repoName || '—' }}</td>
+              <td style="color:#9fa1a6">
+                <span v-if="!isZeroTime(mc.lastSyncTime)" :title="fmtDateTime(mc.lastSyncTime)">{{ ago(mc.lastSyncTime) }}</span>
+                <span v-else>—</span>
+              </td>
+              <td v-if="authStore.isAdmin()" class="cluster-list-actions" @click.stop>
+                <div class="cluster-list-menu-wrap">
+                  <button class="cluster-list-menu-btn" @click="openMenuId = openMenuId === mc.id ? null : mc.id">⋮</button>
+                  <div v-if="openMenuId === mc.id" class="cluster-list-menu">
+                    <template v-if="mc.status === 'unmanaged'">
+                      <button class="cluster-list-menu-item" @click="exportMC(mc); openMenuId = null">↓ Export</button>
+                      <div class="cluster-list-menu-divider"></div>
+                      <button
+                        class="cluster-list-menu-item danger"
+                        :disabled="clustersUsingMC(mc.id).length > 0"
+                        :title="clustersUsingMC(mc.id).length > 0 ? 'In use by: ' + clustersUsingMC(mc.id).join(', ') : ''"
+                        @click="deleteMC(mc); openMenuId = null"
+                      >✕ Delete</button>
+                    </template>
+                    <template v-else>
+                      <button class="cluster-list-menu-item" :disabled="!!actionPending[mc.id]" @click="refreshSingleMC(mc); openMenuId = null">
+                        ↺ {{ actionPending[mc.id] === 'refresh' ? 'Refreshing...' : 'Refresh' }}
+                      </button>
+                      <button class="cluster-list-menu-item" :disabled="!!actionPending[mc.id]" @click="syncMC(mc); openMenuId = null">
+                        ⇅ {{ actionPending[mc.id] === 'sync' ? 'Syncing...' : 'Sync' }}
+                      </button>
+                      <button
+                        class="cluster-list-menu-item"
+                        :class="{ active: mc.autoSync === true }"
+                        @click="toggleMCAutoSync(mc, $event); openMenuId = null"
+                      >{{ mc.autoSync === true ? '● Auto-Sync: On' : '○ Auto-Sync: Off' }}</button>
+                      <div class="cluster-list-menu-divider"></div>
+                      <button
+                        class="cluster-list-menu-item danger"
+                        :disabled="clustersUsingMC(mc.id).length > 0"
+                        :title="clustersUsingMC(mc.id).length > 0 ? 'In use by: ' + clustersUsingMC(mc.id).join(', ') : ''"
+                        @click="deleteMC(mc); openMenuId = null"
+                      >✕ Delete</button>
+                    </template>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
         <!-- Pagination -->
         <div v-if="pageSize > 0 && filteredMCs.length > pageSize" class="pagination">
           <button class="page-btn" :disabled="currentPage === 1" @click="currentPage--">&laquo;</button>
@@ -330,7 +471,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive } from 'vue'
+import { computed, ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/appStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -343,31 +484,66 @@ const authStore = useAuthStore()
 
 const state = computed(() => appStore.state)
 const mcSearch = ref('')
-const sortAZ = ref(true)
+type SortKey = 'name-asc' | 'name-desc' | 'lastsync-desc' | 'lastsync-asc' | 'created-desc' | 'created-asc'
+const sortKey = ref<SortKey>('name-asc')
+const sortMenuOpen = ref(false)
+const pageSizeMenuOpen = ref(false)
+const sortDefs: { key: SortKey; label: string }[] = [
+  { key: 'name-asc',      label: 'Name A→Z' },
+  { key: 'name-desc',     label: 'Name Z→A' },
+  { key: 'lastsync-desc', label: 'Last Sync (newest)' },
+  { key: 'lastsync-asc',  label: 'Last Sync (oldest)' },
+  { key: 'created-desc',  label: 'Created (newest)' },
+  { key: 'created-asc',   label: 'Created (oldest)' },
+]
+const sortLabel = computed(() => sortDefs.find(d => d.key === sortKey.value)?.label ?? 'Sort')
 const pageSize = ref(10)
 const currentPage = ref(1)
 const actionPending = reactive<Record<string, string>>({})
+const viewMode = ref<'grid' | 'list'>(
+  (localStorage.getItem('mcViewMode') as 'grid' | 'list') || 'grid'
+)
+watch(viewMode, v => localStorage.setItem('mcViewMode', v))
+const openMenuId = ref<string | null>(null)
+
+function closeMenu(e: MouseEvent) {
+  const t = e.target as HTMLElement
+  if (!t.closest('.cluster-list-menu-wrap')) openMenuId.value = null
+  if (!t.closest('.filter-dropdown-wrap')) { filterMenuOpen.value = false; sortMenuOpen.value = false; pageSizeMenuOpen.value = false }
+}
+onMounted(() => document.addEventListener('click', closeMenu))
+onUnmounted(() => document.removeEventListener('click', closeMenu))
 
 // Status filters — only show statuses present in the data
+const filterMenuOpen = ref(false)
 const allStatusDefs = [
-  { key: 'synced',    label: 'Synced' },
-  { key: 'outofsync', label: 'Out of Sync' },
   { key: 'failed',    label: 'Failed' },
+  { key: 'managed',   label: 'Managed' },
+  { key: 'outofsync', label: 'Out of Sync' },
+  { key: 'synced',    label: 'Synced' },
   { key: 'unmanaged', label: 'Unmanaged' },
 ]
 const statusFilters = computed(() => {
   const present = new Set<string>()
   ;(state.value?.machineClasses ?? []).forEach(m => {
     const key = (m.status === 'success' || m.status === 'applied') ? 'synced' : (m.status || '')
-    if (key) present.add(key)
+    if (key) { present.add(key); present.add('managed') }
   })
   return allStatusDefs.filter(d => present.has(d.key))
 })
 const activeFilters = ref(new Set<string>())
+const activeFilterCount = computed(() => activeFilters.value.size)
+const activeFilterLabels = computed(() =>
+  allStatusDefs.filter(d => activeFilters.value.has(d.key)).map(d => d.label).join(', ')
+)
 function toggleFilter(key: string) {
   if (activeFilters.value.has(key)) activeFilters.value.delete(key)
   else activeFilters.value.add(key)
   activeFilters.value = new Set(activeFilters.value)
+  currentPage.value = 1
+}
+function clearFilters() {
+  activeFilters.value = new Set()
   currentPage.value = 1
 }
 
@@ -377,9 +553,15 @@ const isRunning = computed(() => reconcileRunning.value || refreshPending.value)
 
 const machineClasses = computed(() => {
   const list = (state.value?.machineClasses ?? []).slice()
-  return sortAZ.value
-    ? list.sort((a, b) => a.id.localeCompare(b.id))
-    : list.sort((a, b) => b.id.localeCompare(a.id))
+  const ts = (v?: string) => v ? new Date(v).getTime() : 0
+  switch (sortKey.value) {
+    case 'name-desc':     return list.sort((a, b) => b.id.localeCompare(a.id))
+    case 'lastsync-desc': return list.sort((a, b) => ts(b.lastSyncTime as string) - ts(a.lastSyncTime as string))
+    case 'lastsync-asc':  return list.sort((a, b) => ts(a.lastSyncTime as string) - ts(b.lastSyncTime as string))
+    case 'created-desc':  return list.sort((a, b) => ts(b.createdAt as string) - ts(a.createdAt as string))
+    case 'created-asc':   return list.sort((a, b) => ts(a.createdAt as string) - ts(b.createdAt as string))
+    default:              return list.sort((a, b) => a.id.localeCompare(b.id))
+  }
 })
 
 const filteredMCs = computed(() => {
@@ -390,8 +572,10 @@ const filteredMCs = computed(() => {
   }
   if (activeFilters.value.size > 0) {
     list = list.filter(m => {
-      const key = (m.status === 'success' || m.status === 'applied') ? 'synced' : (m.status || 'unknown')
-      return activeFilters.value.has(key)
+      const st = m.status || ''
+      const isManaged = st !== 'unmanaged'
+      const key = (st === 'success' || st === 'applied') ? 'synced' : st
+      return (activeFilters.value.has('managed') && isManaged) || activeFilters.value.has(key)
     })
   }
   return list
@@ -558,7 +742,7 @@ function doConfirm() {
   confirmModal.value?.onConfirm()
 }
 
-function toggleSort() { sortAZ.value = !sortAZ.value; currentPage.value = 1 }
+function setSort(key: SortKey) { sortKey.value = key; sortMenuOpen.value = false; currentPage.value = 1 }
 function setPageSize(n: number) { pageSize.value = n; currentPage.value = 1 }
 
 function hasDetails(mc: ResourceInfo): boolean {

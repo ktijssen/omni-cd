@@ -301,8 +301,8 @@ func (s *AppState) UpdateTearingDownStatuses(allIDs []string, tearingDown map[st
 	changed := false
 	filtered := s.Clusters[:0]
 	for _, c := range s.Clusters {
-		if c.Status == "deleting" && !omniMap[c.ID] {
-			// Cluster finished deleting — remove the card entirely.
+		// Remove clusters that have fully disappeared from Omni.
+		if !omniMap[c.ID] && (c.Status == "deleting" || c.Status == "orphaned") {
 			changed = true
 			continue
 		}

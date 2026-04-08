@@ -13,7 +13,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 32px;
+    margin-bottom: 8px;
     padding-bottom: 16px;
     border-bottom: 1px solid #1f222e;
   }
@@ -292,6 +292,42 @@
   .panel-nav-link { cursor: pointer; transition: color 0.15s; }
   .panel-nav-link:hover { color: #ff8b59; }
   .cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 16px; padding: 16px 0; }
+  .cluster-list-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0 16px; }
+  .cluster-list-table th { text-align: left; color: #5b5c64; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 12px; border-bottom: 1px solid #2c2e38; white-space: nowrap; }
+  .cluster-list-row { cursor: pointer; border-left: 3px solid #2c2e38; transition: background 0.1s, border-color 0.1s; }
+  .cluster-list-row:hover { background: #1a1c27; }
+  .cluster-list-row td { padding: 9px 12px; border-bottom: 1px solid #1e2030; color: #c4c4c9; vertical-align: middle; }
+  .cluster-list-row .cluster-list-name { font-weight: 600; color: #fff; white-space: nowrap; }
+  .cluster-list-actions { text-align: right; width: 1%; white-space: nowrap; padding-right: 12px; }
+  .cluster-list-row[data-status="success"] , .cluster-list-row[data-status="applied"]  { border-left-color: #4ade80; }
+  .cluster-list-row[data-status="failed"]    { border-left-color: #f87171; }
+  .cluster-list-row[data-status="outofsync"] { border-left-color: #fb923c; }
+  .cluster-list-row[data-status="orphaned"]  { border-left-color: #a78bfa; }
+  .cluster-list-row[data-status="syncing"]   { border-left-color: #2dd4bf; }
+  .cluster-list-row[data-status="unmanaged"] { border-left-color: #5b5c64; }
+  .cluster-list-row[data-status="deleting"]  { border-left-color: #f87171; }
+  .cluster-list-row.clickable { cursor: pointer; }
+  .filter-dropdown-wrap { position: relative; display: inline-block; }
+  .filter-dropdown-wrap .cluster-list-menu { right: auto; left: 0; }
+  .filter-select-btn { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-width: 140px; background: #1a1c27; border: 1px solid #3d4059; border-radius: 4px; padding: 6px 12px; font-size: 12px; color: #e2e2e6; cursor: pointer; font-family: inherit; transition: border-color 0.15s; white-space: nowrap; }
+  .filter-select-btn:hover { border-color: #ff8b59; }
+  .filter-select-btn.active { border-color: #ff8b59; color: #ff8b59; }
+  .filter-select-btn .filter-select-label { display: flex; gap: 4px; }
+  .filter-select-btn .filter-select-label label { color: #7d7d85; pointer-events: none; }
+  .filter-select-btn .filter-select-label label::after { content: ':'; }
+  .filter-select-btn.active .filter-select-label label { color: #ff8b59; }
+  .cluster-list-menu-wrap { position: relative; display: inline-block; }
+  .cluster-list-menu-btn { background: none; border: none; color: #5b5c64; font-size: 18px; padding: 0 4px; cursor: pointer; line-height: 1; transition: color 0.15s; }
+  .cluster-list-menu-btn:hover { color: #c4c4c9; }
+  .cluster-list-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 100; background: #1a1c27; border: 1px solid #3d4059; border-radius: 6px; min-width: 160px; padding: 4px 0; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+  .cluster-list-menu-item { display: block; width: 100%; text-align: left; background: none; border: none; color: #c4c4c9; font-size: 13px; font-family: inherit; padding: 7px 14px; cursor: pointer; white-space: nowrap; transition: background 0.1s, color 0.1s; }
+  .cluster-list-menu-item:hover { background: #252737; color: #fff; }
+  .cluster-list-menu-item:disabled { color: #5b5c64; cursor: not-allowed; }
+  .cluster-list-menu-item.active { color: #ff8b59; }
+  .cluster-list-menu-item.danger { color: #f87171; }
+  .cluster-list-menu-item.danger:hover { background: rgba(248,113,113,0.1); color: #f87171; }
+  .cluster-list-menu-divider { height: 1px; background: #2c2e38; margin: 4px 0; }
+  .cluster-list-menu-section-label { padding: 4px 12px 2px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #5b5c64; pointer-events: none; }
   .cluster-card { background: #15161e; border: 1px solid #2c2e38; border-radius: 12px; overflow: hidden; display: flex; }
   .cluster-card.clickable { cursor: pointer; }
   .cluster-card.clickable:hover { border-color: #7d7d85; }

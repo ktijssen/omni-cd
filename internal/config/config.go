@@ -51,7 +51,8 @@ type Config struct {
 	Repos []RepoConfig
 
 	// Web UI
-	WebPort string
+	WebPort       string
+	WebhookSecret string // optional HMAC secret for POST /api/webhook
 
 	// Authentication
 	AdminPassword string
@@ -112,6 +113,7 @@ func Load() (*Config, error) {
 		RefreshInterval:       time.Duration(refreshSec) * time.Second,
 		Repos:                 nil,
 		WebPort:               getEnv("WEB_PORT", "8080"),
+		WebhookSecret:         os.Getenv("WEBHOOK_SECRET"),
 		AdminPassword:         adminPassword,
 		AuthDisabled:          authDisabled,
 		OIDC:                  oidcCfg,
