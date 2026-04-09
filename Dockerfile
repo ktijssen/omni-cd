@@ -1,5 +1,5 @@
 # Frontend build stage
-FROM node:22-alpine AS frontend
+FROM node:25-alpine AS frontend
 
 WORKDIR /frontend
 COPY frontend/package.json ./
@@ -8,7 +8,7 @@ COPY frontend/ .
 RUN npm run build
 
 # Go build stage
-FROM golang:1.26.1-alpine AS builder
+FROM golang:1.26.2-alpine AS builder
 
 RUN apk add --no-cache git
 
@@ -21,7 +21,7 @@ ARG APP_VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.version=${APP_VERSION}" -o /omni-cd ./cmd/omni-cd
 
 # Runtime stage
-FROM alpine:3.21
+FROM alpine:3.23
 
 RUN apk add --no-cache \
     git \
