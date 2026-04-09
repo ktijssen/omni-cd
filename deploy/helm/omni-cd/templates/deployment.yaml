@@ -4,10 +4,6 @@ metadata:
   name: {{ include "omni-cd.fullname" . }}
   labels:
     {{- include "omni-cd.labels" . | nindent 4 }}
-  {{- with .Values.podAnnotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -45,31 +41,31 @@ spec:
               value: {{ .Values.config.logRetentionDays | quote }}
             - name: AUTH_DISABLED
               value: {{ .Values.config.authDisabled | quote }}
-            {{- if .Values.oidc.enabled }}
+            {{- if .Values.config.oidc.enabled }}
             - name: OIDC_ENABLED
               value: "true"
             - name: OIDC_ISSUER_URL
-              value: {{ .Values.oidc.issuerUrl | quote }}
+              value: {{ .Values.config.oidc.issuerUrl | quote }}
             - name: OIDC_CLIENT_ID
-              value: {{ .Values.oidc.clientId | quote }}
+              value: {{ .Values.config.oidc.clientId | quote }}
             - name: OIDC_REDIRECT_URL
-              value: {{ .Values.oidc.redirectUrl | quote }}
+              value: {{ .Values.config.oidc.redirectUrl | quote }}
             - name: OIDC_SCOPES
-              value: {{ .Values.oidc.scopes | quote }}
+              value: {{ .Values.config.oidc.scopes | quote }}
             - name: OIDC_GROUPS_CLAIM
-              value: {{ .Values.oidc.groupsClaim | quote }}
+              value: {{ .Values.config.oidc.groupsClaim | quote }}
             - name: OIDC_ADMIN_GROUPS
-              value: {{ .Values.oidc.adminGroups | quote }}
+              value: {{ .Values.config.oidc.adminGroups | quote }}
             - name: OIDC_ADMIN_EMAILS
-              value: {{ .Values.oidc.adminEmails | quote }}
+              value: {{ .Values.config.oidc.adminEmails | quote }}
             - name: OIDC_VIEWER_GROUPS
-              value: {{ .Values.oidc.viewerGroups | quote }}
+              value: {{ .Values.config.oidc.viewerGroups | quote }}
             - name: OIDC_VIEWER_EMAILS
-              value: {{ .Values.oidc.viewerEmails | quote }}
+              value: {{ .Values.config.oidc.viewerEmails | quote }}
             - name: OIDC_DEFAULT_ROLE
-              value: {{ .Values.oidc.defaultRole | quote }}
+              value: {{ .Values.config.oidc.defaultRole | quote }}
             - name: OIDC_INSECURE
-              value: {{ .Values.oidc.insecure | quote }}
+              value: {{ .Values.config.oidc.insecure | quote }}
             {{- end }}
             # Sensitive values from secret
             - name: OMNI_ENDPOINT
@@ -94,7 +90,7 @@ spec:
                   name: {{ .Values.existingSecret | default (include "omni-cd.fullname" .) }}
                   key: WEBHOOK_SECRET
             {{- end }}
-            {{- if .Values.oidc.enabled }}
+            {{- if .Values.config.oidc.enabled }}
             - name: OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:

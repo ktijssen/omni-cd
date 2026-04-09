@@ -82,6 +82,18 @@ tasks:
       - task: fmt
       - task: vet
 
+  # Version tasks
+  version:bump:
+    desc: Sync Helm chart version from hack/VERSION
+    cmds:
+      - |
+        VERSION=$(cat hack/VERSION | tr -d '[:space:]')
+        SEMVER="${VERSION#v}"
+        APP_VERSION="v${SEMVER}"
+        sed -i "s/^version:.*/version: ${SEMVER}/" deploy/helm/omni-cd/Chart.yaml
+        sed -i "s/^appVersion:.*/appVersion: ${APP_VERSION}/" deploy/helm/omni-cd/Chart.yaml
+        echo "Chart updated to version=${SEMVER} appVersion=${APP_VERSION}"
+
   # Dependency tasks
   deps:
     desc: Download Go dependencies

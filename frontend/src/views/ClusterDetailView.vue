@@ -102,16 +102,16 @@
         <div class="detail-strip-label">Sync Status</div>
         <div class="detail-strip-value" v-html="syncStatusBadge"></div>
         <div v-if="syncSinceStr" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Since: {{ syncSinceStr }}</div>
-        <div v-if="repoAuthor" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Author: {{ repoAuthor }}</div>
-        <div v-if="repoMessage" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: {{ repoMessage }}</div>
+        <div v-if="repoAuthor && cluster.status !== 'unmanaged'" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Author: {{ repoAuthor }}</div>
+        <div v-if="repoMessage && cluster.status !== 'unmanaged'" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: {{ repoMessage }}</div>
       </div>
       <div class="detail-strip-sep"></div>
       <div class="detail-strip-item" style="min-width:140px" :title="lastSyncResultTooltip">
         <div class="detail-strip-label">Last Sync Result</div>
         <div class="detail-strip-value" v-html="lastSyncResultBadge"></div>
-        <div v-if="lastSyncDateStr" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap">{{ lastSyncDateStr }}</div>
-        <div v-if="lastSyncAuthor" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap">Author: {{ lastSyncAuthor }}</div>
-        <div v-if="lastSyncMessage" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: {{ lastSyncMessage }}</div>
+        <div v-if="lastSyncDateStr && cluster.status !== 'unmanaged'" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap">{{ lastSyncDateStr }}</div>
+        <div v-if="lastSyncAuthor && cluster.status !== 'unmanaged'" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap">Author: {{ lastSyncAuthor }}</div>
+        <div v-if="lastSyncMessage && cluster.status !== 'unmanaged'" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: {{ lastSyncMessage }}</div>
       </div>
       <template v-if="cluster.status === 'unmanaged' && createdAgo">
         <div class="detail-strip-sep"></div>
