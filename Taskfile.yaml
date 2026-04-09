@@ -106,10 +106,11 @@ tasks:
       - go mod tidy -e
 
   deps:update:
-    desc: Update all dependencies
+    desc: Update all dependencies (Go + npm)
     cmds:
       - go get -u ./cmd/... ./internal/...
       - go mod tidy -e
+      - docker run --rm -v "{{.ROOT_DIR}}/frontend:/app" -w /app node:22-alpine sh -c "npm update && npm install"
 
   # Docker tasks
   docker:build:

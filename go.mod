@@ -10,8 +10,9 @@ require (
 	golang.org/x/oauth2 v0.36.0
 )
 
+require github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+
 require (
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/petermattis/goid v0.0.0-20260330135022-df67b199bc81 // indirect
 	github.com/sasha-s/go-deadlock v0.3.9 // indirect
@@ -41,7 +42,7 @@ require (
 	github.com/jsimonetti/rtnetlink/v2 v2.2.1-0.20260317095713-310581b9c6ac // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-isatty v0.0.21 // indirect
 	github.com/mdlayher/ethtool v0.6.0 // indirect
 	github.com/mdlayher/genetlink v1.4.0 // indirect
 	github.com/mdlayher/netlink v1.10.0 // indirect
@@ -68,7 +69,7 @@ require (
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/term v0.41.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
