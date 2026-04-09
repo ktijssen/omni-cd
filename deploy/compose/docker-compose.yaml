@@ -1,6 +1,9 @@
 services:
   omni-cd:
-    build: ../../.
+    build:
+      context: ../../.
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
     restart: unless-stopped
     environment:
       - OMNI_ENDPOINT=${OMNI_ENDPOINT}

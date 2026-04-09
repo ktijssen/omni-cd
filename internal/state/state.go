@@ -138,6 +138,7 @@ type LogEntry struct {
 // SnapshotData holds a point-in-time copy of AppState for JSON serialization.
 type SnapshotData struct {
 	ServerStartedAt     time.Time           `json:"serverStartedAt"`
+	AppVersion          string              `json:"appVersion"`
 	OmniEndpoint        string              `json:"omniEndpoint"`
 	OmniVersion         string              `json:"omniVersion"`
 	OmniHealth          OmniHealth          `json:"omniHealth"`
@@ -179,6 +180,7 @@ type AppState struct {
 	forceMCIDs          map[string]bool     // Machine class IDs queued for force sync
 	pendingRepoDeletes  []config.RepoConfig // Repos deleted via UI that need resource cleanup
 	ServerStartedAt     time.Time           // Set once at process start, never persisted
+	AppVersion          string              // Set at startup from build ldflags, never persisted
 	Logs                []LogEntry          `json:"logs"`
 	LogLevel            string              // e.g. "DEBUG", "INFO", "WARN", "ERROR"
 	maxLogs             int
@@ -354,6 +356,7 @@ func (s *AppState) Snapshot() SnapshotData {
 	}
 	return SnapshotData{
 		ServerStartedAt:     s.ServerStartedAt,
+		AppVersion:          s.AppVersion,
 		OmniEndpoint:        s.OmniEndpoint,
 		OmniVersion:         s.OmniVersion,
 		OmniHealth:          s.OmniHealth,

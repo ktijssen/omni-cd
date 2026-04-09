@@ -88,6 +88,7 @@ export interface RepoConfigView {
 
 export interface SnapshotData {
   serverStartedAt: string
+  appVersion: string
   omniEndpoint: string
   omniVersion: string
   omniHealth: OmniHealth

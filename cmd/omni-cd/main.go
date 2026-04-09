@@ -85,6 +85,7 @@ func main() {
 	// even before Omni is configured.
 	stateFile := "/data/state/state.json"
 	appState = state.New(500, effectiveEndpoint, true, stateFile)
+	appState.AppVersion = version
 	appState.SetEnvLocked(cfg.OmniEnvLocked)
 	appState.SetHasStoredKey(!cfg.OmniEnvLocked && effectiveKey != "")
 	appState.LogLevel = strings.ToUpper(cfg.LogLevel)

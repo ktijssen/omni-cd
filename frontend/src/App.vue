@@ -30,7 +30,10 @@
             </span>
           </button>
           <span class="sidebar-item-icon" v-html="omniLogoSVG" style="width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;"></span>
-          <div class="sidebar-logo-text">Omni <span>CD</span></div>
+          <div class="sidebar-logo-text">
+            Omni <span>CD</span>
+            <div v-if="appStore.state?.appVersion" class="sidebar-logo-version">{{ appStore.state.appVersion }}</div>
+          </div>
         </header>
         <div class="layout-body">
           <!-- Mobile backdrop -->
