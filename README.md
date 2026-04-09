@@ -1,3 +1,5 @@
+> **Disclaimer:** This is an independent, community-built project and is **not** an official product of [Sidero Labs](https://www.siderolabs.com/). It is not affiliated with, endorsed by, or supported by Sidero Labs. Omni and Talos Linux are trademarks of Sidero Labs, Inc.
+
 # Omni CD
 
 A GitOps tool for [Sidero Omni](https://www.siderolabs.com/omni/). It watches one or more Git repositories and continuously reconciles **MachineClasses** and **Cluster templates** to your Omni instance.
@@ -24,16 +26,20 @@ A GitOps tool for [Sidero Omni](https://www.siderolabs.com/omni/). It watches on
 - **Drift detection** — Detects out-of-sync resources without applying changes
 - **Diff view** — Colour-coded diff between desired and live state per resource
 - **Live cluster status** — Cluster, controlplane, Kubernetes API, etcd, and WireGuard health badges
+- **Cluster health filters** — Filter the clusters view by health status (healthy, degraded, etc.)
 - **Machine graph** — Visual DAG showing Git → Omni → Cluster → MachineSets → Machines
 - **Multiple worker pools** — Cluster templates with multiple named worker groups are fully supported
 - **Per-cluster auto-sync** — Enable or disable automatic sync per cluster from the web UI
 - **Unmanaged clusters** — Clusters created outside of Git are visible and can be exported as templates
 - **Machine class usage** — Each MachineClass card lists which clusters are currently using it
+- **Grid and list views** — Toggle between card grid and compact list layout in all resource views
+- **Sort and filter** — Sort by name or status; filter by sync status or health; configurable page size
 - **Persistent state** — State is saved to disk and restored on restart
 - **Authentication** — Username/password login with session cookies, first-time setup wizard, OIDC/SSO support, and user management (or fully disabled for internal use)
 - **Real-time web UI** — WebSocket-driven dashboard; no page refreshes needed
 - **Log persistence** — Logs are written to daily rotating files and survive container restarts
 - **Omni instance management** — Omni endpoint and service account key can be configured via the web UI
+- **Helm chart** — Official Helm chart with support for Ingress, HTTPRoute (Gateway API), and existing secrets
 
 ---
 
@@ -75,6 +81,18 @@ cd deploy/compose && docker compose up -d
 ```
 
 A full example with all variables is in [`deploy/compose/`](deploy/compose/).
+
+### Helm
+
+```bash
+helm install omni-cd oci://ghcr.io/ktijssen/charts/omni-cd \
+  --namespace omni-cd \
+  --create-namespace \
+  --set config.omni.endpoint=https://your-omni-instance.example.com \
+  --set config.omni.serviceAccountKey=your-service-account-key
+```
+
+See [`deploy/helm/omni-cd/README.md`](deploy/helm/omni-cd/README.md) for the full chart documentation including values, existing secret support, and Gateway API (HTTPRoute) configuration.
 
 ---
 
@@ -196,6 +214,12 @@ Card grid showing one card per cluster with:
 - Controlplane and worker pool configuration
 - Per-cluster Refresh, Sync, Auto-Sync toggle, and Delete actions
 
+The toolbar supports:
+- **Sort** by name or status
+- **Filter** by sync status or cluster health (healthy, degraded, not ready, etc.)
+- **Page size** selector (5, 10, 15, 20, or All)
+- **Grid / List** layout toggle
+
 Click a card to open the cluster detail page with a **Graph** tab (visual DAG of the full stack), a **Live** tab (current Omni YAML), and a **Diff** tab (desired vs live).
 
 ![Cluster detail graph](docs/cluster-detail-graph.png)
@@ -207,6 +231,8 @@ Clusters created outside of Git (unmanaged) are shown with an **Export** button 
 ![Machine Classes view](docs/machine-classes-view.png)
 
 Card grid showing each MachineClass with its provisioning mode, resource settings, machine limit, and a live **Used by** list showing which clusters reference it. Each card has Refresh, Sync, Auto-Sync toggle, and Delete actions. Click a cluster chip to jump to that cluster.
+
+The toolbar supports the same sort, filter, page size, and layout toggle as the Clusters view.
 
 ### Instances (`/instances`)
 
@@ -285,7 +311,7 @@ Logs are written to daily rotating files under `/data/logs/` and are re-loaded i
 
 ## Development
 
-Requires Go 1.26+, [Task](https://taskfile.dev), and Docker.
+Requires [Go](https://go.dev), [Task](https://taskfile.dev), Node.js, and Docker.
 
 ```bash
 # Development
@@ -303,7 +329,7 @@ task check                   # Run fmt + vet
 # Dependencies
 task deps                    # Download modules
 task deps:tidy               # go mod tidy
-task deps:update             # go get -u + tidy
+task deps:update             # Update Go + npm dependencies to latest versions
 
 # Docker
 task docker:build            # Build Docker image
