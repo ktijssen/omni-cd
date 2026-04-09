@@ -8,6 +8,7 @@ replicaCount: 1
 service:
   type: ClusterIP
   port: 8080
+  annotations: {}
 
 ingress:
   enabled: false
@@ -20,39 +21,74 @@ ingress:
           pathType: Prefix
   tls: []
 
-# Omni connection
-omni:
-  endpoint: ""
-  serviceAccountKey: ""
+# -- Gateway API HTTPRoute (alternative to ingress)
+httpRoute:
+  # -- Enable HTTPRoute resource
+  enabled: false
+  annotations: {}
+  # -- Gateway parentRefs to attach to
+  parentRefs:
+    - name: default
+      namespace: default
+  # -- Hostnames to match
+  hostnames:
+    - omni-cd.example.com
 
-# Application config
+# -- Application configuration
 config:
+  # -- How often (in seconds) to poll git for changes
   refreshInterval: "300"
+  # -- Port the web UI listens on
   webPort: "8080"
+  # -- Log level: DEBUG, INFO, WARN, ERROR
   logLevel: "INFO"
+  # -- Number of days to retain logs
   logRetentionDays: "7"
+  # -- Disable authentication (not recommended for production)
   authDisabled: "false"
+  # -- Admin password (ignored when OIDC is enabled)
   adminPassword: ""
+  # -- Optional secret for validating GitHub/GitLab webhook signatures
   webhookSecret: ""
 
-# OIDC
-oidc:
-  enabled: false
-  issuerUrl: ""
-  clientId: ""
-  clientSecret: ""
-  redirectUrl: ""
-  scopes: ""
-  groupsClaim: ""
-  adminGroups: ""
-  adminEmails: ""
-  viewerGroups: ""
-  viewerEmails: ""
-  defaultRole: ""
-  insecure: "false"
+  # -- Omni connection settings
+  omni:
+    # -- Omni API endpoint URL
+    endpoint: ""
+    # -- Service account key for authenticating with Omni
+    serviceAccountKey: ""
 
-# Store sensitive values in an existing secret instead of values.yaml
-# Secret must contain keys matching the env var names
+  # -- OIDC / SSO configuration
+  oidc:
+    # -- Enable OIDC authentication
+    enabled: false
+    # -- OIDC provider issuer URL
+    issuerUrl: ""
+    # -- OIDC client ID
+    clientId: ""
+    # -- OIDC client secret (consider using existingSecret instead)
+    clientSecret: ""
+    # -- Redirect URL registered with the OIDC provider
+    redirectUrl: ""
+    # -- Space-separated list of scopes to request
+    scopes: ""
+    # -- JWT claim to use for group membership
+    groupsClaim: ""
+    # -- Groups granted admin access
+    adminGroups: ""
+    # -- Email addresses granted admin access
+    adminEmails: ""
+    # -- Groups granted viewer access
+    viewerGroups: ""
+    # -- Email addresses granted viewer access
+    viewerEmails: ""
+    # -- Default role when no group/email matches: admin or viewer
+    defaultRole: ""
+    # -- Skip TLS verification for the OIDC provider (not recommended)
+    insecure: "false"
+
+# -- Store sensitive values in an existing secret instead of values.yaml
+# -- Secret must contain keys matching the env var names
 existingSecret: ""
 
 persistence:

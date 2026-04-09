@@ -1,0 +1,69 @@
+suite: HTTPRoute
+templates:
+  - httproute.yaml
+
+tests:
+  - it: Should not create an HTTPRoute by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: Should create an HTTPRoute when enabled
+    set:
+      httpRoute.enabled: true
+      httpRoute.hostnames[0]: omni-cd.example.com
+      httpRoute.parentRefs[0].name: my-gateway
+      httpRoute.parentRefs[0].namespace: gateway
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-omni-cd
+
+  - it: Should set parentRefs
+    set:
+      httpRoute.enabled: true
+      httpRoute.parentRefs:
+        - name: my-gateway
+          namespace: infra
+    asserts:
+      - equal:
+          path: spec.parentRefs[0].name
+          value: my-gateway
+      - equal:
+          path: spec.parentRefs[0].namespace
+          value: infra
+
+  - it: Should set hostnames
+    set:
+      httpRoute.enabled: true
+      httpRoute.hostnames:
+        - omni-cd.example.com
+    asserts:
+      - equal:
+          path: spec.hostnames[0]
+          value: omni-cd.example.com
+
+  - it: Should route to the correct backend service
+    set:
+      httpRoute.enabled: true
+    asserts:
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: RELEASE-NAME-omni-cd
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 8080
+
+  - it: Should set HTTPRoute annotations
+    set:
+      httpRoute.enabled: true
+      httpRoute.annotations:
+        gateway.networking.k8s.io/certificate-ref: omni-cd-cert
+    asserts:
+      - equal:
+          path: metadata.annotations["gateway.networking.k8s.io/certificate-ref"]
+          value: omni-cd-cert

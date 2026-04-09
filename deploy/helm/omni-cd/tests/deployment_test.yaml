@@ -1,0 +1,147 @@
+suite: Deployment
+templates:
+  - deployment.yaml
+
+tests:
+  - it: Should create a Deployment
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-omni-cd
+
+  - it: Should use the correct image
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/ktijssen/omni-cd:v0.2.1
+
+  - it: Should use custom image tag
+    set:
+      image.tag: "1.0.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/ktijssen/omni-cd:1.0.0
+
+  - it: Should set replica count
+    set:
+      replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: Should set WEB_PORT env var
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: WEB_PORT
+            value: "8080"
+
+  - it: Should set REFRESH_INTERVAL env var
+    set:
+      config.refreshInterval: "600"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REFRESH_INTERVAL
+            value: "600"
+
+  - it: Should set LOG_LEVEL env var
+    set:
+      config.logLevel: "DEBUG"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: "DEBUG"
+
+  - it: Should mount data volume when persistence is enabled
+    set:
+      persistence.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME-omni-cd
+
+  - it: Should not mount data volume when persistence is disabled
+    set:
+      persistence.enabled: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.volumes
+      - notExists:
+          path: spec.template.spec.containers[0].volumeMounts
+
+  - it: Should use existingSecret for OMNI_ENDPOINT
+    set:
+      existingSecret: my-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OMNI_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: my-secret
+                key: OMNI_ENDPOINT
+
+  - it: Should enable OIDC env vars when oidc.enabled is true
+    set:
+      config.oidc.enabled: true
+      config.oidc.issuerUrl: "https://sso.example.com"
+      config.oidc.clientId: "omni-cd"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ENABLED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ISSUER_URL
+            value: "https://sso.example.com"
+
+  - it: Should not include OIDC env vars when oidc.enabled is false
+    set:
+      config.oidc.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_ENABLED
+            value: "true"
+
+  - it: Should set pod annotations
+    set:
+      podAnnotations:
+        prometheus.io/scrape: "true"
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+          value: "true"
+
+  - it: Should set node selector
+    set:
+      nodeSelector:
+        kubernetes.io/os: linux
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector["kubernetes.io/os"]
+          value: linux

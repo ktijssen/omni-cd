@@ -82,6 +82,18 @@ tasks:
       - task: fmt
       - task: vet
 
+  # Version tasks
+  version:bump:
+    desc: Sync Helm chart version from hack/VERSION
+    cmds:
+      - |
+        VERSION=$(cat hack/VERSION | tr -d '[:space:]')
+        SEMVER="${VERSION#v}"
+        APP_VERSION="v${SEMVER}"
+        sed -i "s/^version:.*/version: ${SEMVER}/" deploy/helm/omni-cd/Chart.yaml
+        sed -i "s/^appVersion:.*/appVersion: ${APP_VERSION}/" deploy/helm/omni-cd/Chart.yaml
+        echo "Chart updated to version=${SEMVER} appVersion=${APP_VERSION}"
+
   # Dependency tasks
   deps:
     desc: Download Go dependencies
@@ -94,10 +106,11 @@ tasks:
       - go mod tidy -e
 
   deps:update:
-    desc: Update all dependencies
+    desc: Update all dependencies (Go + npm)
     cmds:
       - go get -u ./cmd/... ./internal/...
       - go mod tidy -e
+      - docker run --rm -v "{{.ROOT_DIR}}/frontend:/app" -w /app node:22-alpine sh -c "npm update && npm install"
 
   # Docker tasks
   docker:build:

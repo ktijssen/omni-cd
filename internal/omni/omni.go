@@ -1237,6 +1237,10 @@ func parseLegacyFormat(yamlContent string) ClusterTemplateInfo {
 			}
 			switch kind {
 			case "ControlPlane", "Workers":
+				// A new unindented key resets all section flags.
+				if len(line) > 0 && line[0] != ' ' && line[0] != '\t' && !strings.HasPrefix(trimmed, "- ") {
+					inMachines, inMachineClass, inSystemExtensions = false, false, false
+				}
 				if strings.HasPrefix(trimmed, "machines:") {
 					inMachines = true
 					inMachineClass, inSystemExtensions = false, false
@@ -1268,6 +1272,8 @@ func parseLegacyFormat(yamlContent string) ClusterTemplateInfo {
 				} else if inSystemExtensions && strings.HasPrefix(trimmed, "- ") {
 					systemExtensions = append(systemExtensions, strings.TrimSpace(strings.TrimPrefix(trimmed, "- ")))
 				}
+			case "Patch":
+				// Config patches are not rendered in the topology graph — skip.
 			}
 		}
 

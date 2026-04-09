@@ -326,7 +326,7 @@ const nodeGroups = computed(() => {
   })
 
   const groups = [
-    {
+    ...((cp.count || 0) > 0 || (cp.machines || []).length > 0 ? [{
       kind: 'MachineSet',
       label: cp.name || 'control-planes',
       machineClass: cp.machineClass || '',
@@ -336,18 +336,20 @@ const nodeGroups = computed(() => {
       exts: cp.extensions || [],
       color: '#ff8b59',
       isPool: (cp.machines || []).length === 0,
-    },
-    ...workers.map(wk => ({
-      kind: 'MachineSet',
-      label: wk.name || 'workers',
-      machineClass: wk.machineClass || '',
-      provisionType: wk.machineClass ? (mcProvMap[wk.machineClass] || 'manual') : '',
-      machines: wk.machines || [],
-      count: wk.count || 0,
-      exts: wk.extensions || [],
-      color: '#8b5cf6',
-      isPool: (wk.machines || []).length === 0,
-    })),
+    }] : []),
+    ...workers
+      .filter(wk => (wk.count || 0) > 0 || (wk.machines || []).length > 0)
+      .map(wk => ({
+        kind: 'MachineSet',
+        label: wk.name || 'workers',
+        machineClass: wk.machineClass || '',
+        provisionType: wk.machineClass ? (mcProvMap[wk.machineClass] || 'manual') : '',
+        machines: wk.machines || [],
+        count: wk.count || 0,
+        exts: wk.extensions || [],
+        color: '#8b5cf6',
+        isPool: (wk.machines || []).length === 0,
+      })),
   ]
   return groups
 })

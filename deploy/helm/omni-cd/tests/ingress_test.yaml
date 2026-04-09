@@ -1,0 +1,53 @@
+suite: Ingress
+templates:
+  - ingress.yaml
+
+tests:
+  - it: Should not create an Ingress by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: Should create an Ingress when enabled
+    set:
+      ingress.enabled: true
+      ingress.hosts[0].host: omni-cd.example.com
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Ingress
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-omni-cd
+
+  - it: Should set ingressClassName
+    set:
+      ingress.enabled: true
+      ingress.className: nginx
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+
+  - it: Should set ingress annotations
+    set:
+      ingress.enabled: true
+      ingress.annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+    asserts:
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: letsencrypt-prod
+
+  - it: Should configure TLS
+    set:
+      ingress.enabled: true
+      ingress.tls:
+        - secretName: omni-cd-tls
+          hosts:
+            - omni-cd.example.com
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: omni-cd-tls
