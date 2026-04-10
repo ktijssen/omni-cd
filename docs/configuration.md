@@ -49,16 +49,6 @@ Set `OIDC_ENABLED=true` and provide at minimum `OIDC_ISSUER_URL` and `OIDC_CLIEN
 | `OIDC_DEFAULT_ROLE` | `viewer` | Role when no rule matches: `admin`, `viewer`, or `none`. |
 | `OIDC_INSECURE` | `false` | Skip TLS verification — for self-signed IdP certificates only. |
 
-## Auth0
-
-Auth0 uses PKCE (no client secret required). OIDC and Auth0 are mutually exclusive.
-
-| Variable | Default | Description |
-|---|---|---|
-| `AUTH0_ENABLED` | `false` | Enable Auth0 authentication. |
-| `AUTH0_DOMAIN` | — | Your Auth0 tenant domain (e.g. `your-tenant.auth0.com`). |
-| `AUTH0_CLIENT_ID` | — | Auth0 application client ID. |
-
 ---
 
 ## Repository Structure
