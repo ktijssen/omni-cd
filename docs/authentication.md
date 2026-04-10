@@ -50,30 +50,6 @@ SSO users appear in **Settings → Users → SSO Users**. Admins can change each
 
 ---
 
-## Auth0
-
-Auth0 uses its Universal Login page with PKCE — no client secret is required. OIDC and Auth0 are mutually exclusive; the app will refuse to start if both are enabled.
-
-### Auth0 Dashboard setup
-
-1. Create a **Single Page Application** (enables PKCE without a client secret)
-2. Add to **Allowed Callback URLs**: `https://<your-host>/auth/auth0/callback`
-3. Add to **Allowed Logout URLs**: `https://<your-host>/`
-
-### Environment variables
-
-```env
-AUTH0_ENABLED=true
-AUTH0_DOMAIN=your-tenant.auth0.com
-AUTH0_CLIENT_ID=your-client-id
-```
-
-### Role assignment
-
-The first Auth0 user to log in receives `admin`. All subsequent users receive `viewer`. Roles can be changed from **Settings → Users → SSO Users**.
-
----
-
 ## Disabling Authentication
 
 Set `AUTH_DISABLED=true` to bypass login entirely. The Users page is hidden and all sessions are treated as admin. Intended for internal/trusted deployments only.
