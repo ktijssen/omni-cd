@@ -39,6 +39,8 @@ spec:
               value: {{ .Values.config.logLevel | quote }}
             - name: LOG_RETENTION_DAYS
               value: {{ .Values.config.logRetentionDays | quote }}
+            - name: AUDIT_RETENTION_DAYS
+              value: {{ .Values.config.auditRetentionDays | quote }}
             - name: AUTH_DISABLED
               value: {{ .Values.config.authDisabled | quote }}
             {{- if .Values.config.oidc.enabled }}

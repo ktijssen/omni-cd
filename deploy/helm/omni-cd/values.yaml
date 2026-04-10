@@ -44,6 +44,8 @@ config:
   logLevel: "INFO"
   # -- Number of days to retain logs
   logRetentionDays: "7"
+  # -- Number of days to retain audit log files
+  auditRetentionDays: "30"
   # -- Disable authentication (not recommended for production)
   authDisabled: "false"
   # -- Admin password (ignored when OIDC is enabled)
