@@ -181,6 +181,11 @@ type AppState struct {
 	pendingRepoDeletes  []config.RepoConfig // Repos deleted via UI that need resource cleanup
 	ServerStartedAt     time.Time           // Set once at process start, never persisted
 	AppVersion          string              // Set at startup from build ldflags, never persisted
+	auditLog            []AuditEntry        // In-memory ring buffer, never serialised to state.json
+	auditDir            string              // Directory for daily audit files
+	auditFile           *os.File            // Current day's open audit file
+	auditFileDate       string              // "2006-01-02" of auditFile
+	auditRetentionDays  int                 // Number of days to keep audit files
 	Logs                []LogEntry          `json:"logs"`
 	LogLevel            string              // e.g. "DEBUG", "INFO", "WARN", "ERROR"
 	maxLogs             int
@@ -202,6 +207,7 @@ func New(maxLogs int, omniEndpoint string, clustersEnabled bool, stateFile strin
 		MachineClasses:  []ResourceInfo{},
 		Clusters:        []ResourceInfo{},
 		Logs:            []LogEntry{},
+		auditLog:        []AuditEntry{},
 		stateFile:       stateFile,
 		changeCh:        make(chan struct{}, 1),
 		ServerStartedAt: time.Now().UTC(),

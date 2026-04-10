@@ -108,6 +108,14 @@ export interface SnapshotData {
   logLevel: string
 }
 
+export interface AuditEntry {
+  timestamp: string
+  user: string
+  action: string
+  resource: string
+  kind: string
+}
+
 export interface MeResponse {
   username: string
   role: string

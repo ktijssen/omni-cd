@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"omni-cd/internal/state"
 )
 
 // handleUsers serves GET /api/users → list of users (no hashes).
@@ -62,6 +64,7 @@ func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
+	s.appState.AppendAudit(state.AuditEntry{User: username, Action: "update-profile", Kind: "session"})
 
 	// Update the session display name.
 	if cookie, cerr := r.Cookie(sessionCookieName); cerr == nil {
@@ -123,6 +126,8 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
+
+	s.appState.AppendAudit(state.AuditEntry{User: username, Action: "change-password", Kind: "session"})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})

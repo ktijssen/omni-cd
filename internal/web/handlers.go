@@ -18,6 +18,7 @@ import (
 	"omni-cd/internal/git"
 	"omni-cd/internal/omni"
 	"omni-cd/internal/omniinstance"
+	"omni-cd/internal/state"
 )
 
 // handleState returns the current application state as JSON.
@@ -71,6 +72,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("Webhook push event received, triggering soft reconcile", "component", "Web")
+	s.appState.AppendAudit(state.AuditEntry{User: "webhook", Action: "refresh", Kind: "global"})
 	select {
 	case s.triggerSoft <- struct{}{}:
 		w.Header().Set("Content-Type", "application/json")
@@ -91,6 +93,7 @@ func (s *Server) handleReconcile(w http.ResponseWriter, r *http.Request) {
 
 	select {
 	case s.triggerHard <- struct{}{}:
+		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "sync", Kind: "global"})
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
 	default:
@@ -109,6 +112,7 @@ func (s *Server) handleCheck(w http.ResponseWriter, r *http.Request) {
 
 	select {
 	case s.triggerSoft <- struct{}{}:
+		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "refresh", Kind: "global"})
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
 	default:
@@ -126,6 +130,11 @@ func (s *Server) handleClustersToggle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newState := s.appState.ToggleClustersEnabled()
+	action := "global-sync-on"
+	if !newState {
+		action = "global-sync-off"
+	}
+	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: action, Kind: "global"})
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"clustersEnabled": newState,
@@ -155,6 +164,7 @@ func (s *Server) handleRefreshCluster(w http.ResponseWriter, r *http.Request) {
 
 	select {
 	case s.triggerRefreshCluster <- req.ID:
+		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "refresh", Resource: req.ID, Kind: "cluster"})
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
 	default:
@@ -228,6 +238,11 @@ func (s *Server) handleSetClusterAutoSync(w http.ResponseWriter, r *http.Request
 		return
 	}
 	s.appState.SetClusterAutoSync(req.ID, req.AutoSync)
+	autoSyncAction := "auto-sync-on"
+	if !req.AutoSync {
+		autoSyncAction = "auto-sync-off"
+	}
+	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: autoSyncAction, Resource: req.ID, Kind: "cluster"})
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok", "id": req.ID, "autoSync": req.AutoSync})
 }
@@ -267,12 +282,11 @@ func (s *Server) handleDeleteCluster(w http.ResponseWriter, r *http.Request) {
 
 	select {
 	case s.triggerDeleteCluster <- req.ID:
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
 	default:
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
 	}
+	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "delete", Resource: req.ID, Kind: "cluster"})
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
 }
 
 // handleDeleteMachineClass triggers deletion of a specific machine class from Omni.
@@ -300,6 +314,7 @@ func (s *Server) handleDeleteMachineClass(w http.ResponseWriter, r *http.Request
 	case s.triggerDeleteMC <- req.ID:
 	default:
 	}
+	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "delete", Resource: req.ID, Kind: "machineclass"})
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
 }
@@ -326,6 +341,7 @@ func (s *Server) handleForceCluster(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.appState.AddForceClusterID(req.ID)
+	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "sync", Resource: req.ID, Kind: "cluster"})
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status": "ok",
@@ -355,6 +371,7 @@ func (s *Server) handleSyncMachineClass(w http.ResponseWriter, r *http.Request) 
 	}
 
 	s.appState.AddForceMCID(req.ID)
+	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "sync", Resource: req.ID, Kind: "machineclass"})
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status": "ok",
@@ -381,6 +398,11 @@ func (s *Server) handleSetMCAutoSync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.appState.SetMachineClassAutoSync(req.ID, req.AutoSync)
+	mcAutoSyncAction := "auto-sync-on"
+	if !req.AutoSync {
+		mcAutoSyncAction = "auto-sync-off"
+	}
+	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: mcAutoSyncAction, Resource: req.ID, Kind: "machineclass"})
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok", "id": req.ID, "autoSync": req.AutoSync})
 }
@@ -420,6 +442,8 @@ func (s *Server) handleExportCluster(w http.ResponseWriter, r *http.Request) {
 		}
 		return r
 	}, req.ID)
+
+	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "export", Resource: req.ID, Kind: "cluster"})
 
 	// Return YAML content with appropriate headers for download
 	w.Header().Set("Content-Type", "application/x-yaml")
@@ -492,6 +516,7 @@ func (s *Server) handleRepos(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.signalRepoChange()
+		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "repo-add", Resource: rc.Name, Kind: "repo"})
 		json.NewEncoder(w).Encode(map[string]string{"status": "created", "name": rc.Name})
 
 	case http.MethodPut:
@@ -548,6 +573,7 @@ func (s *Server) handleRepos(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.signalRepoChange()
+		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "repo-update", Resource: rc.Name, Kind: "repo"})
 		json.NewEncoder(w).Encode(map[string]string{"status": "updated", "name": rc.Name})
 
 	case http.MethodDelete:
@@ -582,6 +608,7 @@ func (s *Server) handleRepos(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.signalRepoChange()
+		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "repo-delete", Resource: req.Name, Kind: "repo"})
 		json.NewEncoder(w).Encode(map[string]string{"status": "deleted", "name": req.Name})
 
 	default:
@@ -671,6 +698,7 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 		s.appState.SetClusters(nil)
 		s.appState.SetMachineClasses(nil)
 		s.appState.Save()
+		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "omni-delete", Kind: "omni"})
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 		return
 	}
@@ -723,6 +751,7 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 	s.appState.SetOmniEndpoint(req.Endpoint)
 	s.appState.SetHasStoredKey(true)
 	s.appState.SetOmniConfigured(true)
+	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "omni-update", Kind: "omni"})
 
 	// Signal main() to start the reconciler for the first time (non-blocking).
 	select {
@@ -825,10 +854,10 @@ func (s *Server) handleLogFiles(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		name := e.Name()
-		if !strings.HasPrefix(name, "omni-cd-") || !strings.HasSuffix(name, ".log") {
+		if !strings.HasPrefix(name, "omni-cd-") || !strings.HasSuffix(name, ".jsonlog") {
 			continue
 		}
-		dateStr := strings.TrimSuffix(strings.TrimPrefix(name, "omni-cd-"), ".log")
+		dateStr := strings.TrimSuffix(strings.TrimPrefix(name, "omni-cd-"), ".jsonlog")
 		if _, err := time.Parse("2006-01-02", dateStr); err != nil {
 			continue
 		}
@@ -863,8 +892,90 @@ func (s *Server) handleLogDownload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid date format", http.StatusBadRequest)
 		return
 	}
-	filename := "omni-cd-" + date + ".log"
+	filename := "omni-cd-" + date + ".jsonlog"
 	path := filepath.Join(s.logDir, filename)
+	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	http.ServeFile(w, r, path)
+}
+
+// handleAudit returns the in-memory audit log, newest first.
+func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	entries := s.appState.GetAuditLog()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(entries)
+}
+
+// handleAuditFiles returns a JSON list of available daily audit files, newest first.
+func (s *Server) handleAuditFiles(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	dirEntries, err := os.ReadDir(s.auditDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			json.NewEncoder(w).Encode([]interface{}{})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	type fileInfo struct {
+		Date string `json:"date"`
+		Size int64  `json:"size"`
+	}
+	var files []fileInfo
+	for _, e := range dirEntries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasPrefix(name, "audit-") || !strings.HasSuffix(name, ".jsonlog") {
+			continue
+		}
+		dateStr := strings.TrimSuffix(strings.TrimPrefix(name, "audit-"), ".jsonlog")
+		if _, err := time.Parse("2006-01-02", dateStr); err != nil {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		files = append(files, fileInfo{Date: dateStr, Size: info.Size()})
+	}
+	for i, j := 0, len(files)-1; i < j; i, j = i+1, j-1 {
+		files[i], files[j] = files[j], files[i]
+	}
+	if files == nil {
+		files = []fileInfo{}
+	}
+	json.NewEncoder(w).Encode(files)
+}
+
+// handleAuditDownload streams a daily audit file as a download.
+// Query param: date=YYYY-MM-DD
+func (s *Server) handleAuditDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	date := r.URL.Query().Get("date")
+	if date == "" {
+		date = time.Now().UTC().Format("2006-01-02")
+	}
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		http.Error(w, "invalid date format", http.StatusBadRequest)
+		return
+	}
+	filename := "audit-" + date + ".jsonlog"
+	path := filepath.Join(s.auditDir, filename)
 	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	http.ServeFile(w, r, path)

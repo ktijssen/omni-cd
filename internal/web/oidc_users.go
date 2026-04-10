@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	appstate "omni-cd/internal/state"
 )
 
 const oidcUsersPath = "/data/config/oidc-users.json"
@@ -138,6 +140,7 @@ func (s *Server) handleOIDCUsers(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
 		}
+		s.appState.AppendAudit(appstate.AuditEntry{User: s.sessionIdentity(r), Action: "oidc-role-update", Resource: body.Email, Kind: "user"})
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 		return
 	}
@@ -164,6 +167,7 @@ func (s *Server) handleOIDCUsers(w http.ResponseWriter, r *http.Request) {
 		})
 		s.saveSessions()
 		slog.Info("SSO user deleted", "email", body.Email, "component", "OIDC")
+		s.appState.AppendAudit(appstate.AuditEntry{User: s.sessionIdentity(r), Action: "oidc-user-delete", Resource: body.Email, Kind: "user"})
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 		return
 	}

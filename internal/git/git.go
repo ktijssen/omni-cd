@@ -113,13 +113,13 @@ func (c *Client) Sync() (bool, error) {
 
 	// First run — always treat as changed
 	if previous == "" {
-		c.logInfo("Cloned repository", "repo", c.repoConfig.URL, "branch", c.repoConfig.Branch, "sha", short(current))
+		c.logInfo(fmt.Sprintf("Cloned repository %s (branch: %s, sha: %s)", c.repoConfig.URL, c.repoConfig.Branch, short(current)))
 		return true, nil
 	}
 
 	// SHA changed — new commit detected
 	if current != previous {
-		c.logInfo("New commit detected", "sha", short(current), "message", msg)
+		c.logInfo(fmt.Sprintf("New commit detected: %s — %s", short(current), msg))
 		return true, nil
 	}
 

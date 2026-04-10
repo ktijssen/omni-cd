@@ -147,14 +147,14 @@
       <div style="display:flex;align-items:center;gap:8px;padding:0 0 12px;flex-wrap:wrap;">
         <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
           <div class="filter-dropdown-wrap">
-            <button class="filter-select-btn" :class="{ active: activeSyncFilterCount > 0 }" @click="filterMenuOpen = !filterMenuOpen">
+            <button class="filter-select-btn" :class="{ active: activeSyncFilterCount > 0 }" @click="activeDropdown = activeDropdown === 'filter' ? null : 'filter'">
               <span class="filter-select-label">
                 <label>Status</label>
                 <span>{{ activeSyncFilterCount > 0 ? activeSyncFilterLabels : 'All' }}</span>
               </span>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;transition:transform 0.2s" :style="{ transform: filterMenuOpen ? 'rotate(180deg)' : 'none' }"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14645 5.14645C3.34171 4.95118 3.65829 4.95118 3.85355 5.14645L8 9.29289L12.1464 5.14645C12.3417 4.95118 12.6583 4.95118 12.8536 5.14645C13.0488 5.34171 13.0488 5.65829 12.8536 5.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L3.14645 5.85355C2.95118 5.65829 2.95118 5.34171 3.14645 5.14645Z"/></svg>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;transition:transform 0.2s" :style="{ transform: activeDropdown === 'filter' ? 'rotate(180deg)' : 'none' }"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14645 5.14645C3.34171 4.95118 3.65829 4.95118 3.85355 5.14645L8 9.29289L12.1464 5.14645C12.3417 4.95118 12.6583 4.95118 12.8536 5.14645C13.0488 5.34171 13.0488 5.65829 12.8536 5.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L3.14645 5.85355C2.95118 5.65829 2.95118 5.34171 3.14645 5.14645Z"/></svg>
             </button>
-            <div v-if="filterMenuOpen" class="cluster-list-menu" style="min-width:180px;right:0;left:auto;">
+            <div v-if="activeDropdown === 'filter'" class="cluster-list-menu" style="min-width:180px;right:0;left:auto;">
               <div class="cluster-list-menu-section-label">Sync Status</div>
               <button
                 v-for="def in visibleSyncDefs"
@@ -173,18 +173,18 @@
                 @click="setClusterFilter(def.key)"
               >{{ clusterStatusFilter === def.key ? '✓ ' : '\u00a0\u00a0 ' }}{{ def.label }}</button>
               <div v-if="activeSyncFilterCount > 0" class="cluster-list-menu-divider"></div>
-              <button v-if="activeSyncFilterCount > 0" class="cluster-list-menu-item" style="color:#9fa1a6" @click="clearSyncFilters(); filterMenuOpen = false">Clear filters</button>
+              <button v-if="activeSyncFilterCount > 0" class="cluster-list-menu-item" style="color:#9fa1a6" @click="clearSyncFilters(); activeDropdown = null">Clear filters</button>
             </div>
           </div>
           <div class="filter-dropdown-wrap">
-            <button class="filter-select-btn" @click="sortMenuOpen = !sortMenuOpen">
+            <button class="filter-select-btn" @click="activeDropdown = activeDropdown === 'sort' ? null : 'sort'">
               <span class="filter-select-label">
                 <label>Sort</label>
                 <span>{{ sortLabel }}</span>
               </span>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;transition:transform 0.2s" :style="{ transform: sortMenuOpen ? 'rotate(180deg)' : 'none' }"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14645 5.14645C3.34171 4.95118 3.65829 4.95118 3.85355 5.14645L8 9.29289L12.1464 5.14645C12.3417 4.95118 12.6583 4.95118 12.8536 5.14645C13.0488 5.34171 13.0488 5.65829 12.8536 5.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L3.14645 5.85355C2.95118 5.65829 2.95118 5.34171 3.14645 5.14645Z"/></svg>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;transition:transform 0.2s" :style="{ transform: activeDropdown === 'sort' ? 'rotate(180deg)' : 'none' }"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14645 5.14645C3.34171 4.95118 3.65829 4.95118 3.85355 5.14645L8 9.29289L12.1464 5.14645C12.3417 4.95118 12.6583 4.95118 12.8536 5.14645C13.0488 5.34171 13.0488 5.65829 12.8536 5.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L3.14645 5.85355C2.95118 5.65829 2.95118 5.34171 3.14645 5.14645Z"/></svg>
             </button>
-            <div v-if="sortMenuOpen" class="cluster-list-menu" style="min-width:180px;right:0;left:auto;">
+            <div v-if="activeDropdown === 'sort'" class="cluster-list-menu" style="min-width:180px;right:0;left:auto;">
               <button
                 v-for="def in sortDefs"
                 :key="def.key"
@@ -195,20 +195,20 @@
             </div>
           </div>
           <div class="filter-dropdown-wrap">
-            <button class="filter-select-btn" @click="pageSizeMenuOpen = !pageSizeMenuOpen">
+            <button class="filter-select-btn" @click="activeDropdown = activeDropdown === 'pageSize' ? null : 'pageSize'">
               <span class="filter-select-label">
                 <label>Show</label>
                 <span>{{ pageSize === 0 ? 'All' : pageSize }}</span>
               </span>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;transition:transform 0.2s" :style="{ transform: pageSizeMenuOpen ? 'rotate(180deg)' : 'none' }"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14645 5.14645C3.34171 4.95118 3.65829 4.95118 3.85355 5.14645L8 9.29289L12.1464 5.14645C12.3417 4.95118 12.6583 4.95118 12.8536 5.14645C13.0488 5.34171 13.0488 5.65829 12.8536 5.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L3.14645 5.85355C2.95118 5.65829 2.95118 5.34171 3.14645 5.14645Z"/></svg>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;transition:transform 0.2s" :style="{ transform: activeDropdown === 'pageSize' ? 'rotate(180deg)' : 'none' }"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.14645 5.14645C3.34171 4.95118 3.65829 4.95118 3.85355 5.14645L8 9.29289L12.1464 5.14645C12.3417 4.95118 12.6583 4.95118 12.8536 5.14645C13.0488 5.34171 13.0488 5.65829 12.8536 5.85355L8.35355 10.3536C8.15829 10.5488 7.84171 10.5488 7.64645 10.3536L3.14645 5.85355C2.95118 5.65829 2.95118 5.34171 3.14645 5.14645Z"/></svg>
             </button>
-            <div v-if="pageSizeMenuOpen" class="cluster-list-menu" style="min-width:100px;right:0;left:auto;">
+            <div v-if="activeDropdown === 'pageSize'" class="cluster-list-menu" style="min-width:100px;right:0;left:auto;">
               <button
                 v-for="n in [5, 10, 15, 20, 0]"
                 :key="n"
                 class="cluster-list-menu-item"
                 :class="{ active: pageSize === n }"
-                @click="setPageSize(n); pageSizeMenuOpen = false"
+                @click="setPageSize(n); activeDropdown = null"
               >{{ pageSize === n ? '✓ ' : '\u00a0\u00a0 ' }}{{ n === 0 ? 'All' : n }}</button>
             </div>
           </div>
@@ -559,8 +559,7 @@ const clusterSyncFilters = reactive<Record<string, boolean>>({})
 const clusterSearch = ref('')
 type SortKey = 'name-asc' | 'name-desc' | 'lastsync-desc' | 'lastsync-asc' | 'created-desc' | 'created-asc'
 const sortKey = ref<SortKey>('name-asc')
-const sortMenuOpen = ref(false)
-const pageSizeMenuOpen = ref(false)
+const activeDropdown = ref<'filter' | 'sort' | 'pageSize' | null>(null)
 const sortDefs: { key: SortKey; label: string }[] = [
   { key: 'name-asc',      label: 'Name A→Z' },
   { key: 'name-desc',     label: 'Name Z→A' },
@@ -585,7 +584,6 @@ const syncRunning = computed(() => reconcileRunning.value || state.value?.lastRe
 const gitRunning = computed(() => gitRefreshing.value)
 const isRunning = computed(() => syncRunning.value || gitRunning.value)
 
-const filterMenuOpen = ref(false)
 
 const syncDefs = [
   { key: 'failed',    label: 'Failed' },
@@ -719,7 +717,7 @@ function clearSyncFilters() {
 }
 function setSort(key: SortKey) {
   sortKey.value = key
-  sortMenuOpen.value = false
+  activeDropdown.value = null
   currentPage.value = 1
 }
 function setPageSize(n: number) {
@@ -848,7 +846,7 @@ function omniClusterUrl(id: string): string {
 function closeMenu(e: MouseEvent) {
   const t = e.target as HTMLElement
   if (!t.closest('.cluster-list-menu-wrap')) openMenuId.value = null
-  if (!t.closest('.filter-dropdown-wrap')) { filterMenuOpen.value = false; sortMenuOpen.value = false; pageSizeMenuOpen.value = false }
+  if (!t.closest('.filter-dropdown-wrap')) activeDropdown.value = null
 }
 onMounted(() => document.addEventListener('click', closeMenu))
 onUnmounted(() => document.removeEventListener('click', closeMenu))

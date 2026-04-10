@@ -13,6 +13,8 @@ import (
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
+
+	appstate "omni-cd/internal/state"
 	oidcconfig "omni-cd/internal/oidc"
 )
 
@@ -323,6 +325,7 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	})
 
 	slog.Info("OIDC user logged in", "email", claims.Email, "role", role, "component", "OIDC")
+	s.appState.AppendAudit(appstate.AuditEntry{User: claims.Email, Action: "login", Kind: "session"})
 
 	if role == "none" {
 		http.Redirect(w, r, "/unauthorized", http.StatusFound)

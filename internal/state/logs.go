@@ -53,7 +53,7 @@ func (s *AppState) SetLogDir(dir string, retentionDays int) {
 	s.mu.Unlock()
 
 	// Populate ring buffer from today's file so history survives restarts.
-	path := filepath.Join(dir, "omni-cd-"+today+".log")
+	path := filepath.Join(dir, "omni-cd-"+today+".jsonlog")
 	if entries := readLastNLogEntries(path, s.maxLogs); len(entries) > 0 {
 		s.mu.Lock()
 		s.Logs = append(entries, s.Logs...)
@@ -72,7 +72,7 @@ func (s *AppState) rotateLogFile(date string) {
 		s.logFile.Close()
 		s.logFile = nil
 	}
-	path := filepath.Join(s.logDir, "omni-cd-"+date+".log")
+	path := filepath.Join(s.logDir, "omni-cd-"+date+".jsonlog")
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		slog.Error("Failed to open log file", "error", err, "component", "State")
@@ -101,10 +101,10 @@ func (s *AppState) cleanOldLogFiles() {
 			continue
 		}
 		name := e.Name()
-		if !strings.HasPrefix(name, "omni-cd-") || !strings.HasSuffix(name, ".log") {
+		if !strings.HasPrefix(name, "omni-cd-") || !strings.HasSuffix(name, ".jsonlog") {
 			continue
 		}
-		dateStr := strings.TrimSuffix(strings.TrimPrefix(name, "omni-cd-"), ".log")
+		dateStr := strings.TrimSuffix(strings.TrimPrefix(name, "omni-cd-"), ".jsonlog")
 		t, err := time.Parse("2006-01-02", dateStr)
 		if err != nil {
 			continue
