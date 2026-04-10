@@ -86,5 +86,3 @@ All endpoints require an active session cookie unless `AUTH_DISABLED=true`. View
 | `GET` | `/auth/logout` | Invalidate current session |
 | `GET` | `/auth/login` | Initiate OIDC login flow |
 | `GET` | `/auth/callback` | OIDC callback |
-| `GET` | `/auth/auth0` | Initiate Auth0 login flow |
-| `GET` | `/auth/auth0/callback` | Auth0 callback |
