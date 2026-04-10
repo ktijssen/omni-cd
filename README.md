@@ -48,7 +48,7 @@ Open `http://localhost:8080` — you will be redirected to `/setup` to create th
 - **Machine graph** — Visual DAG: Git → Omni → Cluster → MachineSets → Machines
 - **Per-cluster auto-sync** — Enable or disable automatic sync per cluster from the UI
 - **Unmanaged clusters** — Export externally-created clusters as YAML templates
-- **Authentication** — Local login, OIDC/SSO, and Auth0; configurable roles, session management
+- **Authentication** — Local login and OIDC/SSO; configurable roles, session management
 - **Audit log** — Every user action recorded with actor, action, and resource; 30-day retention
 - **Real-time UI** — WebSocket-driven dashboard; no page refreshes needed
 - **Persistent state** — State and logs survive container restarts via volume mount
