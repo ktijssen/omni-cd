@@ -45,6 +45,7 @@ type Server struct {
 	triggerOmniConfigured  chan struct{}
 	omniInstanceFile       string
 	logDir                 string
+	auditDir               string
 	port                   string
 	version                string
 	webhookSecret          string
@@ -63,7 +64,7 @@ type Server struct {
 }
 
 // New creates a new web server.
-func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, triggerOmniConfigured chan struct{}, omniInstanceFile string, logDir string, port string, version string, authStore *auth.Store, authDisabled bool, oidcRT *OIDCRuntime, webhookSecret string) *Server {
+func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, triggerOmniConfigured chan struct{}, omniInstanceFile string, logDir string, auditDir string, port string, version string, authStore *auth.Store, authDisabled bool, oidcRT *OIDCRuntime, webhookSecret string) *Server {
 	s := &Server{
 		appState:               appState,
 		triggerHard:            triggerHard,
@@ -77,6 +78,7 @@ func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan s
 		triggerOmniConfigured:  triggerOmniConfigured,
 		omniInstanceFile:       omniInstanceFile,
 		logDir:                 logDir,
+		auditDir:               auditDir,
 		port:                   port,
 		version:                version,
 		clients:                make(map[*websocket.Conn]bool),
@@ -134,6 +136,9 @@ func (s *Server) Start() {
 	mux.HandleFunc("/api/state", s.requireRole("viewer", s.handleState))
 	mux.HandleFunc("/api/logs/files", s.requireRole("viewer", s.handleLogFiles))
 	mux.HandleFunc("/api/logs/download", s.requireRole("viewer", s.handleLogDownload))
+	mux.HandleFunc("/api/audit", s.requireRole("viewer", s.handleAudit))
+	mux.HandleFunc("/api/audit/files", s.requireRole("viewer", s.handleAuditFiles))
+	mux.HandleFunc("/api/audit/download", s.requireRole("viewer", s.handleAuditDownload))
 
 	// Write API endpoints — admin only
 	mux.HandleFunc("/api/reconcile", s.requireRole("admin", s.handleReconcile))
@@ -166,6 +171,7 @@ func (s *Server) Start() {
 	mux.HandleFunc("/machineclasses", s.requireRole("viewer", s.handleUI))
 	mux.HandleFunc("/repos", s.requireRole("viewer", s.handleUI))
 	mux.HandleFunc("/logs", s.requireRole("viewer", s.handleUI))
+	mux.HandleFunc("/audit", s.requireRole("viewer", s.handleUI))
 	mux.HandleFunc("/users", s.requireRole("admin", func(w http.ResponseWriter, r *http.Request) {
 		if s.authDisabled {
 			http.Redirect(w, r, "/clusters", http.StatusFound)

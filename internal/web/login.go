@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"omni-cd/internal/state"
 )
 
 // handleLoginConfig returns JSON describing which auth methods are available.
@@ -77,6 +79,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 				MaxAge:   int(sessionDuration.Seconds()),
 			})
 			slog.Info("User logged in", "username", username, "ip", ip, "component", "Auth")
+			s.appState.AppendAudit(state.AuditEntry{User: username, Action: "login", Kind: "session"})
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(map[string]bool{"ok": true})
@@ -93,6 +96,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		bucket.mu.Unlock()
 
 		slog.Warn("Failed login attempt", "username", username, "ip", ip, "component", "Auth")
+		s.appState.AppendAudit(state.AuditEntry{User: username, Action: "login-failed", Kind: "session"})
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid username or password"})
@@ -105,9 +109,13 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 // handleLogout clears the session cookie and redirects to /login (or / when auth is disabled).
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(sessionCookieName); err == nil {
+		if info, ok := s.sessions.Load(cookie.Value); ok {
+			si := info.(sessionInfo)
+			slog.Info("User logged out", "username", si.Username, "remote", r.RemoteAddr, "component", "Auth")
+			s.appState.AppendAudit(state.AuditEntry{User: si.Username, Action: "logout", Kind: "session"})
+		}
 		s.sessions.Delete(cookie.Value)
 		s.saveSessions()
-		slog.Info("User logged out", "remote", r.RemoteAddr, "component", "Auth")
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,

@@ -46,10 +46,8 @@
                   <div class="dag-node-body">
                     <div class="dag-node-kind">Omni</div>
                     <div class="dag-node-name">{{ omniEndpointDisplay || 'Omni Instance' }}</div>
-                    <div class="dag-node-meta">
-                      <span v-if="appState?.omniVersion">{{ appState.omniVersion }}</span>
-                      <span v-if="appState?.omniVersion"> &middot; </span>
-                      <span :style="{ color: omniColor }">{{ appState?.omniHealth?.status || 'unknown' }}</span>
+                    <div v-if="appState?.omniVersion" class="dag-node-meta">
+                      <span>{{ appState.omniVersion }}</span>
                     </div>
                   </div>
                 </div>
@@ -298,7 +296,6 @@ const gitMeta = computed(() => {
   if (!g) return ''
   const parts: string[] = []
   if (g.branch) parts.push(g.branch)
-  if (g.shortSha) parts.push(g.shortSha)
   return parts.join(' &middot; ')
 })
 

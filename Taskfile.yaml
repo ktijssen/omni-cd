@@ -7,7 +7,7 @@ vars:
   DOCKER_IMAGE: omni-cd
   COMPOSE_PATH: deploy/compose
   VERSION:
-    sh: git describe --tags --always 2>/dev/null || echo "dev"
+    sh: cat hack/VERSION | tr -d '[:space:]'
 
 tasks:
   default:
@@ -134,6 +134,8 @@ tasks:
   compose:up:
     desc: Start services with docker compose
     dir: '{{.COMPOSE_PATH}}'
+    env:
+      APP_VERSION: '{{.VERSION}}-dev'
     cmds:
       - docker compose up -d
 
@@ -146,12 +148,16 @@ tasks:
   compose:build:
     desc: Build and start services with docker compose
     dir: '{{.COMPOSE_PATH}}'
+    env:
+      APP_VERSION: '{{.VERSION}}-dev'
     cmds:
       - docker compose up --build -d
 
   compose:rebuild:
     desc: Rebuild and restart services with docker compose
     dir: '{{.COMPOSE_PATH}}'
+    env:
+      APP_VERSION: '{{.VERSION}}-dev'
     cmds:
       - docker compose down
       - docker compose up --build -d
@@ -159,6 +165,8 @@ tasks:
   compose:rebuild:nocache:
     desc: Rebuild (no cache) and restart services with docker compose
     dir: '{{.COMPOSE_PATH}}'
+    env:
+      APP_VERSION: '{{.VERSION}}-dev'
     cmds:
       - docker compose down
       - docker compose build --no-cache
@@ -173,6 +181,8 @@ tasks:
   compose:restart:
     desc: Restart docker compose services
     dir: '{{.COMPOSE_PATH}}'
+    env:
+      APP_VERSION: '{{.VERSION}}-dev'
     cmds:
       - docker compose down
       - docker compose up -d

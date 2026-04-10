@@ -88,6 +88,7 @@ export interface RepoConfigView {
 
 export interface SnapshotData {
   serverStartedAt: string
+  appVersion: string
   omniEndpoint: string
   omniVersion: string
   omniHealth: OmniHealth
@@ -105,6 +106,14 @@ export interface SnapshotData {
   repoMachineClassMap?: Record<string, string[]>
   logs: LogEntry[]
   logLevel: string
+}
+
+export interface AuditEntry {
+  timestamp: string
+  user: string
+  action: string
+  resource: string
+  kind: string
 }
 
 export interface MeResponse {

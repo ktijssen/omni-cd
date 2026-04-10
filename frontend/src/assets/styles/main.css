@@ -987,6 +987,8 @@
     background: #15161e;
     border-bottom: 1px solid #1f222e;
   }
+  .header-icon-link { display: flex; align-items: center; color: #7d7d85; transition: color 0.2s; }
+  .header-icon-link:hover { color: #e8e8e9; }
   .layout-body { display: flex; flex: 1; overflow: hidden; }
   .sidebar {
     width: 200px;
@@ -1008,9 +1010,17 @@
     border-bottom: 1px solid #1f222e;
   }
   .sidebar-logo svg, .sidebar-logo img { width: 28px; height: 28px; flex-shrink: 0; }
-  .sidebar-logo-text { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+  .sidebar-logo-text { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: -0.3px; line-height: 1.2; }
   .sidebar-logo-text span { color: #ff8b59; }
+  .sidebar-logo-version { font-size: 11px; font-weight: 400; color: #7d7d85; letter-spacing: 0; }
   .sidebar-footer { padding: 4px 0; background: #15161e; }
+  /* Audit log table */
+  .audit-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .audit-table th { text-align: left; color: #7d7d85; font-weight: 400; padding: 6px 10px; border-bottom: 1px solid #1f222e; white-space: nowrap; }
+  .audit-table td { padding: 8px 10px; border-bottom: 1px solid #1a1c27; color: #c4c4c9; vertical-align: middle; text-align: left; }
+  .audit-table tr:hover td { background: #1a1c27; }
+  .audit-ts { color: #7d7d85; white-space: nowrap; font-family: monospace; font-size: 11px; }
+  .audit-kind { font-size: 11px; color: #7d7d85; }
   .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; background: #15161e; }
   .sidebar-item {
     display: flex;

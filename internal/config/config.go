@@ -62,8 +62,9 @@ type Config struct {
 	OIDC *OIDCConfig
 
 	// Logging
-	LogLevel         string // DEBUG, INFO, WARN, ERROR
-	LogRetentionDays int    // How many days of log files to keep
+	LogLevel           string // DEBUG, INFO, WARN, ERROR
+	LogRetentionDays   int    // How many days of log files to keep (LOG_RETENTION_DAYS, default 7)
+	AuditRetentionDays int    // How many days of audit files to keep (AUDIT_RETENTION_DAYS, default 30)
 }
 
 // Load reads configuration from environment variables. Missing Omni credentials
@@ -76,6 +77,7 @@ func Load() (*Config, error) {
 
 	refreshSec, _ := strconv.Atoi(getEnv("REFRESH_INTERVAL", "300"))
 	retentionDays, _ := strconv.Atoi(getEnv("LOG_RETENTION_DAYS", "7"))
+	auditRetentionDays, _ := strconv.Atoi(getEnv("AUDIT_RETENTION_DAYS", "30"))
 
 	authDisabled, _ := strconv.ParseBool(os.Getenv("AUTH_DISABLED"))
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
@@ -119,6 +121,7 @@ func Load() (*Config, error) {
 		OIDC:                  oidcCfg,
 		LogLevel:              getEnv("LOG_LEVEL", "INFO"),
 		LogRetentionDays:      retentionDays,
+		AuditRetentionDays:    auditRetentionDays,
 	}, nil
 }
 

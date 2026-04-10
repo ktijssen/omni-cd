@@ -85,6 +85,7 @@ func main() {
 	// even before Omni is configured.
 	stateFile := "/data/state/state.json"
 	appState = state.New(500, effectiveEndpoint, true, stateFile)
+	appState.AppVersion = version
 	appState.SetEnvLocked(cfg.OmniEnvLocked)
 	appState.SetHasStoredKey(!cfg.OmniEnvLocked && effectiveKey != "")
 	appState.LogLevel = strings.ToUpper(cfg.LogLevel)
@@ -93,6 +94,10 @@ func main() {
 	logDir := "/data/logs"
 	appState.SetLogDir(logDir, cfg.LogRetentionDays)
 	logInfo("Log rotation configured", "dir", logDir, "retention_days", cfg.LogRetentionDays)
+
+	auditDir := "/data/audit"
+	appState.SetAuditDir(auditDir, cfg.AuditRetentionDays)
+	logInfo("Audit log rotation configured", "dir", auditDir, "retention_days", cfg.AuditRetentionDays)
 
 	// Set up repo persistence unconditionally so repos can be saved even before
 	// Omni is configured. Without this, SaveRepoConfigs() is a no-op.
@@ -139,7 +144,7 @@ func main() {
 	}
 
 	// Start the web UI server early — needed for the setup UI in unconfigured mode.
-	webServer := web.New(appState, triggerHard, triggerSoft, triggerRefreshCluster, triggerDeleteCluster, triggerDeleteMC, triggerMCRefresh, triggerMCRefreshSingle, triggerRepoChange, triggerOmniConfigured, instanceFile, logDir, cfg.WebPort, version, authStore, cfg.AuthDisabled, oidcRT, cfg.WebhookSecret)
+	webServer := web.New(appState, triggerHard, triggerSoft, triggerRefreshCluster, triggerDeleteCluster, triggerDeleteMC, triggerMCRefresh, triggerMCRefreshSingle, triggerRepoChange, triggerOmniConfigured, instanceFile, logDir, auditDir, cfg.WebPort, version, authStore, cfg.AuthDisabled, oidcRT, cfg.WebhookSecret)
 	webServer.Start()
 
 	// Set up graceful shutdown
@@ -504,16 +509,16 @@ func main() {
 			refreshTimer.Reset(cfg.RefreshInterval)
 			runReconcile(false)
 		case <-triggerHard:
-			logInfo("Sync reconcile triggered", "trigger", "web UI")
+			logInfo("Full sync triggered from web UI")
 			runReconcile(true)
 		case <-triggerSoft:
-			logInfo("Git check triggered", "trigger", "web UI")
+			logInfo("Drift check triggered from web UI")
 			runReconcile(false)
 		case clusterID := <-triggerRefreshCluster:
-			logInfo("Cluster refresh triggered", "trigger", "web UI", "cluster", clusterID)
+			logInfo(fmt.Sprintf("Cluster refresh triggered from web UI: %s", clusterID))
 			go func(id string) {
 				if !refreshClusterMu.TryLock() {
-					logInfo("Cluster refresh already in progress, skipping", "cluster", id)
+					logInfo(fmt.Sprintf("Cluster refresh already in progress, skipping: %s", id))
 					return
 				}
 				defer refreshClusterMu.Unlock()
@@ -538,12 +543,12 @@ func main() {
 				}
 			}(clusterID)
 		case clusterID := <-triggerDeleteCluster:
-			logInfo("Cluster delete triggered", "trigger", "web UI", "cluster", clusterID)
+			logInfo(fmt.Sprintf("Cluster deletion triggered from web UI: %s", clusterID))
 			go func(id string) {
 				rec.DeleteSingleCluster(id)
 			}(clusterID)
 		case mcID := <-triggerDeleteMC:
-			logInfo("Machine class delete triggered", "trigger", "web UI", "machineclass", mcID)
+			logInfo(fmt.Sprintf("Machine class deletion triggered from web UI: %s", mcID))
 			go func(id string) {
 				rec.DeleteSingleMachineClass(id)
 				// Re-diff after deletion so the MC immediately shows as Out of Sync
@@ -565,7 +570,7 @@ func main() {
 				}
 			}(mcID)
 		case mcID := <-triggerMCRefreshSingle:
-			logInfo("Single machine class refresh triggered", "trigger", "web UI", "machineclass", mcID)
+			logInfo(fmt.Sprintf("Machine class refresh triggered from web UI: %s", mcID))
 			go func(id string) {
 				gc := buildMultiClient()
 				results := gc.SyncAll()
@@ -586,7 +591,7 @@ func main() {
 				}
 			}(mcID)
 		case <-triggerMCRefresh:
-			logInfo("Machine class refresh triggered", "trigger", "web UI")
+			logInfo("Machine class refresh triggered from web UI")
 			go func() {
 				gc := buildMultiClient()
 				results := gc.SyncAll()
@@ -607,7 +612,7 @@ func main() {
 				}
 			}()
 		case <-triggerRepoChange:
-			logInfo("Repo configuration changed, triggering reconcile", "trigger", "web UI")
+			logInfo("Repo configuration changed, triggering full sync")
 			runReconcile(true)
 		case <-stop:
 			logInfo("Shutting down gracefully")
@@ -619,10 +624,10 @@ func main() {
 // doReconcile performs a git sync + reconcile cycle across all configured repos.
 func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *config.Config, force bool, setClusterDirs func([]string), setMCDirs func([]string)) {
 	if force {
-		logInfo("Reconcile started", "type", "sync")
+		logInfo("Reconcile started (full sync)")
 		appState.SetReconcileStarted(state.ReconcileHard)
 	} else {
-		logInfo("Reconcile started", "type", "refresh")
+		logInfo("Reconcile started (drift check)")
 		appState.SetReconcileStarted(state.ReconcileSoft)
 	}
 

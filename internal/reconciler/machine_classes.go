@@ -342,9 +342,9 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 
 	r.state.MergeMachineClasses(resources)
 	if applyChanges {
-		r.logInfo("Machine classes result", "component", "MachineClasses", "synced", applied, "out_of_sync", outOfSync, "failed", failed)
+		r.logInfo(fmt.Sprintf("Machine class sync complete: %d applied, %d out of sync, %d failed", applied, outOfSync, failed), "component", "MachineClasses")
 	} else {
-		r.logInfo("Machine class diff result", "component", "MachineClasses", "in_sync", inSync, "out_of_sync", outOfSync, "failed", failed)
+		r.logInfo(fmt.Sprintf("Machine class drift check complete: %d in sync, %d out of sync, %d failed", inSync, outOfSync, failed), "component", "MachineClasses")
 	}
 }
 
@@ -396,7 +396,7 @@ func (r *Reconciler) DeleteMachineClasses(dir string) {
 	if deleted == 0 && failed == 0 {
 		r.logInfo("No machine classes to delete", "component", "MachineClasses")
 	} else {
-		r.logInfo("Machine class delete result", "component", "MachineClasses", "deleted", deleted, "failed", failed)
+		r.logInfo(fmt.Sprintf("Machine class cleanup complete: %d deleted, %d failed", deleted, failed), "component", "MachineClasses")
 	}
 }
 
@@ -452,7 +452,7 @@ func (r *Reconciler) DeleteMachineClassesAll(dirs []string) {
 	if deleted == 0 && failed == 0 {
 		r.logInfo("No machine classes to delete", "component", "MachineClasses")
 	} else {
-		r.logInfo("Machine class delete result", "component", "MachineClasses", "deleted", deleted, "failed", failed)
+		r.logInfo(fmt.Sprintf("Machine class cleanup complete: %d deleted, %d failed", deleted, failed), "component", "MachineClasses")
 	}
 }
 

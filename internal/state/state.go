@@ -138,6 +138,7 @@ type LogEntry struct {
 // SnapshotData holds a point-in-time copy of AppState for JSON serialization.
 type SnapshotData struct {
 	ServerStartedAt     time.Time           `json:"serverStartedAt"`
+	AppVersion          string              `json:"appVersion"`
 	OmniEndpoint        string              `json:"omniEndpoint"`
 	OmniVersion         string              `json:"omniVersion"`
 	OmniHealth          OmniHealth          `json:"omniHealth"`
@@ -179,6 +180,12 @@ type AppState struct {
 	forceMCIDs          map[string]bool     // Machine class IDs queued for force sync
 	pendingRepoDeletes  []config.RepoConfig // Repos deleted via UI that need resource cleanup
 	ServerStartedAt     time.Time           // Set once at process start, never persisted
+	AppVersion          string              // Set at startup from build ldflags, never persisted
+	auditLog            []AuditEntry        // In-memory ring buffer, never serialised to state.json
+	auditDir            string              // Directory for daily audit files
+	auditFile           *os.File            // Current day's open audit file
+	auditFileDate       string              // "2006-01-02" of auditFile
+	auditRetentionDays  int                 // Number of days to keep audit files
 	Logs                []LogEntry          `json:"logs"`
 	LogLevel            string              // e.g. "DEBUG", "INFO", "WARN", "ERROR"
 	maxLogs             int
@@ -200,6 +207,7 @@ func New(maxLogs int, omniEndpoint string, clustersEnabled bool, stateFile strin
 		MachineClasses:  []ResourceInfo{},
 		Clusters:        []ResourceInfo{},
 		Logs:            []LogEntry{},
+		auditLog:        []AuditEntry{},
 		stateFile:       stateFile,
 		changeCh:        make(chan struct{}, 1),
 		ServerStartedAt: time.Now().UTC(),
@@ -354,6 +362,7 @@ func (s *AppState) Snapshot() SnapshotData {
 	}
 	return SnapshotData{
 		ServerStartedAt:     s.ServerStartedAt,
+		AppVersion:          s.AppVersion,
 		OmniEndpoint:        s.OmniEndpoint,
 		OmniVersion:         s.OmniVersion,
 		OmniHealth:          s.OmniHealth,

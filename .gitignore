@@ -18,9 +18,6 @@ deploy/compose/.env
 deploy/helm/*/charts/
 deploy/helm/*/*.tgz
 
-# docs
-docs/*.md
-
 # backup files
 *.bak
 

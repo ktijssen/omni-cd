@@ -400,9 +400,9 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 	r.state.SetClusters(final)
 
 	if len(forceClusterIDs) > 0 {
-		r.logInfo("Force sync complete", "component", "Clusters", "synced", synced, "failed", failed)
+		r.logInfo(fmt.Sprintf("Force sync complete: %d synced, %d failed", synced, failed), "component", "Clusters")
 	} else {
-		r.logInfo("Cluster apply result", "component", "Clusters", "synced", synced, "failed", failed)
+		r.logInfo(fmt.Sprintf("Cluster sync complete: %d synced, %d failed", synced, failed), "component", "Clusters")
 	}
 	// NOTE: Save() is intentionally omitted here. doReconcile checkpoints state
 	// after all repos are processed, avoiding N disk writes per cycle.
@@ -749,7 +749,7 @@ func (r *Reconciler) DiffClusters(dir string) {
 	}
 
 	r.state.SetClusters(final)
-	r.logInfo("Cluster diff result", "component", "Clusters", "in_sync", inSync, "out_of_sync", outOfSync, "failed", errCount)
+	r.logInfo(fmt.Sprintf("Cluster drift check complete: %d in sync, %d out of sync, %d failed", inSync, outOfSync, errCount), "component", "Clusters")
 
 	// Also detect unmanaged clusters
 	r.collectUnmanagedClusters([]string{dir}, nil)
@@ -985,7 +985,7 @@ func (r *Reconciler) DeleteClusters(dir string) {
 		if d == 0 && f == 0 {
 			r.logInfo("No clusters to delete", "component", "Clusters")
 		} else {
-			r.logInfo("Cluster delete result", "component", "Clusters", "deleted", d, "failed", f)
+			r.logInfo(fmt.Sprintf("Cluster cleanup complete: %d deleted, %d failed", d, f), "component", "Clusters")
 		}
 	}()
 }
@@ -1145,7 +1145,7 @@ func (r *Reconciler) DeleteClustersAll(dirs []string, liveIDs []string) {
 		if d == 0 && f == 0 {
 			r.logInfo("No clusters to delete", "component", "Clusters")
 		} else {
-			r.logInfo("Cluster delete result", "component", "Clusters", "deleted", d, "failed", f)
+			r.logInfo(fmt.Sprintf("Cluster cleanup complete: %d deleted, %d failed", d, f), "component", "Clusters")
 		}
 	}()
 }
