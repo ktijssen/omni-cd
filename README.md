@@ -62,7 +62,7 @@ Open `http://localhost:8080` — you will be redirected to `/setup` to create th
 |---|---|
 | [Installation](docs/installation.md) | Docker, Docker Compose, Helm, data layout |
 | [Configuration](docs/configuration.md) | Environment variables, repository structure |
-| [Authentication](docs/authentication.md) | Local login, OIDC/SSO, Auth0, user roles |
+| [Authentication](docs/authentication.md) | Local login, OIDC/SSO, user roles |
 | [Web UI](docs/web-ui.md) | Page-by-page reference with screenshots |
 | [API Reference](docs/api.md) | All endpoints with roles and payloads |
 | [Development](docs/development.md) | Task commands, troubleshooting, contributing |
