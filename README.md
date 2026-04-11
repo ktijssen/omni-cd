@@ -66,7 +66,6 @@ Open `http://localhost:8080` — you will be redirected to `/setup` to create th
 | [Web UI](docs/web-ui.md) | Page-by-page reference with screenshots |
 | [API Reference](docs/api.md) | All endpoints with roles and payloads |
 | [Development](docs/development.md) | Task commands, troubleshooting, contributing |
-| [Auth0 Integration](docs/auth0-integration.md) | Auth0-specific setup guide |
 
 ---
 
