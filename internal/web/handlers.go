@@ -342,6 +342,10 @@ func (s *Server) handleForceCluster(w http.ResponseWriter, r *http.Request) {
 
 	s.appState.AddForceClusterID(req.ID)
 	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "sync", Resource: req.ID, Kind: "cluster"})
+	select {
+	case s.triggerHard <- struct{}{}:
+	default:
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status": "ok",
@@ -372,6 +376,10 @@ func (s *Server) handleSyncMachineClass(w http.ResponseWriter, r *http.Request) 
 
 	s.appState.AddForceMCID(req.ID)
 	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "sync", Resource: req.ID, Kind: "machineclass"})
+	select {
+	case s.triggerHard <- struct{}{}:
+	default:
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status": "ok",

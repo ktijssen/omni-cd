@@ -41,6 +41,11 @@ func (s *AppState) MergeMachineClasses(resources []ResourceInfo) {
 				res.LastSyncSHA = prev.LastSyncSHA
 				res.LastSyncAuthor = prev.LastSyncAuthor
 				res.LastSyncMessage = prev.LastSyncMessage
+				// Preserve the error when no apply was attempted (diff-only or auto-sync
+				// disabled). Clear it only when the resource is now fully in sync.
+				if res.Status == "outofsync" && res.Error == "" {
+					res.Error = prev.Error
+				}
 			}
 			// Preserve CreatedAt if the incoming resource doesn't set it.
 			if res.CreatedAt.IsZero() {

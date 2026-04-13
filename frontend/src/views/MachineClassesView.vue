@@ -5,12 +5,8 @@
       <div style="display:flex;align-items:center;gap:8px;">
         <template v-if="authStore.isAdmin()">
           <span v-if="isRunning" class="spinner"></span>
-          <button class="btn-omni" :disabled="isRunning" @click="doRefreshMC">
-            {{ isRunning ? 'Refreshing...' : 'Refresh' }}
-          </button>
-          <button class="btn-omni" :disabled="isRunning" @click="doSyncAll">
-            {{ isRunning ? 'Syncing...' : 'Sync' }}
-          </button>
+          <button class="btn-omni" :disabled="isRunning" @click="openSelectModal('refresh')">Refresh</button>
+          <button class="btn-omni" :disabled="isRunning" @click="openSelectModal('sync')">Sync</button>
         </template>
         <input
           v-model="mcSearch"
@@ -139,7 +135,7 @@
                   <span class="cluster-card-meta-label">Sync Status:</span>
                   <span class="cluster-card-meta-value">
                     <span v-if="mc.status === 'unmanaged'" style="color:#5b5c64">—</span>
-                    <span v-else :style="{ color: syncStatusColor(mc.status) }" v-html="syncStatusText(mc)"></span>
+                    <span v-else :style="{ color: syncStatusColor(mc) }" v-html="syncStatusText(mc)"></span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair" style="align-items:flex-start">
@@ -303,7 +299,7 @@
               </td>
               <td>
                 <span v-if="mc.status === 'unmanaged'" style="color:#5b5c64">—</span>
-                <span v-else :style="{ color: syncStatusColor(mc.status) }" v-html="syncStatusText(mc)"></span>
+                <span v-else :style="{ color: syncStatusColor(mc) }" v-html="syncStatusText(mc)"></span>
               </td>
               <td>
                 <span v-if="clustersUsingMC(mc.id).length === 0" style="color:#5b5c64">—</span>
@@ -388,19 +384,24 @@
         <!-- Tabs -->
         <div class="cluster-detail-tabs-bar" style="margin:0 -24px 12px;padding:0 16px;background:#1f222e;">
           <button
-            v-for="tab in ['live','diff']"
+            v-for="tab in ((detailModal.error || detailModal.lastSyncError) ? ['live','diff','error'] : ['live','diff'])"
             :key="tab"
             class="cluster-detail-tab"
             :class="{ active: detailTab === tab }"
-            @click="detailTab = tab as 'live' | 'diff'"
-          >{{ tab === 'live' ? 'Live' : 'Diff' }}</button>
+            @click="detailTab = tab as 'live' | 'diff' | 'error'"
+          >{{ tab === 'live' ? 'Live' : tab === 'diff' ? 'Diff' : 'Error' }}</button>
           <label v-if="detailTab === 'live'" class="mc-ignored-toggle" style="margin-left:auto;">
             <input type="checkbox" class="mc-ignored-cb" v-model="showIgnoredFields" /> Show Ignored Fields
           </label>
         </div>
         <!-- Content -->
         <div style="overflow:auto;flex:1;min-height:0;">
-          <template v-if="detailTab === 'live'">
+          <template v-if="detailTab === 'error'">
+            <div style="padding:16px;">
+              <div style="background:#2a1a1a;border:1px solid #6b2020;border-radius:6px;padding:16px;color:#f87171;font-family:monospace;font-size:13px;white-space:pre-wrap;word-break:break-all;">{{ detailModal.error || detailModal.lastSyncError }}</div>
+            </div>
+          </template>
+          <template v-else-if="detailTab === 'live'">
             <div v-if="detailModal.liveContent" style="padding:16px;">
               <div class="sbs-table-single">
                 <div
@@ -440,6 +441,48 @@
               {{ detailModal.status === 'unmanaged' ? 'No diff — this machine class is not managed by Git.' : (detailModal.status === 'success' || detailModal.status === 'applied') ? 'No diff — this machine class is in sync.' : 'No diff available' }}
             </div>
           </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Select modal (global Refresh / Sync) -->
+    <div v-if="selectModal" class="modal show" @click.self="selectModal = null">
+      <div class="modal-content confirm-modal" style="width:520px;max-height:70vh;display:flex;flex-direction:column;" @click.stop>
+        <div class="modal-header">
+          <div class="modal-title">
+            {{ selectModal.type === 'refresh' ? 'Refresh Machine Classes' : 'Sync Machine Classes' }}
+          </div>
+          <button class="modal-close" @click="selectModal = null">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:16px 20px;overflow-y:auto;flex:1;font-family:inherit;white-space:normal;word-break:normal;">
+          <div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid #2c2e38;margin-bottom:8px;">
+            <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="toggleSelectModalAll">All</button>
+            <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set(machineClasses.filter(mc => selectableMC(mc) && mc.status === 'outofsync').map(mc => mc.id))">Out of Sync</button>
+            <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set()">None</button>
+          </div>
+          <template v-for="mc in machineClasses" :key="mc.id">
+            <label
+              v-if="selectModal?.type === 'refresh' || mc.status !== 'unmanaged'"
+              style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:13px;"
+            >
+              <input type="checkbox" :checked="selectModalItems.has(mc.id)" @change="toggleSelectModalItem(mc.id)" style="accent-color:#ff8b59;" />
+              <span style="flex:1;color:#e8e8e9;">{{ mc.id }}</span>
+              <span style="font-size:11px;" :style="{ color: mcSyncColor(mc) }">{{ mcSyncText(mc) }}</span>
+            </label>
+            <div
+              v-else
+              style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;opacity:0.4;cursor:default;padding-left:20px;"
+            >
+              <span style="flex:1;color:#e8e8e9;">{{ mc.id }}</span>
+              <span style="font-size:11px;color:#5b5c64;">Unmanaged</span>
+            </div>
+          </template>
+        </div>
+        <div class="confirm-actions" style="padding:12px 20px;border-top:1px solid #2c2e38;">
+          <button class="btn-omni" @click="selectModal = null">Cancel</button>
+          <button class="btn-omni" :disabled="selectModalItems.size === 0 || selectModalRunning" @click="doSelectModalAction">
+            {{ selectModalRunning ? 'Running...' : selectModal.type === 'refresh' ? 'Refresh' : 'Sync' }}
+          </button>
         </div>
       </div>
     </div>
@@ -546,9 +589,7 @@ function clearFilters() {
   currentPage.value = 1
 }
 
-const reconcileRunning = computed(() => state.value?.lastReconcile?.status === 'running')
-const refreshPending = ref(false)
-const isRunning = computed(() => reconcileRunning.value || refreshPending.value)
+const isRunning = computed(() => state.value?.lastReconcile?.status === 'running')
 
 const machineClasses = computed(() => {
   const list = (state.value?.machineClasses ?? []).slice()
@@ -591,7 +632,7 @@ const pageMCs = computed(() => {
 
 // Detail modal
 const detailModal = ref<ResourceInfo | null>(null)
-const detailTab = ref<'live' | 'diff'>('live')
+const detailTab = ref<'live' | 'diff' | 'error'>('live')
 const showIgnoredFields = ref(false)
 
 interface McRow {
@@ -723,7 +764,7 @@ const detailDiffVisible = computed((): DiffViewRow[] => {
 
 function openDetail(mc: ResourceInfo) {
   detailModal.value = mc
-  detailTab.value = mc.liveContent ? 'live' : 'diff'
+  detailTab.value = (mc.error || mc.lastSyncError) ? 'error' : mc.liveContent ? 'live' : 'diff'
   showIgnoredFields.value = false
 }
 
@@ -739,6 +780,70 @@ const confirmInput = ref('')
 function doConfirm() {
   if (confirmModal.value?.requireInput && confirmInput.value !== confirmModal.value.requireInput) return
   confirmModal.value?.onConfirm()
+}
+
+// Select modal (global Refresh / Sync)
+interface SelectModal { type: 'refresh' | 'sync' }
+const selectModal = ref<SelectModal | null>(null)
+const selectModalItems = ref<Set<string>>(new Set())
+const selectModalRunning = ref(false)
+
+const selectableMC = (mc: ResourceInfo) =>
+  selectModal.value?.type === 'refresh' || mc.status !== 'unmanaged'
+const selectModalAllChecked = computed(() => {
+  const selectable = machineClasses.value.filter(selectableMC)
+  return selectable.length > 0 && selectable.every(mc => selectModalItems.value.has(mc.id))
+})
+function openSelectModal(type: 'refresh' | 'sync') {
+  selectModalItems.value = new Set()
+  selectModal.value = { type }
+}
+function toggleSelectModalItem(id: string) {
+  const s = new Set(selectModalItems.value)
+  s.has(id) ? s.delete(id) : s.add(id)
+  selectModalItems.value = s
+}
+function toggleSelectModalAll() {
+  if (selectModalAllChecked.value) {
+    selectModalItems.value = new Set()
+  } else {
+    selectModalItems.value = new Set(machineClasses.value.filter(selectableMC).map(mc => mc.id))
+  }
+}
+async function doSelectModalAction() {
+  if (!selectModal.value) return
+  selectModalRunning.value = true
+  const ids = Array.from(selectModalItems.value)
+  if (selectModal.value.type === 'refresh') {
+    await Promise.all(ids.map(id => {
+      const mc = machineClasses.value.find(x => x.id === id)
+      return mc ? refreshSingleMC(mc) : Promise.resolve()
+    }))
+  } else {
+    await Promise.all(ids.map(id => {
+      const mc = machineClasses.value.find(x => x.id === id)
+      return mc ? syncMC(mc) : Promise.resolve()
+    }))
+  }
+  selectModalRunning.value = false
+  selectModal.value = null
+}
+function mcSyncColor(mc: ResourceInfo): string {
+  if (mc.status === 'outofsync' && (mc.error || mc.lastSyncError)) return '#f87171'
+  if (mc.status === 'outofsync') return '#fb923c'
+  if (mc.status === 'failed') return '#f87171'
+  if (mc.status === 'syncing') return '#2dd4bf'
+  if (mc.status === 'success' || mc.status === 'applied') return '#4ade80'
+  return '#5b5c64'
+}
+function mcSyncText(mc: ResourceInfo): string {
+  if (mc.status === 'outofsync' && (mc.error || mc.lastSyncError)) return 'Sync Failed'
+  if (mc.status === 'outofsync') return 'Out of Sync'
+  if (mc.status === 'failed') return 'Failed'
+  if (mc.status === 'syncing') return 'Syncing'
+  if (mc.status === 'success' || mc.status === 'applied') return 'Synced'
+  if (mc.status === 'unmanaged') return 'Unmanaged'
+  return '—'
 }
 
 function setSort(key: SortKey) { sortKey.value = key; activeDropdown.value = null; currentPage.value = 1 }
@@ -828,9 +933,11 @@ function mcRepoBranch(mc: ResourceInfo): string | null {
   return repo?.branch ?? null
 }
 
-function syncStatusColor(status: string): string {
+function syncStatusColor(mc: ResourceInfo): string {
+  const status = mc.status
   if (status === 'success' || status === 'applied') return '#4ade80'
   if (status === 'failed') return '#f87171'
+  if (status === 'outofsync' && (mc.error || mc.lastSyncError)) return '#f87171'
   if (status === 'outofsync') return '#fb923c'
   if (status === 'syncing') return '#2dd4bf'
   return '#7d7d85'
@@ -840,6 +947,7 @@ function syncStatusText(mc: ResourceInfo): string {
   const s = mc.status
   if (s === 'success' || s === 'applied') return syncedIconSVG + ' Synced'
   if (s === 'failed') return failedIconSVG + ' Failed'
+  if (s === 'outofsync' && (mc.error || mc.lastSyncError)) return failedIconSVG + ' Sync Failed'
   if (s === 'outofsync') return outOfSyncIconSVG + ' Out of Sync'
   if (s === 'syncing') return '● Syncing'
   return s || '—'
@@ -882,18 +990,6 @@ function goToCluster(id: string) {
   router.push(`/clusters/${encodeURIComponent(id)}`)
 }
 
-async function doRefreshMC() {
-  refreshPending.value = true
-  try {
-    await fetch('/api/refresh-mc', { method: 'POST' })
-    setTimeout(() => { refreshPending.value = false }, 5000)
-  } catch { refreshPending.value = false }
-}
-
-async function doSyncAll() {
-  await fetch('/api/reconcile', { method: 'POST' })
-}
-
 async function refreshSingleMC(mc: ResourceInfo) {
   if (actionPending[mc.id]) return
   actionPending[mc.id] = 'refresh'
@@ -916,7 +1012,6 @@ async function syncMC(mc: ResourceInfo) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: mc.id }),
     })
-    await fetch('/api/reconcile', { method: 'POST' })
     setTimeout(() => { delete actionPending[mc.id] }, 5000)
   } catch { delete actionPending[mc.id] }
 }
