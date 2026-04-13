@@ -102,9 +102,26 @@ func GetCachedMachineClasses() (map[string]string, bool) {
 	return out, true
 }
 
+// ClearCache resets the cluster and machine class caches. Must be called when
+// switching to a different Omni instance so stale data from the previous
+// instance does not pollute the new connection.
+func ClearCache() {
+	clusterCacheMu.Lock()
+	cachedClusterIDs = nil
+	cachedTearingDown = nil
+	clusterCacheReady = false
+	clusterCacheMu.Unlock()
+
+	mcCacheMu.Lock()
+	cachedMachineClasses = nil
+	mcCacheReady = false
+	mcCacheMu.Unlock()
+}
+
 // Init creates the Omni gRPC client. Must be called once at startup before
 // any other function in this package.
 func Init(endpoint, serviceAccountKey string) error {
+	ClearCache()
 	c, err := client.New(endpoint, client.WithServiceAccount(serviceAccountKey))
 	if err != nil {
 		return fmt.Errorf("failed to create Omni client: %w", err)

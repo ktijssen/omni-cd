@@ -697,6 +697,7 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 		s.appState.SetOmniConfigured(false)
 		s.appState.SetClusters(nil)
 		s.appState.SetMachineClasses(nil)
+		omni.ClearCache()
 		s.appState.Save()
 		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "omni-delete", Kind: "omni"})
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -748,6 +749,8 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.appState.SetClusters(nil)
+	s.appState.SetMachineClasses(nil)
 	s.appState.SetOmniEndpoint(req.Endpoint)
 	s.appState.SetHasStoredKey(true)
 	s.appState.SetOmniConfigured(true)
