@@ -27,6 +27,7 @@ type transientClusterFields struct {
 	LastSyncMessage    string
 	SyncStatusSince    time.Time
 	CreatedAt          time.Time
+	Error              string
 }
 
 // GetClusters returns a copy of the current cluster list.
@@ -65,6 +66,7 @@ func (s *AppState) SetClusters(resources []ResourceInfo) {
 			LastSyncMessage:    c.LastSyncMessage,
 			SyncStatusSince:    c.SyncStatusSince,
 			CreatedAt:          c.CreatedAt,
+			Error:              c.Error,
 		}
 		autoSyncMap[c.ID] = c.AutoSync
 		statusMap[c.ID] = c.Status
@@ -88,6 +90,11 @@ func (s *AppState) SetClusters(resources []ResourceInfo) {
 				resources[i].LastSyncSHA = f.LastSyncSHA
 				resources[i].LastSyncAuthor = f.LastSyncAuthor
 				resources[i].LastSyncMessage = f.LastSyncMessage
+				// Preserve the error when no apply was attempted (diff-only or auto-sync
+				// disabled). Clear it only when the resource is now fully in sync.
+				if resources[i].Status == "outofsync" && resources[i].Error == "" {
+					resources[i].Error = f.Error
+				}
 			}
 			if resources[i].SyncStatusSince.IsZero() {
 				resources[i].SyncStatusSince = f.SyncStatusSince
@@ -197,6 +204,9 @@ func (s *AppState) UpsertClusterInfo(id string, info ResourceInfo) {
 				info.LastSyncSHA = s.Clusters[i].LastSyncSHA
 				info.LastSyncAuthor = s.Clusters[i].LastSyncAuthor
 				info.LastSyncMessage = s.Clusters[i].LastSyncMessage
+				if info.Status == "outofsync" && info.Error == "" {
+					info.Error = s.Clusters[i].Error
+				}
 			}
 			if info.SyncStatusSince.IsZero() {
 				info.SyncStatusSince = s.Clusters[i].SyncStatusSince

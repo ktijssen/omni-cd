@@ -5,12 +5,8 @@
       <div style="display:flex;align-items:center;gap:8px;">
         <template v-if="authStore.isAdmin()">
           <span v-if="isRunning" class="spinner"></span>
-          <button class="btn-omni" :disabled="isRunning" @click="triggerCheck">
-            {{ gitRunning ? 'Refreshing...' : 'Refresh' }}
-          </button>
-          <button class="btn-omni" :disabled="isRunning" @click="triggerReconcile">
-            {{ syncRunning ? 'Syncing...' : 'Sync' }}
-          </button>
+          <button class="btn-omni" :disabled="isRunning" @click="openSelectModal('refresh')">Refresh</button>
+          <button class="btn-omni" :disabled="isRunning" @click="openSelectModal('sync')">Sync</button>
         </template>
         <input
           v-model="clusterSearch"
@@ -470,6 +466,48 @@
       </template>
     </template>
 
+    <!-- Select modal (Refresh / Sync) -->
+    <div v-if="selectModal" class="modal show" @click.self="selectModal = null">
+      <div class="modal-content confirm-modal" style="width:520px;max-height:70vh;display:flex;flex-direction:column;" @click.stop>
+        <div class="modal-header">
+          <div class="modal-title">
+            {{ selectModal.type === 'refresh' ? 'Refresh Clusters' : 'Sync Clusters' }}
+          </div>
+          <button class="modal-close" @click="selectModal = null">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:16px 20px;overflow-y:auto;flex:1;font-family:inherit;white-space:normal;word-break:normal;">
+          <div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid #2c2e38;margin-bottom:8px;">
+            <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="toggleSelectModalAll">All</button>
+            <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set(allClusters.filter(c => c.status === 'outofsync').map(c => c.id))">Out of Sync</button>
+            <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set()">None</button>
+          </div>
+          <template v-for="cluster in allClusters" :key="cluster.id">
+            <label
+              v-if="selectModal?.type === 'refresh' || (cluster.status !== 'unmanaged' && cluster.status !== 'orphaned')"
+              style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:13px;"
+            >
+              <input type="checkbox" :checked="selectModalItems.has(cluster.id)" @change="toggleSelectModalItem(cluster.id)" style="accent-color:#ff8b59;" />
+              <span style="flex:1;color:#e8e8e9;">{{ cluster.id }}</span>
+              <span :style="{ color: syncColor(cluster), fontSize: '11px' }" v-html="syncText(cluster)"></span>
+            </label>
+            <div
+              v-else
+              style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;opacity:0.4;cursor:default;padding-left:20px;"
+            >
+              <span style="flex:1;color:#e8e8e9;">{{ cluster.id }}</span>
+              <span :style="{ color: syncColor(cluster), fontSize: '11px' }" v-html="syncText(cluster)"></span>
+            </div>
+          </template>
+        </div>
+        <div class="confirm-actions" style="padding:12px 20px;border-top:1px solid #2c2e38;">
+          <button class="btn-omni" @click="selectModal = null">Cancel</button>
+          <button class="btn-omni" :disabled="selectModalItems.size === 0 || selectModalRunning" @click="doSelectModalAction">
+            {{ selectModalRunning ? 'Running...' : selectModal.type === 'refresh' ? 'Refresh' : 'Sync' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Confirm modal -->
     <div v-if="confirmModal" class="modal show" @click.self="confirmModal = null">
       <div class="modal-content confirm-modal" @click.stop>
@@ -577,12 +615,7 @@ watch(viewMode, v => localStorage.setItem('clustersViewMode', v))
 const openMenuId = ref<string | null>(null)
 const currentPage = ref(1)
 const clusterActionPending = reactive<Record<string, string>>({})
-const reconcileRunning = ref(false)
-const gitRefreshing = ref(false)
-
-const syncRunning = computed(() => reconcileRunning.value || state.value?.lastReconcile?.status === 'running')
-const gitRunning = computed(() => gitRefreshing.value)
-const isRunning = computed(() => syncRunning.value || gitRunning.value)
+const isRunning = computed(() => state.value?.lastReconcile?.status === 'running')
 
 
 const syncDefs = [
@@ -697,6 +730,53 @@ function doConfirm() {
   confirmModal.value?.onConfirm()
 }
 
+// Select modal (global Refresh / Sync)
+interface SelectModal { type: 'refresh' | 'sync' }
+const selectModal = ref<SelectModal | null>(null)
+const selectModalItems = ref<Set<string>>(new Set())
+const selectModalRunning = ref(false)
+
+const selectableCluster = (c: ResourceInfo) =>
+  selectModal.value?.type === 'refresh' || (c.status !== 'unmanaged' && c.status !== 'orphaned')
+const selectModalAllChecked = computed(() => {
+  const selectable = allClusters.value.filter(selectableCluster)
+  return selectable.length > 0 && selectable.every(c => selectModalItems.value.has(c.id))
+})
+function openSelectModal(type: 'refresh' | 'sync') {
+  selectModalItems.value = new Set()
+  selectModal.value = { type }
+}
+function toggleSelectModalItem(id: string) {
+  const s = new Set(selectModalItems.value)
+  s.has(id) ? s.delete(id) : s.add(id)
+  selectModalItems.value = s
+}
+function toggleSelectModalAll() {
+  if (selectModalAllChecked.value) {
+    selectModalItems.value = new Set()
+  } else {
+    selectModalItems.value = new Set(allClusters.value.filter(selectableCluster).map(c => c.id))
+  }
+}
+async function doSelectModalAction() {
+  if (!selectModal.value) return
+  selectModalRunning.value = true
+  const ids = Array.from(selectModalItems.value)
+  if (selectModal.value.type === 'refresh') {
+    await Promise.all(ids.map(id => {
+      const c = allClusters.value.find(x => x.id === id)
+      return c ? refreshCluster(c) : Promise.resolve()
+    }))
+  } else {
+    await Promise.all(ids.map(id => {
+      const c = allClusters.value.find(x => x.id === id)
+      return c ? syncCluster(c) : Promise.resolve()
+    }))
+  }
+  selectModalRunning.value = false
+  selectModal.value = null
+}
+
 // Helpers
 function setClusterFilter(key: string) {
   clusterStatusFilter.value = clusterStatusFilter.value === key ? null : key
@@ -760,6 +840,7 @@ function syncText(c: ResourceInfo): string {
     return '<span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span> Syncing'
   }
   if (c.status === 'unmanaged' || c.status === 'orphaned') return '—'
+  if (c.status === 'outofsync' && (c.error || c.lastSyncError)) return failedIconSVG + ' Sync Failed'
   if (c.status === 'outofsync') return outOfSyncIconSVG + ' Out of Sync'
   if (c.status === 'failed') return failedIconSVG + ' Failed'
   if (c.status === 'syncing') return '● Syncing'
@@ -768,6 +849,7 @@ function syncText(c: ResourceInfo): string {
 }
 function syncColor(c: ResourceInfo): string {
   if (c.status === 'unmanaged' || c.status === 'orphaned') return '#5b5c64'
+  if (c.status === 'outofsync' && (c.error || c.lastSyncError)) return '#f87171'
   if (c.status === 'outofsync') return '#fb923c'
   if (c.status === 'failed') return '#f87171'
   if (c.status === 'syncing') return '#2dd4bf'
@@ -855,16 +937,6 @@ function goToCluster(id: string) {
   router.push(`/clusters/${encodeURIComponent(id)}`)
 }
 
-async function triggerCheck() {
-  gitRefreshing.value = true
-  try { await fetch('/api/check', { method: 'POST' }) } finally { gitRefreshing.value = false }
-}
-
-async function triggerReconcile() {
-  reconcileRunning.value = true
-  try { await fetch('/api/reconcile', { method: 'POST' }) } finally { reconcileRunning.value = false }
-}
-
 async function refreshCluster(cluster: ResourceInfo) {
   if (clusterActionPending[cluster.id]) return
   clusterActionPending[cluster.id] = 'refresh'
@@ -887,7 +959,6 @@ async function syncCluster(cluster: ResourceInfo) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: cluster.id }),
     })
-    await fetch('/api/reconcile', { method: 'POST' })
     setTimeout(() => { delete clusterActionPending[cluster.id] }, 8000)
   } catch { delete clusterActionPending[cluster.id] }
 }

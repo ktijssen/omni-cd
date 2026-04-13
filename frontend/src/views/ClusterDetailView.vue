@@ -171,7 +171,7 @@
       </template>
 
       <template v-else-if="activeTab === 'error'">
-        <div style="padding:24px;color:#f87171;white-space:pre-wrap;">{{ cluster.error }}</div>
+        <div style="padding:24px;color:#f87171;white-space:pre-wrap;">{{ cluster.error || cluster.lastSyncError }}</div>
       </template>
     </div>
 
@@ -242,7 +242,7 @@ const cluster = computed(() => {
 
 const tabs = computed(() => {
   const t = ['graph', 'live', 'diff']
-  if (cluster.value?.error) t.push('error')
+  if (cluster.value?.error || cluster.value?.lastSyncError) t.push('error')
   return t
 })
 
@@ -317,7 +317,10 @@ const syncStatusBadge = computed(() => {
         ? `<a href="${escHtml(commitUrl)}" target="_blank" rel="noopener" style="color:#ff8b59;text-decoration:none" onclick="event.stopPropagation()">${escHtml(branchSha)}</a>`
         : `<span style="color:#ff8b59">${escHtml(branchSha)}</span>`)
     : ''
-  const badge = syncBadge(c.status || '')
+  const hasSyncError = !!(c.error || c.lastSyncError)
+  const badge = (c.status === 'outofsync' && hasSyncError)
+    ? `<span style="color:#f87171">${failedIconSVG} Sync Failed</span>`
+    : syncBadge(c.status || '')
   return branchShaHtml ? badge + ' from ' + branchShaHtml : badge
 })
 
@@ -465,7 +468,6 @@ async function syncCluster() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: cluster.value?.id }),
     })
-    await fetch('/api/reconcile', { method: 'POST' })
     setTimeout(() => { actionPending.value = null }, 8000)
   } catch { actionPending.value = null }
 }
