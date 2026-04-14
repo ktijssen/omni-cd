@@ -869,13 +869,7 @@ func WatchClusters(
 			switch event.Type() {
 			case cosistate.Bootstrapped:
 				clusterReady = true
-			case cosistate.Created:
-				r, err := event.Resource()
-				if err != nil {
-					continue
-				}
-				clusterPhases[r.Metadata().ID()] = r.Metadata().Phase()
-			case cosistate.Updated:
+			case cosistate.Created, cosistate.Updated:
 				r, err := event.Resource()
 				if err != nil {
 					continue

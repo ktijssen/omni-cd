@@ -312,7 +312,7 @@ func (s *AppState) UpdateTearingDownStatuses(allIDs []string, tearingDown map[st
 	filtered := s.Clusters[:0]
 	for _, c := range s.Clusters {
 		// Remove clusters that have fully disappeared from Omni.
-		if !omniMap[c.ID] && (c.Status == "deleting" || c.Status == "orphaned") {
+		if !omniMap[c.ID] && (c.Status == "deleting" || c.Status == "orphaned" || c.Status == "unmanaged") {
 			changed = true
 			continue
 		}

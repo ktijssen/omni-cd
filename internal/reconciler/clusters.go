@@ -1261,6 +1261,11 @@ func (r *Reconciler) collectUnmanagedClusters(dirs []string, liveIDs []string) {
 				final = append(final, cluster)
 				continue
 			}
+			if tearingDownMap[cluster.ID] {
+				cluster.Status = "deleting"
+				final = append(final, cluster)
+				continue
+			}
 			isManaged := omni.IsClusterTemplateManaged(cluster.ID)
 			if isManaged {
 				if allTracked[cluster.ID] {
