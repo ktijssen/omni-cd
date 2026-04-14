@@ -17,6 +17,7 @@ type Collector struct {
 	omniConnected   *prometheus.Desc
 	reposTotal      *prometheus.Desc
 	info            *prometheus.Desc
+	omniInfo        *prometheus.Desc
 }
 
 // New creates a new Collector backed by the given AppState.
@@ -64,8 +65,13 @@ func New(appState *state.AppState) *Collector {
 		),
 		info: prometheus.NewDesc(
 			"omni_cd_info",
-			"Informational metric with app version and Omni instance details.",
-			[]string{"version", "omni_endpoint", "omni_version"}, nil,
+			"Informational metric with the application version as a label.",
+			[]string{"version"}, nil,
+		),
+		omniInfo: prometheus.NewDesc(
+			"omni_cd_omni_info",
+			"Informational metric with Omni instance endpoint and version. Only emitted when the endpoint is configured.",
+			[]string{"endpoint", "omni_version"}, nil,
 		),
 	}
 
@@ -96,6 +102,7 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.omniConnected
 	ch <- c.reposTotal
 	ch <- c.info
+	ch <- c.omniInfo
 }
 
 // Collect reads the current AppState snapshot and emits all metrics.
@@ -177,6 +184,13 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 
 	// omni_cd_info
 	ch <- prometheus.MustNewConstMetric(
-		c.info, prometheus.GaugeValue, 1, s.AppVersion, s.OmniEndpoint, s.OmniVersion,
+		c.info, prometheus.GaugeValue, 1, s.AppVersion,
 	)
+
+	// omni_cd_omni_info — only emit when endpoint is configured to avoid stale label sets
+	if s.OmniEndpoint != "" {
+		ch <- prometheus.MustNewConstMetric(
+			c.omniInfo, prometheus.GaugeValue, 1, s.OmniEndpoint, s.OmniVersion,
+		)
+	}
 }
