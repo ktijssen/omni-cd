@@ -71,7 +71,7 @@ func New(appState *state.AppState) *Collector {
 		omniInfo: prometheus.NewDesc(
 			"omni_cd_omni_info",
 			"Informational metric with Omni instance endpoint and version. Only emitted when the endpoint is configured.",
-			[]string{"endpoint", "omni_version"}, nil,
+			[]string{"omni_url", "omni_version"}, nil,
 		),
 	}
 

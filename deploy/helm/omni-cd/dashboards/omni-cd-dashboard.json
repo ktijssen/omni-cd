@@ -62,8 +62,7 @@
         "defaults": {
           "color": { "mode": "thresholds" },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
-          "unit": "string"
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
         }
       },
       "gridPos": { "h": 3, "w": 6, "x": 0, "y": 1 },
@@ -85,7 +84,10 @@
         }
       ],
       "title": "App Version",
-      "transformations": [{ "id": "labelsToFields", "options": {} }],
+      "transformations": [
+        { "id": "labelsToFields", "options": { "mode": "columns" } },
+        { "id": "filterFieldsByName", "options": { "include": { "names": ["version"] } } }
+      ],
       "type": "stat"
     },
     {
@@ -94,8 +96,7 @@
         "defaults": {
           "color": { "mode": "thresholds" },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] },
-          "unit": "string"
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
         }
       },
       "gridPos": { "h": 3, "w": 10, "x": 6, "y": 1 },
@@ -105,7 +106,7 @@
         "graphMode": "none",
         "justifyMode": "center",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^endpoint$/", "values": false },
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^omni_url$/", "values": false },
         "textMode": "value"
       },
       "targets": [
@@ -117,7 +118,10 @@
         }
       ],
       "title": "Omni Endpoint",
-      "transformations": [{ "id": "labelsToFields", "options": {} }],
+      "transformations": [
+        { "id": "labelsToFields", "options": { "mode": "columns" } },
+        { "id": "filterFieldsByName", "options": { "include": { "names": ["omni_url"] } } }
+      ],
       "type": "stat"
     },
     {
@@ -126,8 +130,7 @@
         "defaults": {
           "color": { "mode": "thresholds" },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] },
-          "unit": "string"
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
         }
       },
       "gridPos": { "h": 3, "w": 4, "x": 16, "y": 1 },
@@ -149,7 +152,10 @@
         }
       ],
       "title": "Omni Version",
-      "transformations": [{ "id": "labelsToFields", "options": {} }],
+      "transformations": [
+        { "id": "labelsToFields", "options": { "mode": "columns" } },
+        { "id": "filterFieldsByName", "options": { "include": { "names": ["omni_version"] } } }
+      ],
       "type": "stat"
     },
     {
@@ -678,7 +684,7 @@
           "unit": "s"
         }
       },
-      "gridPos": { "h": 8, "w": 4, "x": 0, "y": 29 },
+      "gridPos": { "h": 3, "w": 4, "x": 0, "y": 29 },
       "id": 401,
       "options": {
         "colorMode": "none",
