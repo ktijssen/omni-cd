@@ -29,6 +29,12 @@ All configuration is done via environment variables. The Omni endpoint and servi
 | `LOG_RETENTION_DAYS` | `7` | Days to keep daily log files before automatic deletion. |
 | `AUDIT_RETENTION_DAYS` | `30` | Days to keep daily audit files before automatic deletion. |
 
+## Metrics
+
+| Variable | Default | Description |
+|---|---|---|
+| `METRICS_PORT` | `9090` | Port for the Prometheus `/metrics` endpoint. Set to `0` or empty to disable. |
+
 ## OIDC / Single Sign-On
 
 Set `OIDC_ENABLED=true` and provide at minimum `OIDC_ISSUER_URL` and `OIDC_CLIENT_ID`. OIDC and Auth0 are mutually exclusive — only one may be enabled at a time.

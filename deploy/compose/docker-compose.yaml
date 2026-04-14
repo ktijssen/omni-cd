@@ -28,8 +28,10 @@ services:
       - OIDC_VIEWER_EMAILS=${OIDC_VIEWER_EMAILS}
       - OIDC_DEFAULT_ROLE=${OIDC_DEFAULT_ROLE}
       - OIDC_INSECURE=${OIDC_INSECURE:-false}
+      - METRICS_PORT=${METRICS_PORT:-9090}
     ports:
       - "${WEB_PORT:-8080}:${WEB_PORT:-8080}"
+      - "${METRICS_PORT:-9090}:${METRICS_PORT:-9090}"
     volumes:
       - ./data:/data
     healthcheck:

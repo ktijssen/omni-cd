@@ -52,6 +52,7 @@ type Config struct {
 
 	// Web UI
 	WebPort       string
+	MetricsPort   string // port for the /metrics endpoint (Prometheus)
 	WebhookSecret string // optional HMAC secret for POST /api/webhook
 
 	// Authentication
@@ -115,6 +116,7 @@ func Load() (*Config, error) {
 		RefreshInterval:       time.Duration(refreshSec) * time.Second,
 		Repos:                 nil,
 		WebPort:               getEnv("WEB_PORT", "8080"),
+		MetricsPort:           getEnv("METRICS_PORT", "9090"),
 		WebhookSecret:         os.Getenv("WEBHOOK_SECRET"),
 		AdminPassword:         adminPassword,
 		AuthDisabled:          authDisabled,

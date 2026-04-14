@@ -1,0 +1,15 @@
+{{- if and .Values.metrics.enabled .Values.metrics.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "omni-cd.fullname" . }}-dashboard
+  namespace: {{ .Values.metrics.grafanaDashboard.namespace | default .Release.Namespace }}
+  labels:
+    {{- include "omni-cd.labels" . | nindent 4 }}
+    {{- with .Values.metrics.grafanaDashboard.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  omni-cd-dashboard.json: |
+    {{ .Files.Get "dashboards/omni-cd-dashboard.json" | nindent 4 }}
+{{- end }}

@@ -92,6 +92,27 @@ config:
 
 Role resolution order: `adminEmails` → `adminGroups` → `viewerEmails` → `viewerGroups` → `defaultRole`.
 
+## Prometheus & Grafana
+
+Enable the ServiceMonitor and Grafana dashboard sidecar provisioning:
+
+```yaml
+metrics:
+  enabled: true
+  port: 9090
+  serviceMonitor:
+    enabled: true
+    interval: "30s"
+    labels:
+      release: prometheus   # match your Prometheus Operator serviceMonitorSelector
+  grafanaDashboard:
+    enabled: true
+    labels:
+      grafana_dashboard: "1"   # match your Grafana sidecar label selector
+```
+
+To import the dashboard manually, use `deploy/grafana/omni-cd-dashboard.json`.
+
 ## Values
 
 ### Image
@@ -166,6 +187,20 @@ Role resolution order: `adminEmails` → `adminGroups` → `viewerEmails` → `v
 | `config.oidc.viewerEmails` | `""` | Email addresses granted viewer role |
 | `config.oidc.defaultRole` | `""` | Fallback role when no rule matches (`admin`\|`viewer`\|`none`) |
 | `config.oidc.insecure` | `"false"` | Skip TLS verification for the OIDC provider |
+
+### Metrics
+
+| Key | Default | Description |
+|---|---|---|
+| `metrics.enabled` | `true` | Enable the Prometheus `/metrics` endpoint |
+| `metrics.port` | `9090` | Port for the metrics server |
+| `metrics.serviceMonitor.enabled` | `false` | Create a `ServiceMonitor` for Prometheus Operator |
+| `metrics.serviceMonitor.namespace` | `""` | Namespace for the ServiceMonitor (defaults to release namespace) |
+| `metrics.serviceMonitor.interval` | `"30s"` | Scrape interval |
+| `metrics.serviceMonitor.labels` | `{}` | Extra labels on the ServiceMonitor (e.g. `release: prometheus`) |
+| `metrics.grafanaDashboard.enabled` | `false` | Create a ConfigMap with the bundled Grafana dashboard |
+| `metrics.grafanaDashboard.namespace` | `""` | Namespace for the ConfigMap (defaults to release namespace) |
+| `metrics.grafanaDashboard.labels` | `{grafana_dashboard: "1"}` | Labels for Grafana sidecar discovery |
 
 ### Storage & Secrets
 

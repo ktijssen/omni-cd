@@ -27,6 +27,7 @@ tasks:
       REFRESH_INTERVAL: '{{.REFRESH_INTERVAL | default "300"}}'
       SYNC_INTERVAL: '{{.SYNC_INTERVAL | default "3600"}}'
       WEB_PORT: '{{.WEB_PORT | default "8080"}}'
+      METRICS_PORT: '{{.METRICS_PORT | default "9090"}}'
       LOG_LEVEL: '{{.LOG_LEVEL | default "DEBUG"}}'
 
   # Build tasks
