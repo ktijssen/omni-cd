@@ -55,6 +55,63 @@ See [`deploy/helm/omni-cd/README.md`](../deploy/helm/omni-cd/README.md) for the 
 
 ---
 
+## Prometheus Metrics
+
+The application exposes a Prometheus-compatible `/metrics` endpoint on a dedicated port (default `9090`).
+
+### Docker
+
+```bash
+docker run -d \
+  -v omni-cd-data:/data \
+  -p 8080:8080 \
+  -p 9090:9090 \
+  ghcr.io/ktijssen/omni-cd:latest
+```
+
+### Helm
+
+Enable a ServiceMonitor for Prometheus Operator:
+
+```yaml
+metrics:
+  enabled: true
+  port: 9090
+  serviceMonitor:
+    enabled: true
+    interval: "30s"
+    labels:
+      release: prometheus   # match your Prometheus Operator selector
+```
+
+Enable the Grafana dashboard ConfigMap (requires the Grafana sidecar):
+
+```yaml
+metrics:
+  grafanaDashboard:
+    enabled: true
+    labels:
+      grafana_dashboard: "1"
+```
+
+Alternatively, import `deploy/grafana/omni-cd-dashboard.json` directly into Grafana.
+
+### Exposed metrics
+
+| Metric | Type | Description |
+|---|---|---|
+| `omni_cd_clusters_total` | Gauge | Cluster count by `status` label |
+| `omni_cd_cluster_machines_healthy` | Gauge | Healthy machines per cluster |
+| `omni_cd_cluster_machines_total` | Gauge | Total machines per cluster |
+| `omni_cd_machine_classes_total` | Gauge | Machine class count by `status` label |
+| `omni_cd_reconcile_last_duration_seconds` | Gauge | Duration of last completed reconcile |
+| `omni_cd_reconcile_total` | Counter | Reconcile count by `result` (success/failed) |
+| `omni_cd_omni_connected` | Gauge | `1` if Omni is reachable, `0` if not |
+| `omni_cd_repos_total` | Gauge | Git repo count by `status` (ok/error) |
+| `omni_cd_info` | Gauge | Always `1`; carries `version` label |
+
+---
+
 ## Data Layout
 
 All persistent data is stored under `/data`. Mount this as a volume to preserve state across restarts.

@@ -52,7 +52,8 @@ Open `http://localhost:8080` — you will be redirected to `/setup` to create th
 - **Audit log** — Every user action recorded with actor, action, and resource; 30-day retention
 - **Real-time UI** — WebSocket-driven dashboard; no page refreshes needed
 - **Persistent state** — State and logs survive container restarts via volume mount
-- **Helm chart** — Ingress, HTTPRoute (Gateway API), and existing secrets support
+- **Prometheus metrics** — `/metrics` endpoint with cluster, MC, reconcile, and Omni health metrics; includes Grafana dashboard and ServiceMonitor
+- **Helm chart** — Ingress, HTTPRoute (Gateway API), existing secrets, and Prometheus ServiceMonitor support
 
 ---
 

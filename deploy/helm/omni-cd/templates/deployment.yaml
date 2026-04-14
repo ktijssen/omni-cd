@@ -30,9 +30,18 @@ spec:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+            {{- end }}
           env:
             - name: WEB_PORT
               value: {{ .Values.config.webPort | quote }}
+            {{- if .Values.metrics.enabled }}
+            - name: METRICS_PORT
+              value: {{ .Values.metrics.port | quote }}
+            {{- end }}
             - name: REFRESH_INTERVAL
               value: {{ .Values.config.refreshInterval | quote }}
             - name: LOG_LEVEL

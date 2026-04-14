@@ -93,6 +93,20 @@ config:
 # -- Secret must contain keys matching the env var names
 existingSecret: ""
 
+metrics:
+  enabled: true
+  port: 9090
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: "30s"
+    labels: {}
+  grafanaDashboard:
+    enabled: false
+    namespace: ""
+    labels:
+      grafana_dashboard: "1"
+
 persistence:
   enabled: true
   storageClass: ""

@@ -10,9 +10,12 @@ import (
 	"time"
 
 	"omni-cd/internal/auth"
+	"omni-cd/internal/metrics"
 	"omni-cd/internal/state"
 
 	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var upgrader = websocket.Upgrader{
@@ -56,6 +59,8 @@ type Server struct {
 	authDisabled           bool
 	sessions               sync.Map // token (string) -> sessionInfo
 	loginBuckets           sync.Map // IP (string) -> *loginBucket
+	metricsCollector *metrics.Collector
+	metricsPort      string
 	// OIDC
 	oidcRT     *OIDCRuntime
 	oidcMu     sync.RWMutex
@@ -64,7 +69,7 @@ type Server struct {
 }
 
 // New creates a new web server.
-func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, triggerOmniConfigured chan struct{}, omniInstanceFile string, logDir string, auditDir string, port string, version string, authStore *auth.Store, authDisabled bool, oidcRT *OIDCRuntime, webhookSecret string) *Server {
+func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, triggerOmniConfigured chan struct{}, omniInstanceFile string, logDir string, auditDir string, port string, version string, authStore *auth.Store, authDisabled bool, oidcRT *OIDCRuntime, webhookSecret string, metricsCollector *metrics.Collector, metricsPort string) *Server {
 	s := &Server{
 		appState:               appState,
 		triggerHard:            triggerHard,
@@ -88,6 +93,8 @@ func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan s
 		oidcRT:                 oidcRT,
 		webhookSecret:          webhookSecret,
 		oidcUsers:              loadOIDCUserStore(oidcUsersPath),
+		metricsCollector:       metricsCollector,
+		metricsPort:            metricsPort,
 	}
 
 	// Load persisted sessions so users stay logged in across restarts.
@@ -110,6 +117,21 @@ func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan s
 
 // Start starts the web server in a goroutine.
 func (s *Server) Start() {
+	// Register and expose Prometheus metrics on a dedicated port.
+	if s.metricsCollector != nil && s.metricsPort != "" {
+		reg := prometheus.NewRegistry()
+		reg.MustRegister(s.metricsCollector)
+		metricsMux := http.NewServeMux()
+		metricsMux.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+		metricsAddr := ":" + s.metricsPort
+		slog.Info("Metrics server listening", "address", metricsAddr, "component", "Web")
+		go func() {
+			if err := http.ListenAndServe(metricsAddr, metricsMux); err != nil && err != http.ErrServerClosed {
+				slog.Error("Metrics server failed", "error", err, "component", "Web")
+			}
+		}()
+	}
+
 	mux := http.NewServeMux()
 
 	// Public routes — no auth required

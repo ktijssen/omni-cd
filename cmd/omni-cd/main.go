@@ -16,6 +16,7 @@ import (
 	"omni-cd/internal/auth"
 	"omni-cd/internal/config"
 	"omni-cd/internal/git"
+	"omni-cd/internal/metrics"
 	oidcconfig "omni-cd/internal/oidc"
 	"omni-cd/internal/omni"
 	"omni-cd/internal/omniinstance"
@@ -143,8 +144,11 @@ func main() {
 		}
 	}
 
+	// Create the Prometheus metrics collector.
+	metricsCollector := metrics.New(appState)
+
 	// Start the web UI server early — needed for the setup UI in unconfigured mode.
-	webServer := web.New(appState, triggerHard, triggerSoft, triggerRefreshCluster, triggerDeleteCluster, triggerDeleteMC, triggerMCRefresh, triggerMCRefreshSingle, triggerRepoChange, triggerOmniConfigured, instanceFile, logDir, auditDir, cfg.WebPort, version, authStore, cfg.AuthDisabled, oidcRT, cfg.WebhookSecret)
+	webServer := web.New(appState, triggerHard, triggerSoft, triggerRefreshCluster, triggerDeleteCluster, triggerDeleteMC, triggerMCRefresh, triggerMCRefreshSingle, triggerRepoChange, triggerOmniConfigured, instanceFile, logDir, auditDir, cfg.WebPort, version, authStore, cfg.AuthDisabled, oidcRT, cfg.WebhookSecret, metricsCollector, cfg.MetricsPort)
 	webServer.Start()
 
 	// Set up graceful shutdown
@@ -474,7 +478,7 @@ func main() {
 	}
 	startWatcher()
 	// Run immediately on start (hard reconcile)
-	doReconcile(buildMultiClient(), rec, cfg, true, setClusterDirs, setMCDirs)
+	doReconcile(buildMultiClient(), rec, cfg, true, setClusterDirs, setMCDirs, metricsCollector)
 	// Poll right after the initial reconcile so ClusterReady is populated
 	// as soon as the cluster list exists in state (avoids waiting a full
 	// 5-second tick for the first badge to appear).
@@ -490,7 +494,7 @@ func main() {
 	reconcileCh := make(chan bool, 1)
 	go func() {
 		for force := range reconcileCh {
-			doReconcile(buildMultiClient(), rec, cfg, force, setClusterDirs, setMCDirs)
+			doReconcile(buildMultiClient(), rec, cfg, force, setClusterDirs, setMCDirs, metricsCollector)
 			pollClusterStatuses()
 		}
 	}()
@@ -622,7 +626,7 @@ func main() {
 }
 
 // doReconcile performs a git sync + reconcile cycle across all configured repos.
-func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *config.Config, force bool, setClusterDirs func([]string), setMCDirs func([]string)) {
+func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *config.Config, force bool, setClusterDirs func([]string), setMCDirs func([]string), col *metrics.Collector) {
 	if force {
 		logInfo("Reconcile started (full sync)")
 		appState.SetReconcileStarted(state.ReconcileHard)
@@ -746,6 +750,9 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 		liveMCStates, _ := omni.GetCachedMachineClasses()
 		rec.CollectUnmanagedMachineClasses(nil, liveMCStates)
 		appState.SetReconcileFinished(true)
+		if col != nil {
+			col.RecordReconcile(true)
+		}
 		appState.Save()
 		logInfo("Reconcile finished")
 		return
@@ -778,6 +785,9 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 	if len(okResults) == 0 {
 		logError("All git syncs failed, skipping reconcile")
 		appState.SetReconcileFinished(false)
+		if col != nil {
+			col.RecordReconcile(false)
+		}
 		appState.Save()
 		return
 	}
@@ -881,6 +891,9 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 	rec.CollectUnmanagedMachineClasses(allMCDirs, liveMCStates)
 
 	appState.SetReconcileFinished(true)
+	if col != nil {
+		col.RecordReconcile(true)
+	}
 	appState.Save()
 	logInfo("Reconcile finished")
 }
