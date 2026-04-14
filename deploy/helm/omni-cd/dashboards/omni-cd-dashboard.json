@@ -85,6 +85,7 @@
         }
       ],
       "title": "App Version",
+      "transformations": [{ "id": "labelsToFields", "options": {} }],
       "type": "stat"
     },
     {
@@ -104,18 +105,19 @@
         "graphMode": "none",
         "justifyMode": "center",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^omni_endpoint$/", "values": false },
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^endpoint$/", "values": false },
         "textMode": "value"
       },
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "omni_cd_info",
+          "expr": "omni_cd_omni_info",
           "instant": true,
           "legendFormat": ""
         }
       ],
       "title": "Omni Endpoint",
+      "transformations": [{ "id": "labelsToFields", "options": {} }],
       "type": "stat"
     },
     {
@@ -141,12 +143,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "omni_cd_info",
+          "expr": "omni_cd_omni_info",
           "instant": true,
           "legendFormat": ""
         }
       ],
       "title": "Omni Version",
+      "transformations": [{ "id": "labelsToFields", "options": {} }],
       "type": "stat"
     },
     {
