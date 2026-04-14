@@ -41,9 +41,7 @@
       "version": ""
     }
   ],
-  "annotations": {
-    "list": []
-  },
+  "annotations": { "list": [] },
   "description": "OmniCD overview — clusters, machine classes, reconcile health, Omni connectivity and repo status.",
   "editable": true,
   "fiscalYearStartMonth": 0,
@@ -55,6 +53,144 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
       "id": 100,
+      "title": "Overview",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "string"
+        }
+      },
+      "gridPos": { "h": 3, "w": 6, "x": 0, "y": 1 },
+      "id": 101,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^version$/", "values": false },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "omni_cd_info",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "title": "App Version",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] },
+          "unit": "string"
+        }
+      },
+      "gridPos": { "h": 3, "w": 10, "x": 6, "y": 1 },
+      "id": 102,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^omni_endpoint$/", "values": false },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "omni_cd_info",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "title": "Omni Endpoint",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] },
+          "unit": "string"
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 16, "y": 1 },
+      "id": 103,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^omni_version$/", "values": false },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "omni_cd_info",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "title": "Omni Version",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            {
+              "options": {
+                "0": { "color": "red", "index": 0, "text": "Disconnected" },
+                "1": { "color": "green", "index": 1, "text": "Connected" }
+              },
+              "type": "value"
+            }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 20, "y": 1 },
+      "id": 104,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "omni_cd_omni_connected",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "title": "Omni Connected",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 4 },
+      "id": 200,
       "title": "Clusters",
       "type": "row"
     },
@@ -63,149 +199,179 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null }
-            ]
-          },
           "mappings": [],
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
-      "id": 1,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "auto"
-      },
-      "title": "Synced Clusters",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "omni_cd_clusters_total{status=\"success\"}",
-          "legendFormat": "Synced",
-          "refId": "A"
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
         }
-      ],
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 1 }
-            ]
-          },
-          "mappings": [],
-          "unit": "short"
-        },
-        "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
-      "id": 2,
+      "gridPos": { "h": 3, "w": 4, "x": 0, "y": 5 },
+      "id": 201,
       "options": {
-        "colorMode": "background",
+        "colorMode": "none",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Out of Sync Clusters",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "omni_cd_clusters_total{status=\"outofsync\"}",
-          "legendFormat": "Out of Sync",
-          "refId": "A"
-        }
-      ],
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 1 }
-            ]
-          },
-          "mappings": [],
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
-      "id": 3,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "auto"
-      },
-      "title": "Failed Clusters",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "omni_cd_clusters_total{status=\"failed\"}",
-          "legendFormat": "Failed",
-          "refId": "A"
-        }
-      ],
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "blue", "value": null }
-            ]
-          },
-          "mappings": [],
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
-      "id": 4,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "auto"
-      },
-      "title": "Total Clusters",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "expr": "sum(omni_cd_clusters_total)",
-          "legendFormat": "Total",
-          "refId": "A"
+          "instant": true,
+          "legendFormat": "Total"
         }
       ],
+      "title": "Total Clusters",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 4, "y": 5 },
+      "id": 202,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "omni_cd_clusters_total{status=\"success\"}",
+          "instant": true,
+          "legendFormat": "Synced"
+        }
+      ],
+      "title": "Synced",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }, { "color": "orange", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 8, "y": 5 },
+      "id": 203,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "omni_cd_clusters_total{status=\"outofsync\"}",
+          "instant": true,
+          "legendFormat": "Out of Sync"
+        }
+      ],
+      "title": "Out of Sync",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }, { "color": "red", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 12, "y": 5 },
+      "id": 204,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "omni_cd_clusters_total{status=\"failed\"}",
+          "instant": true,
+          "legendFormat": "Sync Failed"
+        }
+      ],
+      "title": "Sync Failed",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 16, "y": 5 },
+      "id": 205,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "omni_cd_clusters_total{status=\"syncing\"}",
+          "instant": true,
+          "legendFormat": "Syncing"
+        }
+      ],
+      "title": "Syncing",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 20, "y": 5 },
+      "id": 206,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "omni_cd_clusters_total{status=\"unmanaged\"}",
+          "instant": true,
+          "legendFormat": "Unmanaged"
+        }
+      ],
+      "title": "Unmanaged",
       "type": "stat"
     },
     {
@@ -214,105 +380,93 @@
         "defaults": {
           "color": { "mode": "palette-classic" },
           "custom": {
-            "lineWidth": 2,
             "fillOpacity": 20,
+            "lineWidth": 2,
             "stacking": { "mode": "normal", "group": "A" }
-          },
-          "unit": "short"
-        },
-        "overrides": []
+          }
+        }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
-      "id": 5,
+      "gridPos": { "h": 8, "w": 14, "x": 0, "y": 8 },
+      "id": 207,
       "options": {
-        "legend": { "calcs": ["last"], "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "multi", "sort": "none" }
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
       },
-      "title": "Cluster Status Over Time",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "expr": "omni_cd_clusters_total",
-          "legendFormat": "{{status}}",
-          "refId": "A"
+          "legendFormat": "{{status}}"
         }
       ],
+      "title": "Cluster Status Over Time",
       "type": "timeseries"
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": {
-        "defaults": { "unit": "short", "decimals": 0 },
+        "defaults": { "custom": { "align": "auto" } },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Health %" },
+            "matcher": { "id": "byName", "options": "cluster" },
+            "properties": [{ "id": "displayName", "value": "Cluster" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Value #A" },
             "properties": [
-              { "id": "unit", "value": "percent" },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    { "color": "red", "value": null },
-                    { "color": "yellow", "value": 50 },
-                    { "color": "green", "value": 90 }
-                  ]
-                }
-              },
-              { "id": "custom.displayMode", "value": "color-background" }
+              { "id": "displayName", "value": "Healthy" },
+              { "id": "custom.width", "value": 80 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Value #B" },
+            "properties": [
+              { "id": "displayName", "value": "Total" },
+              { "id": "custom.width", "value": 80 }
             ]
           }
         ]
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
-      "id": 6,
+      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 8 },
+      "id": 208,
       "options": {
-        "cellHeight": "sm",
         "footer": { "show": false },
-        "showHeader": true
+        "showHeader": true,
+        "sortBy": [{ "desc": false, "displayName": "Cluster" }]
       },
-      "title": "Machines per Cluster",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "expr": "omni_cd_cluster_machines_healthy",
-          "legendFormat": "{{cluster}}",
-          "refId": "A",
-          "instant": true
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "expr": "omni_cd_cluster_machines_total",
-          "legendFormat": "{{cluster}}",
-          "refId": "B",
-          "instant": true
+          "instant": true,
+          "legendFormat": "",
+          "refId": "B"
         }
       ],
+      "title": "Machines per Cluster",
       "transformations": [
-        { "id": "labelsToFields", "options": { "valueLabel": "cluster" } },
-        {
-          "id": "merge",
-          "options": {}
-        },
+        { "id": "labelsToFields", "options": { "keepLabels": ["cluster"] } },
+        { "id": "merge", "options": {} },
         {
           "id": "organize",
           "options": {
+            "excludeByName": { "Time": true },
             "renameByName": {
-              "Value #A": "Healthy",
-              "Value #B": "Total"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Health %",
-            "mode": "reduceRow",
-            "reduce": { "reducer": "sum" },
-            "binary": {
-              "left": "Healthy",
-              "right": "Total",
-              "operator": "/"
+              "cluster": "Cluster",
+              "omni_cd_cluster_machines_healthy": "Healthy",
+              "omni_cd_cluster_machines_total": "Total"
+            },
+            "indexByName": {
+              "cluster": 0,
+              "omni_cd_cluster_machines_healthy": 1,
+              "omni_cd_cluster_machines_total": 2
             }
           }
         }
@@ -321,8 +475,8 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
-      "id": 101,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "id": 300,
       "title": "Machine Classes",
       "type": "row"
     },
@@ -331,35 +485,59 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+        }
       },
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 14 },
-      "id": 7,
+      "gridPos": { "h": 3, "w": 4, "x": 0, "y": 17 },
+      "id": 301,
       "options": {
-        "colorMode": "background",
+        "colorMode": "none",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Synced MCs",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(omni_cd_machine_classes_total)",
+          "instant": true,
+          "legendFormat": "Total"
+        }
+      ],
+      "title": "Total Machine Classes",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 3, "w": 4, "x": 4, "y": 17 },
+      "id": 302,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "expr": "omni_cd_machine_classes_total{status=\"success\"}",
-          "legendFormat": "Synced",
-          "refId": "A"
+          "instant": true,
+          "legendFormat": "Synced"
         }
       ],
+      "title": "Synced",
       "type": "stat"
     },
     {
@@ -367,36 +545,29 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 1 }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }, { "color": "orange", "value": 1 }] }
+        }
       },
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 14 },
-      "id": 8,
+      "gridPos": { "h": 3, "w": 4, "x": 8, "y": 17 },
+      "id": 303,
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Out of Sync MCs",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "expr": "omni_cd_machine_classes_total{status=\"outofsync\"}",
-          "legendFormat": "Out of Sync",
-          "refId": "A"
+          "instant": true,
+          "legendFormat": "Out of Sync"
         }
       ],
+      "title": "Out of Sync",
       "type": "stat"
     },
     {
@@ -404,81 +575,59 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 1 }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }, { "color": "red", "value": 1 }] }
+        }
       },
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 14 },
-      "id": 9,
+      "gridPos": { "h": 3, "w": 4, "x": 12, "y": 17 },
+      "id": 304,
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Failed MCs",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "expr": "omni_cd_machine_classes_total{status=\"failed\"}",
-          "legendFormat": "Failed",
-          "refId": "A"
+          "instant": true,
+          "legendFormat": "Sync Failed"
         }
       ],
+      "title": "Sync Failed",
       "type": "stat"
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
-      "id": 102,
-      "title": "Reconcile",
-      "type": "row"
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 30 },
-              { "color": "red", "value": 120 }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+        }
       },
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 19 },
-      "id": 10,
+      "gridPos": { "h": 3, "w": 4, "x": 16, "y": 17 },
+      "id": 305,
       "options": {
-        "colorMode": "background",
+        "colorMode": "none",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Last Reconcile Duration",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "omni_cd_reconcile_last_duration_seconds",
-          "legendFormat": "Duration",
-          "refId": "A"
+          "expr": "omni_cd_machine_classes_total{status=\"unmanaged\"}",
+          "instant": true,
+          "legendFormat": "Unmanaged"
         }
       ],
+      "title": "Unmanaged",
       "type": "stat"
     },
     {
@@ -486,42 +635,34 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 2, "fillOpacity": 10 },
-          "unit": "reqps"
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "failed" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "success" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+          "custom": {
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "stacking": { "mode": "normal", "group": "A" }
           }
-        ]
+        }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 4, "y": 19 },
-      "id": 11,
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "id": 306,
       "options": {
-        "legend": { "calcs": ["last"], "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "multi", "sort": "none" }
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
       },
-      "title": "Reconcile Rate",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "rate(omni_cd_reconcile_total[5m])",
-          "legendFormat": "{{result}}",
-          "refId": "A"
+          "expr": "omni_cd_machine_classes_total",
+          "legendFormat": "{{status}}"
         }
       ],
+      "title": "Machine Class Status Over Time",
       "type": "timeseries"
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
-      "id": 103,
-      "title": "Connectivity & Repos",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 28 },
+      "id": 400,
+      "title": "Reconcile & Repos",
       "type": "row"
     },
     {
@@ -529,92 +670,90 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
-            ]
-          },
-          "mappings": [
-            { "options": { "0": { "text": "Disconnected" }, "1": { "text": "Connected" } }, "type": "value" }
-          ],
-          "unit": "short"
-        },
-        "overrides": []
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] },
+          "unit": "s"
+        }
       },
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 28 },
-      "id": 12,
+      "gridPos": { "h": 8, "w": 4, "x": 0, "y": 29 },
+      "id": 401,
       "options": {
-        "colorMode": "background",
+        "colorMode": "none",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Omni Connected",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "omni_cd_omni_connected",
-          "legendFormat": "Connected",
-          "refId": "A"
+          "expr": "omni_cd_reconcile_last_duration_seconds",
+          "instant": true,
+          "legendFormat": ""
         }
       ],
+      "title": "Last Reconcile Duration",
       "type": "stat"
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "error" },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    { "color": "green", "value": null },
-                    { "color": "red", "value": 1 }
-                  ]
-                }
-              },
-              { "id": "color", "value": { "fixedColor": "red", "mode": "thresholds" } }
-            ]
-          }
-        ]
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2 },
+          "unit": "ops"
+        }
       },
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 28 },
-      "id": 13,
+      "gridPos": { "h": 8, "w": 12, "x": 4, "y": 29 },
+      "id": 402,
       "options": {
-        "colorMode": "background",
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "rate(omni_cd_reconcile_total{result=\"success\"}[5m])",
+          "legendFormat": "success"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "rate(omni_cd_reconcile_total{result=\"failed\"}[5m])",
+          "legendFormat": "failed"
+        }
+      ],
+      "title": "Reconcile Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 29 },
+      "id": 403,
+      "options": {
+        "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Repos OK",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "expr": "omni_cd_repos_total{status=\"ok\"}",
-          "legendFormat": "ok",
-          "refId": "A"
+          "instant": true,
+          "legendFormat": ""
         }
       ],
+      "title": "Repos OK",
       "type": "stat"
     },
     {
@@ -622,62 +761,114 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 1 }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }, { "color": "red", "value": 1 }] }
+        }
       },
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 28 },
-      "id": 14,
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 29 },
+      "id": 404,
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Repos with Error",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "expr": "omni_cd_repos_total{status=\"error\"}",
-          "legendFormat": "error",
-          "refId": "A"
+          "instant": true,
+          "legendFormat": ""
         }
       ],
+      "title": "Repos Error",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 33 },
+      "id": 405,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "omni_cd_reconcile_total{result=\"success\"}",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "title": "Total Reconciles (Success)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }, { "color": "red", "value": 1 }] }
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 33 },
+      "id": 406,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "omni_cd_reconcile_total{result=\"failed\"}",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ],
+      "title": "Total Reconciles (Failed)",
       "type": "stat"
     }
   ],
   "refresh": "30s",
-  "schemaVersion": 38,
-  "tags": ["omni-cd", "kubernetes"],
+  "schemaVersion": 37,
+  "style": "dark",
+  "tags": ["omni-cd"],
   "templating": {
     "list": [
       {
         "current": {},
         "hide": 0,
         "includeAll": false,
-        "multi": false,
         "name": "datasource",
         "options": [],
         "query": "prometheus",
         "refresh": 1,
-        "type": "datasource",
-        "label": "Datasource"
+        "type": "datasource"
       }
     ]
   },
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "OmniCD Overview",
+  "title": "Omni CD",
   "uid": "omni-cd-overview",
   "version": 1
 }

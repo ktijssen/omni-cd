@@ -64,8 +64,8 @@ func New(appState *state.AppState) *Collector {
 		),
 		info: prometheus.NewDesc(
 			"omni_cd_info",
-			"Informational metric with the application version as a label.",
-			[]string{"version"}, nil,
+			"Informational metric with app version and Omni instance details.",
+			[]string{"version", "omni_endpoint", "omni_version"}, nil,
 		),
 	}
 
@@ -104,8 +104,12 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 
 	s := c.appState.Snapshot()
 
-	// omni_cd_clusters_total — grouped by status
+	// omni_cd_clusters_total — grouped by status, always emit all known statuses
+	clusterStatuses := []string{"success", "outofsync", "failed", "syncing", "unmanaged", "deleting", "orphaned"}
 	statusCounts := map[string]int{}
+	for _, st := range clusterStatuses {
+		statusCounts[st] = 0
+	}
 	for _, cl := range s.Clusters {
 		statusCounts[cl.Status]++
 		ch <- prometheus.MustNewConstMetric(
@@ -124,8 +128,12 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		)
 	}
 
-	// omni_cd_machine_classes_total — grouped by status
+	// omni_cd_machine_classes_total — grouped by status, always emit all known statuses
+	mcStatuses := []string{"success", "outofsync", "failed", "syncing", "unmanaged"}
 	mcCounts := map[string]int{}
+	for _, st := range mcStatuses {
+		mcCounts[st] = 0
+	}
 	for _, mc := range s.MachineClasses {
 		mcCounts[mc.Status]++
 	}
@@ -169,6 +177,6 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 
 	// omni_cd_info
 	ch <- prometheus.MustNewConstMetric(
-		c.info, prometheus.GaugeValue, 1, s.AppVersion,
+		c.info, prometheus.GaugeValue, 1, s.AppVersion, s.OmniEndpoint, s.OmniVersion,
 	)
 }
