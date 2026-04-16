@@ -1257,7 +1257,7 @@ func (r *Reconciler) collectUnmanagedClusters(dirs []string, liveIDs []string) {
 			// a delete is in flight; 'orphaned' means the repo was deleted while
 			// auto-sync was off and the cluster must stay visible until the user
 			// explicitly deletes it.
-			if cluster.Status == "deleting" || cluster.Status == "orphaned" {
+			if cluster.Status == "deleting" {
 				final = append(final, cluster)
 				continue
 			}
@@ -1279,8 +1279,19 @@ func (r *Reconciler) collectUnmanagedClusters(dirs []string, liveIDs []string) {
 				cluster.Status = "unmanaged"
 				cluster.Diff = ""
 			}
-			// Refresh live data when version is unknown OR when machines are not yet populated.
+			// Refresh live data when version is unknown OR when any node group is missing
+			// machine assignments. Checks both CP and all worker groups so that a cluster
+			// whose CP was already populated but whose workers were never fetched gets
+			// re-hydrated on the next reconcile (common for orphaned clusters).
 			needsMachines := len(cluster.ControlPlane.Machines) == 0
+			if !needsMachines {
+				for _, wg := range cluster.Workers {
+					if len(wg.Machines) == 0 {
+						needsMachines = true
+						break
+					}
+				}
+			}
 			if cluster.TalosVersion == "" || needsMachines {
 				if liveContent, err := omni.GetLiveCluster(cluster.ID); err == nil && liveContent != "" {
 					talos, k8s, cp, workers, clusterExts, machExts := clusterDetailFromLive(liveContent)

@@ -282,11 +282,20 @@ func main() {
 		// up (10s) so outages are detected quickly, and less often when it is
 		// already down (3m) to avoid hammering an unavailable endpoint.
 		go func() {
+			wasHealthy := true
 			for {
 				if err := omni.Ping(); err != nil {
+					if wasHealthy {
+						logError("Omni endpoint is unreachable", "error", err)
+						wasHealthy = false
+					}
 					appState.SetOmniHealth("failed", err.Error())
 					time.Sleep(3 * time.Minute)
 				} else {
+					if !wasHealthy {
+						logInfo("Omni endpoint is reachable again")
+						wasHealthy = true
+					}
 					appState.SetOmniHealth("healthy", "")
 					time.Sleep(10 * time.Second)
 				}

@@ -497,7 +497,9 @@ func ClusterTemplateSync(file string) error {
 			return err
 		}
 		defer f.Close() //nolint:errcheck
-		return operations.SyncTemplate(context.Background(), f, io.Discard, omniState,
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		return operations.SyncTemplate(ctx, f, io.Discard, omniState,
 			operations.SyncOptions{})
 	})
 }
@@ -515,8 +517,10 @@ func ClusterTemplateDiff(file string) (string, error) {
 			return err
 		}
 		defer f.Close() //nolint:errcheck
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 		var buf strings.Builder
-		if err := operations.DiffTemplate(context.Background(), f, &buf, omniState); err != nil {
+		if err := operations.DiffTemplate(ctx, f, &buf, omniState); err != nil {
 			return err
 		}
 		result = buf.String()
@@ -1033,14 +1037,18 @@ func GetAllClusterReadyStatuses() (map[string]ClusterStatus, error) {
 
 // DeleteCluster deletes a cluster from Omni.
 func DeleteCluster(id string) error {
-	return operations.DeleteCluster(context.Background(), id, io.Discard, omniState,
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	return operations.DeleteCluster(ctx, id, io.Discard, omniState,
 		operations.SyncOptions{})
 }
 
 // ExportCluster exports a cluster configuration as cluster template YAML.
 func ExportCluster(id string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	var buf strings.Builder
-	_, err := operations.ExportTemplate(context.Background(), omniState, id, false, &buf)
+	_, err := operations.ExportTemplate(ctx, omniState, id, false, &buf)
 	if err != nil {
 		return "", err
 	}
@@ -1237,7 +1245,11 @@ func parseLegacyFormat(yamlContent string) ClusterTemplateInfo {
 
 		for _, line := range strings.Split(doc, "\n") {
 			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "kind:") {
+			// Only treat `kind:` and `name:` as document-level declarations when they
+			// are at the root level (no leading whitespace). Indented `kind:` fields
+			// inside inline patches (e.g. `kind: UserVolumeConfig`) must not overwrite
+			// the document kind — doing so drops the entire worker group from parsing.
+			if len(line) > 0 && line[0] != ' ' && line[0] != '\t' && strings.HasPrefix(trimmed, "kind:") {
 				kind = strings.TrimSpace(strings.TrimPrefix(trimmed, "kind:"))
 				inMachines, inMachineClass, inSystemExtensions = false, false, false
 				continue
