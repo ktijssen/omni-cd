@@ -198,6 +198,25 @@ func hydratePoolMachines(clusterID string, cp state.NodeGroup, workers []state.N
 		}
 	}
 
+	// Pass 3: create worker groups for any worker machinesets that were not
+	// matched to an existing group. This handles the case where liveContent was
+	// empty (ExportCluster failed) so parseLegacyFormat returned zero worker
+	// groups — the topology would otherwise show no workers at all.
+	for _, k := range workerKeys {
+		if !usedKeys[k] {
+			uuids := msNodes[k]
+			if len(uuids) > 0 {
+				name := strings.TrimPrefix(k, clusterID+"-")
+				workers = append(workers, state.NodeGroup{
+					Name:     name,
+					Machines: uuids,
+					Count:    len(uuids),
+				})
+				usedKeys[k] = true
+			}
+		}
+	}
+
 	// Deduplicate UUIDs across groups — CP takes priority, then workers in
 	// order. Prevents the same machine appearing in multiple machinesets.
 	seen := make(map[string]bool)
