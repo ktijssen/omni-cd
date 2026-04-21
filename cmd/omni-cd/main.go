@@ -590,7 +590,7 @@ func main() {
 				for _, r := range results {
 					if r.Err != nil {
 						logError("Git sync failed during MC refresh", "repo", r.Name, "error", r.Err)
-						return
+						continue
 					}
 				}
 				currentRepos := appState.GetRepoConfigs()
@@ -599,6 +599,9 @@ func main() {
 					repoByNameMC[rc.Name] = rc
 				}
 				for _, r := range results {
+					if r.Err != nil {
+						continue
+					}
 					rc := repoByNameMC[r.Name]
 					rec.DiffMachineClasses(r.RepoDir + "/" + rc.MCPath)
 				}
@@ -611,7 +614,7 @@ func main() {
 				for _, r := range results {
 					if r.Err != nil {
 						logError("Git sync failed during MC refresh", "repo", r.Name, "error", r.Err)
-						return
+						continue
 					}
 				}
 				currentRepos := appState.GetRepoConfigs()
@@ -620,6 +623,9 @@ func main() {
 					repoByName[rc.Name] = rc
 				}
 				for _, r := range results {
+					if r.Err != nil {
+						continue
+					}
 					rc := repoByName[r.Name]
 					rec.DiffMachineClasses(r.RepoDir + "/" + rc.MCPath)
 				}

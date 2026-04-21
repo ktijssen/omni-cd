@@ -58,8 +58,14 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 	}
 
 	// Batch fetch all live cluster states once
-	allLiveStates, _ := omni.GetAllLiveClusters()
-	allHostnames, _ := omni.GetAllMachineHostnames()
+	allLiveStates, err := omni.GetAllLiveClusters()
+	if err != nil {
+		r.logWarn("Failed to batch-fetch live cluster states, falling back to per-cluster fetches", "component", "Clusters", "error", err)
+	}
+	allHostnames, err := omni.GetAllMachineHostnames()
+	if err != nil {
+		r.logWarn("Failed to batch-fetch machine hostnames, falling back to per-cluster fetches", "component", "Clusters", "error", err)
+	}
 
 	var (
 		mu        sync.Mutex
@@ -626,8 +632,14 @@ func (r *Reconciler) DiffClusters(dir string) {
 	r.logInfo("Checking cluster templates for drift (sync disabled)", "component", "Clusters", "count", len(templates))
 
 	// Batch fetch all live cluster states once
-	allLiveStates, _ := omni.GetAllLiveClusters()
-	allHostnames, _ := omni.GetAllMachineHostnames()
+	allLiveStates, err := omni.GetAllLiveClusters()
+	if err != nil {
+		r.logWarn("Failed to batch-fetch live cluster states, falling back to per-cluster fetches", "component", "Clusters", "error", err)
+	}
+	allHostnames, err := omni.GetAllMachineHostnames()
+	if err != nil {
+		r.logWarn("Failed to batch-fetch machine hostnames, falling back to per-cluster fetches", "component", "Clusters", "error", err)
+	}
 
 	var resources []state.ResourceInfo
 	inSync, outOfSync, errCount := 0, 0, 0
@@ -790,12 +802,19 @@ func (r *Reconciler) DeleteSingleCluster(id string) {
 		return
 	}
 
-	// Mark as deleting immediately so the card shows the deleting state.
-	// The watcher removes the card once Omni confirms the cluster is gone.
-	r.state.UpdateClusterStatus(id, "deleting")
-	r.state.Save()
+	// Mark as deleting so the card shows the deleting state. Orphaned clusters
+	// keep their "orphaned" status — UpdateTearingDownStatuses already removes
+	// them once Omni confirms they are gone, so flipping to "deleting" here
+	// would incorrectly change their badge from Orphaned to Managed.
+	if !isOrphaned {
+		r.state.UpdateClusterStatus(id, "deleting")
+		r.state.Save()
+	}
 
 	r.logWarn("Deleting cluster", "component", "Clusters", "cluster", id)
+
+	r.pendingDeletes.Store(id, true)
+	defer r.pendingDeletes.Delete(id)
 
 	if err := omni.DeleteCluster(id); err != nil {
 		r.logError("Cluster delete failed", "component", "Clusters", "cluster", id, "error", err)

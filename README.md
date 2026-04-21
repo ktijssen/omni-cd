@@ -79,3 +79,11 @@ Open `http://localhost:8080` — you will be redirected to `/setup` to create th
 ## Contributing
 
 Contributions are welcome. Please open an issue or submit a pull request on [GitHub](https://github.com/ktijssen/omni-cd).
+
+---
+
+## Feedback
+
+Have a question, idea, or found a bug? I'd love to hear from you. You can find me in the **Sidero Labs Community Slack** — feel free to reach out there.
+
+→ [Join the Sidero Labs Community Slack](https://inviter.co/sidero-labs-community)
