@@ -1267,6 +1267,9 @@ func (r *Reconciler) collectUnmanagedClusters(dirs []string, liveIDs []string) {
 					cluster.Status = "deleting"
 				}
 			}
+			if len(allHostnames) > 0 {
+				cluster.MachineHostnames = extractHostnames(allHostnames, cluster.ControlPlane, cluster.Workers)
+			}
 			final = append(final, cluster)
 		} else if !omniMap[cluster.ID] {
 			// Skip - this cluster has been deleted
@@ -1324,6 +1327,8 @@ func (r *Reconciler) collectUnmanagedClusters(dirs []string, liveIDs []string) {
 					cluster.MachineExtensions = machExts
 					cluster.MachineHostnames = extractHostnames(allHostnames, cp, workers)
 				}
+			} else if len(allHostnames) > 0 {
+				cluster.MachineHostnames = extractHostnames(allHostnames, cluster.ControlPlane, cluster.Workers)
 			}
 			final = append(final, cluster)
 		}

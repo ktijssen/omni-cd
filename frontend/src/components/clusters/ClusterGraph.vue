@@ -160,8 +160,8 @@
                         <div class="dag-node-icon" v-html="machineIconForGroup(machInfo.gi)"></div>
                         <div class="dag-node-body">
                           <div class="dag-node-kind">Machine</div>
-                          <div class="dag-node-name" :style="{ fontFamily: 'SF Mono, Fira Code, monospace', fontSize: '11px' }" :title="machInfo.uuid">{{ machInfo.uuid }}</div>
-                          <div v-if="machInfo.hostname" class="dag-node-meta">{{ machInfo.hostname }}</div>
+                          <div class="dag-node-name" :title="machInfo.uuid">{{ machInfo.hostname || machInfo.uuid }}</div>
+                          <div v-if="machInfo.hostname" class="dag-node-meta" :style="{ fontFamily: 'SF Mono, Fira Code, monospace', fontSize: '11px' }">{{ machInfo.uuid }}</div>
                         </div>
                       </div>
                     </div>
@@ -199,7 +199,7 @@
                       <div class="dag-node-icon" v-html="extIconSVG"></div>
                       <div class="dag-node-body">
                         <div class="dag-node-kind">Extension</div>
-                        <div class="dag-node-name">{{ ext }}</div>
+                        <div class="dag-node-name" :title="ext">{{ ext.startsWith('siderolabs/') ? ext.slice(11) : ext }}</div>
                       </div>
                     </div>
                   </div>
