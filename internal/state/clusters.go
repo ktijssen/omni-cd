@@ -363,13 +363,6 @@ func (s *AppState) SetClusterAutoSync(id string, enabled bool) {
 	s.mu.Unlock()
 }
 
-// SetClustersEnabled sets the clusters enabled state.
-func (s *AppState) SetClustersEnabled(enabled bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.ClustersEnabled = enabled
-}
-
 // ToggleClustersEnabled flips the clusters enabled state and returns the new value.
 func (s *AppState) ToggleClustersEnabled() bool {
 	s.mu.Lock()

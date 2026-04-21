@@ -86,7 +86,7 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 			resources = append(resources, state.ResourceInfo{
 				ID:     id,
 				Type:   "MachineClass",
-				Status: "outofsync",
+				Status: "failed",
 				Error:  errMsg,
 			})
 			failed++
@@ -114,7 +114,10 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 	}
 
 	// Batch fetch all live machine class states once.
-	allLiveStates, _ := omni.GetAllLiveMachineClasses()
+	allLiveStates, err := omni.GetAllLiveMachineClasses()
+	if err != nil {
+		r.logWarn("Failed to batch-fetch live machine class states, falling back to per-MC fetches", "component", "MachineClasses", "error", err)
+	}
 
 	for _, file := range files {
 		ids := extractAllIDs(file)
@@ -370,6 +373,10 @@ func (r *Reconciler) DeleteMachineClasses(dir string) {
 	deleted, failed := 0, 0
 	for _, id := range existingIDs {
 		if contains(desiredIDs, id) {
+			continue
+		}
+		// Skip machine classes whose repo is currently failing to sync.
+		if r.protectedMCs[id] {
 			continue
 		}
 		// Only delete MCs that omni-cd has previously owned.

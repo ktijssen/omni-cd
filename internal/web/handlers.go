@@ -193,6 +193,7 @@ func (s *Server) handleRefreshSingleMC(w http.ResponseWriter, r *http.Request) {
 	}
 	select {
 	case s.triggerMCRefreshSingle <- req.ID:
+		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "refresh", Resource: req.ID, Kind: "machineclass"})
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
 	default:
@@ -210,6 +211,7 @@ func (s *Server) handleRefreshMC(w http.ResponseWriter, r *http.Request) {
 	}
 	select {
 	case s.triggerMCRefresh <- struct{}{}:
+		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "refresh", Kind: "machineclass"})
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
 	default:
@@ -804,6 +806,11 @@ func (s *Server) handleTestOmniInstance(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if req.Endpoint == "" || req.ServiceAccountKey == "" {
+		http.Error(w, "endpoint and serviceAccountKey are required", http.StatusBadRequest)
+		return
+	}
+
 	if err := omni.TestConnectivity(req.Endpoint, req.ServiceAccountKey); err != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
@@ -905,7 +912,7 @@ func (s *Server) handleLogDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	filename := "omni-cd-" + date + ".jsonlog"
 	path := filepath.Join(s.logDir, filename)
-	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	http.ServeFile(w, r, path)
 }
@@ -987,7 +994,7 @@ func (s *Server) handleAuditDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	filename := "audit-" + date + ".jsonlog"
 	path := filepath.Join(s.auditDir, filename)
-	w.Header().Set("Content-Disposition", "attachment; filename="+filename)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	http.ServeFile(w, r, path)
 }

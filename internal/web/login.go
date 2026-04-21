@@ -67,7 +67,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			displayName := s.authStore.GetDisplayName(username)
-			s.sessions.Store(token, sessionInfo{LoginTime: time.Now(), Username: username, DisplayName: displayName})
+			s.sessions.Store(token, sessionInfo{LoginTime: time.Now(), Username: username, DisplayName: displayName, AuthMethod: "local"})
 			s.saveSessions()
 			http.SetCookie(w, &http.Cookie{
 				Name:     sessionCookieName,

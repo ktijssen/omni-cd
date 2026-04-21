@@ -77,11 +77,22 @@ tasks:
     cmds:
       - golangci-lint run ./cmd/... ./internal/...
 
+  test:
+    desc: Run unit tests
+    cmds:
+      - go test ./internal/...
+
+  test:verbose:
+    desc: Run unit tests with verbose output
+    cmds:
+      - go test -v ./internal/...
+
   check:
-    desc: Run all code quality checks
+    desc: Run all code quality checks (fmt, vet, tests)
     cmds:
       - task: fmt
       - task: vet
+      - task: test
 
   # Version tasks
   version:bump:

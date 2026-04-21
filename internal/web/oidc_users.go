@@ -34,7 +34,9 @@ func loadOIDCUserStore(path string) *oidcUserStore {
 	s := &oidcUserStore{path: path}
 	data, err := os.ReadFile(path)
 	if err == nil {
-		_ = json.Unmarshal(data, &s.users)
+		if err := json.Unmarshal(data, &s.users); err != nil {
+			slog.Warn("Could not parse OIDC users file, starting with empty list", "error", err, "component", "OIDC")
+		}
 	}
 	return s
 }
@@ -114,8 +116,14 @@ func (s *oidcUserStore) save() {
 		slog.Warn("Failed to create directory for OIDC users", "error", err, "component", "OIDC")
 		return
 	}
-	data, _ := json.MarshalIndent(s.users, "", "  ")
-	_ = os.WriteFile(s.path, data, 0600)
+	data, err := json.MarshalIndent(s.users, "", "  ")
+	if err != nil {
+		slog.Warn("Could not marshal OIDC users", "error", err, "component", "OIDC")
+		return
+	}
+	if err := os.WriteFile(s.path, data, 0600); err != nil {
+		slog.Warn("Could not write OIDC users file", "error", err, "component", "OIDC")
+	}
 }
 
 // handleOIDCUsers serves GET /api/users/oidc (list),
