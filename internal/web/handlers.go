@@ -764,6 +764,8 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 	s.appState.SetOmniEndpoint(req.Endpoint)
 	s.appState.SetHasStoredKey(true)
 	s.appState.SetOmniConfigured(true)
+	omni.ClearCache()
+	s.appState.Save()
 	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "omni-update", Kind: "omni"})
 
 	// Signal main() to start the reconciler for the first time (non-blocking).
