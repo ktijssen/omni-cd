@@ -26,7 +26,7 @@ task install                 # go install
 task fmt                     # go fmt
 task vet                     # go vet
 task lint                    # golangci-lint
-task check                   # Run fmt + vet
+task check                   # Run fmt + vet + tests
 ```
 
 ### Dependencies
