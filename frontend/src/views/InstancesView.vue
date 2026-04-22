@@ -50,8 +50,9 @@
       <div class="repo-modal-box">
         <div class="repo-modal-title">{{ isEdit ? 'Edit Omni Instance' : 'Add Omni Instance' }}</div>
         <div class="repo-form-group">
-          <label class="repo-form-label">Endpoint URL <span style="color:#f87171">*</span></label>
-          <input class="repo-form-input" v-model="form.endpoint" type="text" placeholder="https://your-omni-instance.example.com" />
+          <label class="repo-form-label">Endpoint URL <span v-if="!isEdit" style="color:#f87171">*</span></label>
+          <input class="repo-form-input" v-model="form.endpoint" type="text" placeholder="https://your-omni-instance.example.com" :disabled="isEdit" :style="isEdit ? { opacity: '0.5', cursor: 'not-allowed' } : {}" />
+          <div v-if="isEdit" style="font-size:11px;color:#7d7d85;margin-top:4px;">Endpoint cannot be changed — delete the instance to use a different URL</div>
         </div>
         <div class="repo-form-group">
           <label class="repo-form-label">Service Account Key</label>
@@ -190,7 +191,7 @@ async function testModalConnection() {
 
 async function save() {
   formError.value = ''
-  if (!form.endpoint) { formError.value = 'Endpoint is required'; return }
+  if (!isEdit.value && !form.endpoint) { formError.value = 'Endpoint is required'; return }
   if (!form.key && !state.value?.omniHasStoredKey) { formError.value = 'Service account key is required'; return }
   savePending.value = true
   try {
