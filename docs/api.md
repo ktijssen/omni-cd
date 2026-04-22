@@ -41,12 +41,13 @@ All endpoints require an active session cookie unless `AUTH_DISABLED=true`. View
 | `POST` | `/api/repos` | admin | Add a git repository |
 | `PUT` | `/api/repos` | admin | Update a git repository |
 | `DELETE` | `/api/repos` | admin | Remove a git repository |
+| `POST` | `/api/repos/test` | admin | Test Git repo connectivity `{"url":"…","branch":"…","token":"…"}` |
 
 ## Omni Instance
 
 | Method | Path | Role | Description |
 |---|---|---|---|
-| `GET` | `/api/omni-instance` | viewer | Get current Omni instance config |
+| `GET` | `/api/omni-instance` | admin | Get current Omni instance config |
 | `POST` | `/api/omni-instance` | admin | Save Omni instance config |
 | `POST` | `/api/omni-instance/test` | admin | Test Omni connection |
 | `POST` | `/api/omni-instance/refresh` | admin | Re-check connectivity and refresh version |
@@ -77,6 +78,24 @@ All endpoints require an active session cookie unless `AUTH_DISABLED=true`. View
 | `GET` | `/api/users/oidc` | admin | List SSO users with roles |
 | `PATCH` | `/api/users/oidc` | admin | Update an SSO user's role `{"email":"…","role":"admin\|viewer\|none"}` |
 | `DELETE` | `/api/users/oidc` | admin | Remove an SSO user `{"email":"…"}` |
+
+## OIDC Config
+
+| Method | Path | Role | Description |
+|---|---|---|---|
+| `GET` | `/api/oidc-config` | admin | Get current OIDC configuration (client secret masked) |
+
+## Webhooks
+
+| Method | Path | Role | Description |
+|---|---|---|---|
+| `POST` | `/api/webhook` | public | Trigger a git refresh via incoming webhook (GitHub format, validated with `WEBHOOK_SECRET` if set) |
+
+## Session
+
+| Method | Path | Role | Description |
+|---|---|---|---|
+| `GET` | `/api/me` | viewer | Current user's username, role, and auth configuration |
 
 ## Authentication
 
