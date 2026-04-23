@@ -360,6 +360,9 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 		for _, wg := range c.Workers {
 			hash = hash*31 + uint64(len(wg.Machines))
 		}
+		// Include liveContent length so manifest additions/removals (which don't
+		// change status or topology) still trigger a WebSocket broadcast.
+		hash = hash*31 + uint64(len(c.LiveContent))
 	}
 	for _, m := range snapshot.MachineClasses {
 		for _, b := range []byte(m.Status) {
