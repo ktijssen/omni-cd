@@ -886,7 +886,12 @@ func WatchClusters(
 			case cosistate.Destroyed:
 				r, err := event.Resource()
 				if err == nil {
-					delete(clusterPhases, r.Metadata().ID())
+					id := r.Metadata().ID()
+					delete(clusterPhases, id)
+					delete(msPhasesByCluster, id)
+					if onClusterChange != nil {
+						onClusterChange(id)
+					}
 				}
 			}
 			notify()

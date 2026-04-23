@@ -559,6 +559,10 @@ func main() {
 			logInfo(fmt.Sprintf("Cluster deletion triggered from web UI: %s", clusterID))
 			go func(id string) {
 				rec.DeleteSingleCluster(id)
+				select {
+				case triggerSoft <- struct{}{}:
+				default:
+				}
 			}(clusterID)
 		case mcID := <-triggerDeleteMC:
 			logInfo(fmt.Sprintf("Machine class deletion triggered from web UI: %s", mcID))

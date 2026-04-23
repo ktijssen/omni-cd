@@ -802,6 +802,26 @@ func (r *Reconciler) DeleteSingleCluster(id string) {
 		return
 	}
 
+	// If the cluster is not in Omni at all (e.g. outofsync / never deployed),
+	// skip the Omni API call and remove it from state immediately.
+	if !isOrphaned {
+		if cachedIDs, _, cacheOK := omni.GetCachedClusterIDsWithPhases(); cacheOK {
+			existsInOmni := false
+			for _, cid := range cachedIDs {
+				if cid == id {
+					existsInOmni = true
+					break
+				}
+			}
+			if !existsInOmni {
+				r.logInfo("Cluster not in Omni, removing from state", "component", "Clusters", "cluster", id)
+				r.state.RemoveCluster(id)
+				r.state.Save()
+				return
+			}
+		}
+	}
+
 	// Mark as deleting so the card shows the deleting state. Orphaned clusters
 	// keep their "orphaned" status — UpdateTearingDownStatuses already removes
 	// them once Omni confirms they are gone, so flipping to "deleting" here
