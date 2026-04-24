@@ -1145,6 +1145,105 @@ func IsClusterTemplateManaged(id string) bool {
 	return ok
 }
 
+// ManifestStatus holds the status of a single Kubernetes manifest resource.
+type ManifestStatus struct {
+	Phase     string `json:"phase"`
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	Group     string `json:"group"`
+}
+
+// ManifestGroupStatus holds the status of a KubernetesManifestGroup.
+type ManifestGroupStatus struct {
+	Phase     string                    `json:"phase"`
+	Mode      string                    `json:"mode"`
+	Manifests map[string]ManifestStatus `json:"manifests"`
+}
+
+// ClusterManifestStatus holds the full manifest sync status for a cluster.
+type ClusterManifestStatus struct {
+	Groups    map[string]ManifestGroupStatus `json:"groups"`
+	OutOfSync int32                          `json:"outOfSync"`
+	Total     int32                          `json:"total"`
+	LastError string                         `json:"lastError"`
+}
+
+// GetClusterManifestStatus fetches the KubernetesManifestGroup sync status for a cluster.
+func GetClusterManifestStatus(clusterID string) (*ClusterManifestStatus, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	res, err := safe.StateGet[*omniapi.ClusterKubernetesManifestsStatus](ctx, omniState,
+		omniapi.NewClusterKubernetesManifestsStatus(clusterID).Metadata())
+	if err != nil {
+		return nil, err
+	}
+	spec := res.TypedSpec().Value
+	out := &ClusterManifestStatus{
+		Groups:    make(map[string]ManifestGroupStatus, len(spec.GetGroups())),
+		OutOfSync: spec.GetOutOfSync(),
+		Total:     spec.GetTotal(),
+		LastError: spec.GetLastError(),
+	}
+	for name, g := range spec.GetGroups() {
+		manifests := make(map[string]ManifestStatus, len(g.GetManifests()))
+		for mKey, m := range g.GetManifests() {
+			manifests[mKey] = ManifestStatus{
+				Phase:     manifestPhaseString(int32(m.GetPhase())),
+				Kind:      m.GetKind(),
+				Name:      m.GetName(),
+				Namespace: m.GetNamespace(),
+				Group:     m.GetGroup(),
+			}
+		}
+		out.Groups[name] = ManifestGroupStatus{
+			Phase:     groupPhaseString(int32(g.GetPhase())),
+			Mode:      manifestModeString(int32(g.GetMode())),
+			Manifests: manifests,
+		}
+	}
+	return out, nil
+}
+
+func groupPhaseString(p int32) string {
+	switch p {
+	case 1:
+		return "pending"
+	case 2:
+		return "progressing"
+	case 3:
+		return "applied"
+	case 4:
+		return "deleting"
+	default:
+		return "unknown"
+	}
+}
+
+func manifestPhaseString(p int32) string {
+	switch p {
+	case 1:
+		return "pending"
+	case 2:
+		return "applied"
+	case 3:
+		return "deleting"
+	default:
+		return "unknown"
+	}
+}
+
+func manifestModeString(m int32) string {
+	switch m {
+	case 1:
+		return "full"
+	case 2:
+		return "one-time"
+	default:
+		return "unknown"
+	}
+}
+
 // ============================================================
 // Cluster Template Parsing
 // ============================================================

@@ -14,8 +14,8 @@ import (
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
-	appstate "omni-cd/internal/state"
 	oidcconfig "omni-cd/internal/oidc"
+	appstate "omni-cd/internal/state"
 )
 
 // OIDCRuntime holds the live OIDC provider and oauth2 config derived from an
