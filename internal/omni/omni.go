@@ -1176,6 +1176,9 @@ func GetClusterManifestStatus(clusterID string) (*ClusterManifestStatus, error) 
 	res, err := safe.StateGet[*omniapi.ClusterKubernetesManifestsStatus](ctx, omniState,
 		omniapi.NewClusterKubernetesManifestsStatus(clusterID).Metadata())
 	if err != nil {
+		if cosistate.IsNotFoundError(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	spec := res.TypedSpec().Value

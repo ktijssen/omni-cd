@@ -10,7 +10,7 @@ const router = createRouter({
     { path: '/', redirect: '/clusters' },
     { path: '/clusters', component: ClustersView },
     {
-      path: '/clusters/:id',
+      path: '/clusters/:id/:tab?',
       component: () => import('@/views/ClusterDetailView.vue'),
     },
     {

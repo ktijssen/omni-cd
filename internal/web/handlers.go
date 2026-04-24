@@ -476,8 +476,12 @@ func (s *Server) handleClusterManifests(w http.ResponseWriter, r *http.Request) 
 	}
 	status, err := omni.GetClusterManifestStatus(id)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	if status == nil {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	json.NewEncoder(w).Encode(status)

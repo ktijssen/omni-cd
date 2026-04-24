@@ -1116,7 +1116,7 @@ func (r *Reconciler) DeleteClustersAll(dirs []string, liveIDs []string) {
 			})
 			continue
 		}
-		// Template-managed but never synced by this omni-cd instance.
+		// Template-managed but never synced by OmniCD.
 		if !allTrackedAll[id] {
 			r.logDebug("Cluster managed by templates but not tracked by omni-cd, skipping delete", "component", "Clusters", "cluster", id)
 			notOwned = append(notOwned, id)
@@ -1338,7 +1338,7 @@ func (r *Reconciler) collectUnmanagedClusters(dirs []string, liveIDs []string) {
 					cluster.Diff = "Cluster template is removed from git. Enable Auto-Sync or Sync to delete this cluster."
 				} else {
 					cluster.Status = "orphaned"
-					cluster.Diff = "Cluster template exists in Omni but is not managed by this omni-cd instance."
+					cluster.Diff = "Cluster template exists in Omni but is not managed by OmniCD."
 				}
 			} else {
 				cluster.Status = "unmanaged"
@@ -1417,7 +1417,7 @@ func (r *Reconciler) collectUnmanagedClusters(dirs []string, liveIDs []string) {
 				diffMsg = "Cluster template is removed from git. Enable Auto-Sync or Sync to delete this cluster."
 			} else {
 				status = "orphaned"
-				diffMsg = "Cluster template exists in Omni but is not managed by this omni-cd instance."
+				diffMsg = "Cluster template exists in Omni but is not managed by OmniCD."
 			}
 		}
 		liveContent, _ := omni.GetLiveCluster(id)
