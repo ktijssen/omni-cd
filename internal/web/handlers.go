@@ -461,6 +461,28 @@ func (s *Server) handleExportCluster(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(yamlContent))
 }
 
+// handleClusterManifests returns the KubernetesManifestGroup sync status for a cluster.
+func (s *Server) handleClusterManifests(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "id is required"})
+		return
+	}
+	status, err := omni.GetClusterManifestStatus(id)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	json.NewEncoder(w).Encode(status)
+}
+
 // handleRepos handles CRUD operations for git repository configurations.
 //
 //	POST   /api/repos         — add a new repo

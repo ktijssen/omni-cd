@@ -45,6 +45,7 @@ Open `http://localhost:8080` — you will be redirected to `/setup` to create th
 - **Multi-repo** — Manage resources from multiple Git repositories in one instance
 - **Drift detection** — Detects out-of-sync resources without applying changes; colour-coded diff view
 - **Live cluster status** — Health badges for cluster, controlplane, API, etcd, and WireGuard
+- **Kubernetes manifest status** — Per-cluster manifest sync status with group, mode, phase, and per-resource breakdown
 - **Machine graph** — Visual DAG: Git → Omni → Cluster → MachineSets → Machines
 - **Per-cluster auto-sync** — Enable or disable automatic sync per cluster from the UI
 - **Unmanaged clusters** — Export externally-created clusters as YAML templates

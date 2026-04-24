@@ -298,7 +298,6 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 			} else {
 				r.logInfo("Cluster synced", "component", "Clusters", "cluster", clusterName)
 				r.state.UpsertClusterStatus(clusterName, "success")
-				// Always fetch fresh after sync — the pre-fetched cache is stale
 				liveContent, _ := omni.GetLiveCluster(clusterName)
 				talos, k8s, cp, wk, clusterExts, machExts := clusterDetailFromLive(liveContent)
 				cp, wk = hydratePoolMachines(clusterName, cp, wk)
@@ -469,7 +468,29 @@ func (r *Reconciler) RefreshSingleCluster(dir, id string) {
 		// No git template — check if this is an unmanaged cluster and refresh its live data.
 		if omni.IsClusterTemplateManaged(id) {
 			r.logWarn("No template found for managed cluster", "component", "Clusters", "cluster", id)
-			r.state.UpsertClusterStatus(id, "orphaned")
+			liveContent, err := omni.GetLiveCluster(id)
+			if err != nil {
+				r.logError("Failed to fetch live cluster data for orphaned cluster", "component", "Clusters", "cluster", id, "error", err)
+				r.state.UpsertClusterStatus(id, "orphaned")
+				return
+			}
+			talos, k8s, cp, wk, clusterExts, machExts := clusterDetailFromLive(liveContent)
+			cp, wk = hydratePoolMachines(id, cp, wk)
+			allHostnames, _ := omni.GetAllMachineHostnames()
+			r.state.UpsertClusterInfo(id, state.ResourceInfo{
+				ID:                id,
+				Type:              "Cluster",
+				Status:            "orphaned",
+				LiveContent:       liveContent,
+				TalosVersion:      talos,
+				KubernetesVersion: k8s,
+				ControlPlane:      cp,
+				Workers:           wk,
+				ClusterExtensions: clusterExts,
+				MachineExtensions: machExts,
+				MachineHostnames:  extractHostnames(allHostnames, cp, wk),
+			})
+			r.state.Save()
 			return
 		}
 		// Unmanaged cluster — populate live info.
@@ -908,11 +929,13 @@ func (r *Reconciler) DeleteClusters(dir string) {
 		// Only delete clusters managed by cluster templates.
 		if !omni.IsClusterTemplateManaged(id) {
 			r.logDebug("Cluster not managed by templates, ignoring", "component", "Clusters", "cluster", id)
+			liveContent, _ := omni.GetLiveCluster(id)
 			unmanaged = append(unmanaged, state.ResourceInfo{
-				ID:        id,
-				Type:      "Cluster",
-				Status:    "unmanaged",
-				CreatedAt: omni.GetClusterCreatedAt(id),
+				ID:          id,
+				Type:        "Cluster",
+				Status:      "unmanaged",
+				LiveContent: liveContent,
+				CreatedAt:   omni.GetClusterCreatedAt(id),
 			})
 			continue
 		}

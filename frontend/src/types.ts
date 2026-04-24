@@ -108,6 +108,27 @@ export interface SnapshotData {
   logLevel: string
 }
 
+export interface ManifestStatus {
+  phase: string
+  kind: string
+  name: string
+  namespace: string
+  group: string
+}
+
+export interface ManifestGroupStatus {
+  phase: string
+  mode: string
+  manifests: Record<string, ManifestStatus>
+}
+
+export interface ClusterManifestStatus {
+  groups: Record<string, ManifestGroupStatus>
+  outOfSync: number
+  total: number
+  lastError: string
+}
+
 export interface AuditEntry {
   timestamp: string
   user: string

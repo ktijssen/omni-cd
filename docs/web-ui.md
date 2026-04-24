@@ -28,13 +28,16 @@ Click a cluster card to open the detail page.
 
 ![Cluster detail graph](cluster-detail-graph.png)
 
-Three tabs:
+Four tabs:
 
 | Tab | Contents |
 |---|---|
 | **Graph** | Visual DAG: Git → Omni → Cluster → MachineSets → Machines |
-| **Live** | Current resource YAML as seen by Omni |
+| **Live** | Current resource YAML as seen by Omni, with collapsible fold sections at every indentation level |
 | **Diff** | Colour-coded diff between desired (Git) and live state |
+| **Manifests** | Kubernetes manifest sync status from Omni — grouped by manifest group, showing mode (Full / One-Time), overall phase, and a per-resource table of Kind, Name, Namespace, and sync status |
+
+The **Manifests** tab appears only when manifest data is available for the cluster. Manifest groups are collapsed by default; click a group row to expand it.
 
 Clusters created outside of Git (unmanaged) show an **Export** button to download them as a YAML template.
 

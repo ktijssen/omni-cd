@@ -59,8 +59,8 @@ type Server struct {
 	authDisabled           bool
 	sessions               sync.Map // token (string) -> sessionInfo
 	loginBuckets           sync.Map // IP (string) -> *loginBucket
-	metricsCollector *metrics.Collector
-	metricsPort      string
+	metricsCollector       *metrics.Collector
+	metricsPort            string
 	// OIDC
 	oidcRT     *OIDCRuntime
 	oidcMu     sync.RWMutex
@@ -171,6 +171,7 @@ func (s *Server) Start() {
 	mux.HandleFunc("/api/delete-cluster", s.requireRole("admin", s.handleDeleteCluster))
 	mux.HandleFunc("/api/set-cluster-autosync", s.requireRole("admin", s.handleSetClusterAutoSync))
 	mux.HandleFunc("/api/export-cluster", s.requireRole("admin", s.handleExportCluster))
+	mux.HandleFunc("/api/cluster-manifests", s.requireRole("viewer", s.handleClusterManifests))
 	mux.HandleFunc("/api/repos", s.requireRole("admin", s.handleRepos))
 	mux.HandleFunc("/api/repos/test", s.requireRole("admin", s.handleTestRepo))
 	mux.HandleFunc("/api/refresh-mc", s.requireRole("admin", s.handleRefreshMC))
@@ -360,6 +361,9 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 		for _, wg := range c.Workers {
 			hash = hash*31 + uint64(len(wg.Machines))
 		}
+		// Include liveContent length so manifest additions/removals (which don't
+		// change status or topology) still trigger a WebSocket broadcast.
+		hash = hash*31 + uint64(len(c.LiveContent))
 	}
 	for _, m := range snapshot.MachineClasses {
 		for _, b := range []byte(m.Status) {
