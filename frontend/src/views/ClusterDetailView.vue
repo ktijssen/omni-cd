@@ -123,72 +123,61 @@
       </template>
     </div>
 
-    <!-- Tab bar -->
-    <div class="cluster-detail-tabs-bar">
-      <button
-        v-for="tab in tabs"
-        :key="tab"
-        class="cluster-detail-tab"
-        :class="{ active: activeTab === tab }"
-        @click="activeTab = tab"
-      >
-        {{ tabLabels[tab] || tab }}
-      </button>
-    </div>
-
     <!-- Tab body -->
     <div
       class="cluster-detail-body"
       :class="{
         'graph-mode': activeTab === 'graph',
-        'mc-live-mode': activeTab === 'live',
+        'mc-live-mode': activeTab === 'template' && templateSubTab === 'live',
       }"
     >
       <template v-if="activeTab === 'graph'">
         <ClusterGraph :cluster="cluster" />
       </template>
 
-      <template v-else-if="activeTab === 'live'">
-        <div v-if="cluster.liveContent" style="white-space:normal;word-break:normal;">
-          <!-- Toolbar -->
-          <div v-if="liveFolds.size > 0" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:6px 14px;border-bottom:1px solid #2c2e38;background:#15161e;position:sticky;top:0;z-index:1;">
-            <button @click="expandAllFolds" class="btn-sort" style="font-size:11px;padding:2px 8px;">Expand all</button>
-            <button @click="collapseAllFolds" class="btn-sort" style="font-size:11px;padding:2px 8px;">Collapse all</button>
+      <template v-else-if="activeTab === 'template'">
+        <!-- Sub-tab bar -->
+        <div class="cluster-detail-tabs-bar">
+          <button class="cluster-detail-tab" :class="{ active: templateSubTab === 'live' }" @click="templateSubTab = 'live'">Live</button>
+          <button class="cluster-detail-tab" :class="{ active: templateSubTab === 'diff' }" @click="templateSubTab = 'diff'">Diff</button>
+        </div>
+        <!-- Live sub-tab -->
+        <template v-if="templateSubTab === 'live'">
+          <div v-if="cluster.liveContent" style="white-space:normal;word-break:normal;">
+            <div v-if="liveFolds.size > 0" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:6px 14px;border-bottom:1px solid #2c2e38;background:#15161e;position:sticky;top:0;z-index:1;">
+              <button @click="expandAllFolds" class="btn-sort" style="font-size:11px;padding:2px 8px;">Expand all</button>
+              <button @click="collapseAllFolds" class="btn-sort" style="font-size:11px;padding:2px 8px;">Collapse all</button>
+            </div>
+            <div class="sbs-table-single">
+              <template v-for="(line, i) in liveContentLines" :key="i">
+                <div
+                  v-if="!hiddenLines.has(i)"
+                  class="sbs-cell"
+                  style="display:flex;align-items:baseline;padding-left:4px;"
+                  :style="liveFolds.has(i) ? { cursor: 'pointer' } : {}"
+                  @click="liveFolds.has(i) && toggleFold(i)"
+                >
+                  <span style="width:14px;flex-shrink:0;font-size:9px;text-align:center;user-select:none;color:#ff8b59;">
+                    <template v-if="liveFolds.has(i)">{{ collapsedFolds.has(i) ? '▶' : '▼' }}</template>
+                  </span>
+                  <span class="sbs-ln" :style="{ minWidth: lineNumberWidth, textAlign: 'right', display: 'inline-block' }">{{ i + 1 }}.</span>
+                  <span style="white-space:pre;flex:1;">{{ line }}</span>
+                  <span v-if="liveFolds.has(i) && collapsedFolds.has(i)" style="color:#5b5c64;font-size:11px;padding-left:10px;flex-shrink:0;">··· {{ liveFolds.get(i)!.lineCount }} lines</span>
+                </div>
+              </template>
+            </div>
           </div>
-          <!-- Lines -->
-          <div class="sbs-table-single">
-            <template v-for="(line, i) in liveContentLines" :key="i">
-              <div
-                v-if="!hiddenLines.has(i)"
-                class="sbs-cell"
-                style="display:flex;align-items:baseline;padding-left:4px;"
-                :style="liveFolds.has(i) ? { cursor: 'pointer' } : {}"
-                @click="liveFolds.has(i) && toggleFold(i)"
-              >
-                <!-- Fold toggle gutter -->
-                <span style="width:14px;flex-shrink:0;font-size:9px;text-align:center;user-select:none;color:#ff8b59;">
-                  <template v-if="liveFolds.has(i)">{{ collapsedFolds.has(i) ? '▶' : '▼' }}</template>
-                </span>
-                <!-- Line number -->
-                <span class="sbs-ln" :style="{ minWidth: lineNumberWidth, textAlign: 'right', display: 'inline-block' }">{{ i + 1 }}.</span>
-                <!-- Content -->
-                <span style="white-space:pre;flex:1;">{{ line }}</span>
-                <!-- Collapsed hint -->
-                <span v-if="liveFolds.has(i) && collapsedFolds.has(i)" style="color:#5b5c64;font-size:11px;padding-left:10px;flex-shrink:0;">··· {{ liveFolds.get(i)!.lineCount }} lines</span>
-              </div>
-            </template>
+          <div v-else style="color:#7d7d85;text-align:center;padding:40px;font-size:14px;">No live state available</div>
+        </template>
+        <!-- Diff sub-tab -->
+        <template v-else>
+          <div v-if="cluster.diff">
+            <DiffViewer :diff="cluster.diff" />
           </div>
-        </div>
-        <div v-else style="color:#7d7d85;text-align:center;padding:40px;">No live state available</div>
-      </template>
-
-      <template v-else-if="activeTab === 'diff'">
-        <div v-if="cluster.diff">
-          <DiffViewer :diff="cluster.diff" />
-        </div>
-        <div v-else style="color:#7d7d85;text-align:center;padding:40px;">
-          {{ cluster.status === 'unmanaged' ? 'No diff — this cluster has no template in Git.' : 'No diff available' }}
-        </div>
+          <div v-else style="color:#7d7d85;text-align:center;padding:40px;font-size:14px;">
+            {{ cluster.status === 'unmanaged' ? 'Cluster template exists in Omni but is not managed by OmniCD.' : 'No diff available' }}
+          </div>
+        </template>
       </template>
 
       <template v-else-if="activeTab === 'manifests'">
@@ -258,7 +247,9 @@
               </table>
             </template>
           </template>
-          <div v-else style="text-align:center;color:#7d7d85;padding:40px;font-size:13px;">No manifest data available</div>
+          <div v-else style="text-align:center;padding:60px 24px;">
+            <span style="font-size:14px;color:#7d7d85;">No Kubernetes manifests configured for this cluster</span>
+          </div>
         </div>
       </template>
 
@@ -333,22 +324,8 @@ const cluster = computed(() => {
   return state.value?.clusters.find(c => c.id === id) ?? null
 })
 
-const tabs = computed(() => {
-  const t = ['graph', 'live', 'diff']
-  if (manifestStatus.value || manifestsLoading.value) t.push('manifests')
-  if (cluster.value?.error || cluster.value?.lastSyncError) t.push('error')
-  return t
-})
-
-const tabLabels: Record<string, string> = {
-  graph: 'Topology',
-  live: 'Live',
-  diff: 'Diff',
-  manifests: 'Manifests',
-  error: 'Error',
-}
-
-const activeTab = ref('graph')
+const activeTab = computed(() => (route.params.tab as string) || 'graph')
+const templateSubTab = ref<'live' | 'diff'>('live')
 
 // Manifests tab state
 const manifestStatus = ref<ClusterManifestStatus | null>(null)
@@ -363,6 +340,10 @@ async function loadManifests() {
   manifestsError.value = ''
   try {
     const r = await fetch(`/api/cluster-manifests?id=${encodeURIComponent(id)}`)
+    if (r.status === 204) {
+      manifestStatus.value = null
+      return
+    }
     if (!r.ok) {
       const d = await r.json().catch(() => ({}))
       manifestsError.value = d.error || 'Failed to load manifest status'

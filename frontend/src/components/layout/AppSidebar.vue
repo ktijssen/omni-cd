@@ -81,6 +81,28 @@
           <span class="sidebar-item-label">Users</span>
         </RouterLink>
       </div>
+
+      <!-- Cluster sub-nav -->
+      <template v-if="clusterSubNav">
+        <div class="sidebar-sep" style="margin-top:6px;"></div>
+        <div class="sidebar-cluster-label">{{ clusterSubNav.name }}</div>
+        <RouterLink :to="`/clusters/${clusterSubNav.id}/graph`" class="sidebar-item sidebar-subitem" :class="{ active: clusterSubNav.tab === 'graph' }">
+          <span class="sidebar-item-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M7.07755 1H9.5C9.77614 1 10 1.22386 10 1.5C10 1.77614 9.77614 2 9.5 2H7.1C6.11166 2 5.40047 2.00039 4.84192 2.04602C4.28921 2.09118 3.93014 2.17814 3.63803 2.32698C3.07354 2.6146 2.6146 3.07354 2.32698 3.63803C2.17814 3.93014 2.09118 4.28921 2.04602 4.84192C2.00039 5.40047 2 6.11166 2 7.1V8.9C2 9.88834 2.00039 10.5995 2.04602 11.1581C2.09118 11.7108 2.17814 12.0699 2.32698 12.362C2.6146 12.9265 3.07354 13.3854 3.63803 13.673C3.93014 13.8219 4.28921 13.9088 4.84192 13.954C5.40047 13.9996 6.11166 14 7.1 14H8.9C9.88834 14 10.5995 13.9996 11.1581 13.954C11.7108 13.9088 12.0699 13.8219 12.362 13.673C12.9265 13.3854 13.3854 12.9265 13.673 12.362C13.8219 12.0699 13.9088 11.7108 13.954 11.1581C13.9996 10.5995 14 9.88834 14 8.9V7.5C14 7.22386 14.2239 7 14.5 7C14.7761 7 15 7.22386 15 7.5V8.92246C15 9.88354 15 10.6355 14.9507 11.2395C14.9004 11.8541 14.7967 12.3594 14.564 12.816C14.1805 13.5686 13.5686 14.1805 12.816 14.564C12.3594 14.7967 11.8541 14.9004 11.2395 14.9507C10.6355 15 9.88354 15 8.92246 15H7.07754C6.11646 15 5.36451 15 4.76049 14.9507C4.14594 14.9004 3.64062 14.7967 3.18404 14.564C2.43139 14.1805 1.81947 13.5686 1.43597 12.816C1.20334 12.3594 1.09956 11.8541 1.04935 11.2395C0.999995 10.6355 0.999997 9.88354 1 8.92245V7.07755C0.999997 6.11646 0.999995 5.36451 1.04935 4.76049C1.09956 4.14594 1.20334 3.64062 1.43597 3.18404C1.81947 2.43139 2.43139 1.81947 3.18404 1.43597C3.64062 1.20334 4.14594 1.09956 4.76049 1.04935C5.36451 0.999995 6.11646 0.999997 7.07755 1Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M14 4C14.5523 4 15 3.55228 15 3C15 2.44772 14.5523 2 14 2C13.4477 2 13 2.44772 13 3C13 3.55228 13.4477 4 14 4ZM14 5C15.1046 5 16 4.10457 16 3C16 1.89543 15.1046 1 14 1C12.8954 1 12 1.89543 12 3C12 4.10457 12.8954 5 14 5Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M10.8536 6.14645C11.0488 6.34171 11.0488 6.65829 10.8536 6.85355L8.85357 8.85355C8.67763 9.0295 8.39908 9.0493 8.20002 8.9L6.58771 7.69077L4.89045 9.81235C4.71795 10.028 4.4033 10.0629 4.18767 9.89043C3.97204 9.71793 3.93708 9.40328 4.10958 9.18765L6.10958 6.68765C6.27829 6.47677 6.58397 6.43796 6.80002 6.6L8.4531 7.83981L10.1465 6.14645C10.3417 5.95118 10.6583 5.95118 10.8536 6.14645Z"/></svg></span>
+          <span class="sidebar-item-label">Topology</span>
+        </RouterLink>
+        <RouterLink :to="`/clusters/${clusterSubNav.id}/template`" class="sidebar-item sidebar-subitem" :class="{ active: clusterSubNav.tab === 'template' }">
+          <span class="sidebar-item-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="sidebar-nav-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg></span>
+          <span class="sidebar-item-label">Cluster Template</span>
+        </RouterLink>
+        <RouterLink :to="`/clusters/${clusterSubNav.id}/manifests`" class="sidebar-item sidebar-subitem" :class="{ active: clusterSubNav.tab === 'manifests' }">
+          <span class="sidebar-item-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="sidebar-nav-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg></span>
+          <span class="sidebar-item-label">Manifests</span>
+        </RouterLink>
+        <RouterLink v-if="clusterSubNav.hasError" :to="`/clusters/${clusterSubNav.id}/error`" class="sidebar-item sidebar-subitem" :class="{ active: clusterSubNav.tab === 'error' }" style="color:#f87171;">
+          <span class="sidebar-item-icon" style="font-size:13px;">⚠</span>
+          <span class="sidebar-item-label">Error</span>
+        </RouterLink>
+      </template>
     </div>
 
     <div class="sidebar-footer">
@@ -132,6 +154,19 @@ const emit = defineEmits<{ close: [] }>()
 const route = useRoute()
 const appStore = useAppStore()
 const authStore = useAuthStore()
+
+const clusterSubNav = computed(() => {
+  const id = route.params.id as string
+  if (!id) return null
+  const encoded = encodeURIComponent(id)
+  const cluster = appStore.state?.clusters.find(c => c.id === id)
+  return {
+    id: encoded,
+    name: id,
+    tab: (route.params.tab as string) || 'graph',
+    hasError: !!(cluster?.error || cluster?.lastSyncError),
+  }
+})
 
 const settingsRoutes = ['/instances', '/repos', '/users']
 const isSettingsActive = computed(() => settingsRoutes.includes(route.path))

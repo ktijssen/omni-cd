@@ -1107,6 +1107,7 @@
   .sidebar-subgroup { display: none; flex-direction: column; gap: 2px; padding-left: 4px; }
   .sidebar-subgroup.open { display: flex; }
   .sidebar-subitem { padding-left: 24px !important; }
+  .sidebar-cluster-label { padding: 8px 12px 8px; font-size: 11px; font-weight: 600; color: #ff8b59; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sidebar-user { display: flex; align-items: center; gap: 10px; padding: 10px 16px; }
   .sidebar-user-icon { width: 28px; height: 28px; flex-shrink: 0; opacity: 0.6; }
   .sidebar-user-text { flex: 1; min-width: 0; }
@@ -1178,7 +1179,8 @@
   .cluster-detail-tab { background:none; border:none; color:#9fa1a6; padding:10px 14px; font-size:13px; font-weight:500; cursor:pointer; border-bottom:2px solid transparent; transition:all 0.15s; }
   .cluster-detail-tab:hover { color:#e8e8e9; }
   .cluster-detail-tab.active { color:#ff8b59; border-bottom-color:#ff8b59; }
-  .cluster-detail-body { flex:1; min-height:0; overflow-y:auto; font-family:'SF Mono','Fira Code',monospace; font-size:13px; line-height:1.6; color:#e8e8e9; white-space:pre-wrap; word-break:break-all; }
+  .cluster-detail-body { flex:1; min-height:0; overflow-y:auto; font-size:13px; line-height:1.6; color:#e8e8e9; white-space:pre-wrap; word-break:break-all; }
+  .cluster-detail-body .sbs-cell, .cluster-detail-body .sbs-ln { font-family:'SF Mono','Fira Code',monospace; }
   .cluster-detail-body.graph-mode { padding:0; overflow:hidden; display:flex; flex-direction:column; white-space:normal; word-break:normal; }
   .cluster-detail-body.mc-live-mode { white-space:normal; word-break:normal; }
   .cluster-detail-body::-webkit-scrollbar { width:8px; }
