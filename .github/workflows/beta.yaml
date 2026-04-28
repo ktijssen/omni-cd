@@ -6,8 +6,9 @@ on:
       - main
     paths-ignore:
       - 'hack/VERSION'
-      - 'deploy'
-      - 'docs'
+      - 'deploy/**'
+      - 'docs/**'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 concurrency:
