@@ -295,6 +295,9 @@ func main() {
 					if !wasHealthy {
 						logInfo("Omni endpoint is reachable again")
 						wasHealthy = true
+						omniVersion := omni.GetOmniVersion()
+						appState.SetVersions(omniVersion)
+						logDebug("Omni version refreshed after reconnect", "version", omniVersion)
 					}
 					appState.SetOmniHealth("healthy", "")
 					time.Sleep(10 * time.Second)
