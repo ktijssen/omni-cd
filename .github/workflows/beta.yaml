@@ -1,14 +1,10 @@
 name: Beta Build
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - main
-    paths-ignore:
-      - 'hack/VERSION'
-      - 'deploy/**'
-      - 'docs/**'
-      - '.github/workflows/**'
   workflow_dispatch:
 
 concurrency:
@@ -18,6 +14,10 @@ concurrency:
 jobs:
   beta:
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'beta/'))
     permissions:
       packages: write
     steps:
