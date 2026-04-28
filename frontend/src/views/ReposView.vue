@@ -283,7 +283,7 @@ async function testRepoConnection(name: string) {
     const res = await fetch('/api/repos/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: rc.url, branch: rc.branch }),
+      body: JSON.stringify({ url: rc.url, branch: rc.branch, name: rc.name }),
     })
     const d = await res.json().catch(() => ({}))
     const text = res.ok ? 'Connection successful' : (d.error || 'Test failed')

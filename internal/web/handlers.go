@@ -675,6 +675,7 @@ func (s *Server) handleTestRepo(w http.ResponseWriter, r *http.Request) {
 		URL    string `json:"url"`
 		Branch string `json:"branch"`
 		Token  string `json:"token"`
+		Name   string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -689,6 +690,15 @@ func (s *Server) handleTestRepo(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Branch == "" {
 		req.Branch = "main"
+	}
+
+	if req.Token == "" && req.Name != "" {
+		for _, rc := range s.appState.GetRepoConfigs() {
+			if rc.Name == req.Name {
+				req.Token = rc.Token
+				break
+			}
+		}
 	}
 
 	if err := git.TestConnection(req.URL, req.Branch, req.Token); err != nil {
