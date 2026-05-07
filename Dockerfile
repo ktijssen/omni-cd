@@ -1,5 +1,5 @@
 # Frontend build stage
-FROM node:25-alpine AS frontend
+FROM node:26-alpine AS frontend
 
 WORKDIR /frontend
 COPY frontend/package.json ./
