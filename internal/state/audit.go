@@ -38,8 +38,13 @@ func (s *AppState) AppendAudit(entry AuditEntry) {
 		}
 		if s.auditFile != nil {
 			if data, err := json.Marshal(entry); err == nil {
-				s.auditFile.Write(data)
-				s.auditFile.Write([]byte("\n"))
+				// Audit data is compliance-sensitive — write failure must be
+				// loud, never swallowed.
+				if _, werr := s.auditFile.Write(append(data, '\n')); werr != nil {
+					slog.Error("Failed to write audit entry", "error", werr, "component", "State")
+				}
+			} else {
+				slog.Error("Failed to marshal audit entry", "error", err, "component", "State")
 			}
 		}
 	}
@@ -87,7 +92,9 @@ func (s *AppState) SetAuditDir(dir string, retentionDays int) {
 // rotateAuditFile opens a new audit file for the given date. Must be called with s.mu held.
 func (s *AppState) rotateAuditFile(date string) {
 	if s.auditFile != nil {
-		s.auditFile.Close()
+		if err := s.auditFile.Close(); err != nil {
+			slog.Error("Failed to close audit file during rotation", "error", err, "component", "State")
+		}
 		s.auditFile = nil
 	}
 	path := filepath.Join(s.auditDir, "audit-"+date+".jsonlog")

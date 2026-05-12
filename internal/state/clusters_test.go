@@ -247,3 +247,123 @@ func TestHasForceClusterIDs(t *testing.T) {
 		t.Error("should be false after clearing")
 	}
 }
+
+func TestMarkClusterOrphaned_ClearsRepoFieldsPreservesIntrinsic(t *testing.T) {
+	s := newState()
+	now := time.Now().UTC()
+	enabled := true
+	s.SetClusters([]state.ResourceInfo{
+		{
+			ID:   "c1",
+			Type: "Cluster",
+			// repo-derived metadata that must be cleared
+			RepoName:        "infra-prod",
+			Status:          "success",
+			LastSyncResult:  "ok",
+			LastSyncError:   "previous error",
+			LastSyncTime:    now,
+			LastSyncSHA:     "abc12345",
+			LastSyncAuthor:  "alice",
+			LastSyncMessage: "deploy cluster",
+			SyncStatusSince: now,
+			Diff:            "+ something",
+			FileContent:     "kind: Cluster\n",
+			Error:           "stale error",
+			// intrinsic fields that must survive
+			TalosVersion:       "v1.7.0",
+			KubernetesVersion:  "v1.30.0",
+			MachinesHealthy:    3,
+			MachinesTotal:      3,
+			ClusterReady:       "ready",
+			KubernetesAPIReady: "ready",
+			ControlplaneReady:  "ready",
+			ClusterPhase:       "running",
+			EtcdStatus:         "ok",
+			WireGuardStatus:    "ok",
+			LiveContent:        "kind: Cluster\nname: c1\n",
+			CreatedAt:          now,
+			BackupEnabled:      true,
+		},
+	})
+	// AutoSync is set after SetClusters because SetClusters resets new clusters to false.
+	s.SetClusterAutoSync("c1", true)
+	_ = enabled
+
+	s.MarkClusterOrphaned("c1")
+
+	cs := s.GetClusters()
+	if len(cs) != 1 {
+		t.Fatalf("expected 1 cluster, got %d", len(cs))
+	}
+	c := cs[0]
+
+	if c.Status != "orphaned" {
+		t.Errorf("Status: got %q, want %q", c.Status, "orphaned")
+	}
+
+	// Repo-derived fields must be zero.
+	zeros := []struct {
+		name, got string
+	}{
+		{"RepoName", c.RepoName},
+		{"LastSyncResult", c.LastSyncResult},
+		{"LastSyncError", c.LastSyncError},
+		{"LastSyncSHA", c.LastSyncSHA},
+		{"LastSyncAuthor", c.LastSyncAuthor},
+		{"LastSyncMessage", c.LastSyncMessage},
+		{"Diff", c.Diff},
+		{"FileContent", c.FileContent},
+		{"Error", c.Error},
+	}
+	for _, z := range zeros {
+		if z.got != "" {
+			t.Errorf("%s: got %q, want empty", z.name, z.got)
+		}
+	}
+	if !c.LastSyncTime.IsZero() {
+		t.Errorf("LastSyncTime: got %v, want zero", c.LastSyncTime)
+	}
+	if !c.SyncStatusSince.IsZero() {
+		t.Errorf("SyncStatusSince: got %v, want zero", c.SyncStatusSince)
+	}
+
+	// Intrinsic fields must survive.
+	if c.TalosVersion != "v1.7.0" {
+		t.Errorf("TalosVersion clobbered: got %q", c.TalosVersion)
+	}
+	if c.KubernetesVersion != "v1.30.0" {
+		t.Errorf("KubernetesVersion clobbered: got %q", c.KubernetesVersion)
+	}
+	if c.MachinesHealthy != 3 {
+		t.Errorf("MachinesHealthy clobbered: got %d", c.MachinesHealthy)
+	}
+	if c.ClusterReady != "ready" {
+		t.Errorf("ClusterReady clobbered: got %q", c.ClusterReady)
+	}
+	if c.LiveContent == "" {
+		t.Error("LiveContent was unexpectedly cleared")
+	}
+	if c.CreatedAt.IsZero() {
+		t.Error("CreatedAt was unexpectedly cleared")
+	}
+	if c.AutoSync == nil || !*c.AutoSync {
+		t.Errorf("AutoSync preference lost: %v", c.AutoSync)
+	}
+}
+
+func TestMarkClusterOrphaned_UnknownIDIsNoOp(t *testing.T) {
+	s := newState()
+	s.SetClusters([]state.ResourceInfo{
+		{ID: "c1", Type: "Cluster", Status: "success", RepoName: "infra"},
+	})
+
+	s.MarkClusterOrphaned("does-not-exist")
+
+	cs := s.GetClusters()
+	if len(cs) != 1 {
+		t.Fatalf("expected 1 cluster, got %d", len(cs))
+	}
+	if cs[0].Status != "success" || cs[0].RepoName != "infra" {
+		t.Errorf("unrelated cluster mutated: %+v", cs[0])
+	}
+}

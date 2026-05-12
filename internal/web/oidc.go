@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -359,7 +358,7 @@ func (s *Server) handleGetOIDCConfig(w http.ResponseWriter, r *http.Request) {
 	rt := s.getOIDCRuntime()
 	w.Header().Set("Content-Type", "application/json")
 	if rt == nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{"configured": false})
+		writeJSON(w, http.StatusOK, map[string]interface{}{"configured": false})
 		return
 	}
 	rt.mu.RLock()
@@ -371,7 +370,7 @@ func (s *Server) handleGetOIDCConfig(w http.ResponseWriter, r *http.Request) {
 	if masked.ClientSecret != "" {
 		masked.ClientSecret = "••••••••"
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, http.StatusOK, map[string]any{
 		"configured": true,
 		"config":     masked,
 	})

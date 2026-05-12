@@ -149,7 +149,7 @@ func (s *Server) handleOIDCUsers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.appState.AppendAudit(appstate.AuditEntry{User: s.sessionIdentity(r), Action: "oidc-role-update", Resource: body.Email, Kind: "user"})
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
 
@@ -176,7 +176,7 @@ func (s *Server) handleOIDCUsers(w http.ResponseWriter, r *http.Request) {
 		s.saveSessions()
 		slog.Info("SSO user deleted", "email", body.Email, "component", "OIDC")
 		s.appState.AppendAudit(appstate.AuditEntry{User: s.sessionIdentity(r), Action: "oidc-user-delete", Resource: body.Email, Kind: "user"})
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
 
@@ -191,5 +191,5 @@ func (s *Server) handleOIDCUsers(w http.ResponseWriter, r *http.Request) {
 	if users == nil {
 		users = []oidcUser{}
 	}
-	json.NewEncoder(w).Encode(users)
+	writeJSON(w, http.StatusOK, users)
 }

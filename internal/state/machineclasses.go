@@ -151,10 +151,12 @@ func (s *AppState) AddForceMCID(id string) {
 }
 
 // GetAndClearForceMCIDs returns all queued force-sync MC IDs and clears the set.
+// The returned map is a copy — safe to iterate concurrently with future
+// AddForceMCID writers.
 func (s *AppState) GetAndClearForceMCIDs() map[string]bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ids := s.forceMCIDs
+	out := cloneStringBoolMap(s.forceMCIDs)
 	s.forceMCIDs = nil
-	return ids
+	return out
 }
