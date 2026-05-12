@@ -12,7 +12,7 @@ import (
 func (s *Server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	needed := s.authStore != nil && s.authStore.IsEmpty() && !s.oidcEnabled()
-	json.NewEncoder(w).Encode(map[string]bool{"needed": needed})
+	writeJSON(w, http.StatusOK, map[string]bool{"needed": needed})
 }
 
 // handleSetup serves GET /setup (setup page) and POST /setup (create admin account).
@@ -37,21 +37,15 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 			Confirm  string `json:"confirm"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request"})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid request"})
 			return
 		}
 		if err := auth.ValidatePasswordStrength(body.Password); err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 		if body.Password != body.Confirm {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Passwords do not match"})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Passwords do not match"})
 			return
 		}
 		if err := s.authStore.SetUser("admin", "Admin", body.Password); err != nil {
@@ -59,8 +53,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		slog.Info("Admin account created via setup", "component", "Auth")
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

@@ -30,8 +30,11 @@ func (s *AppState) AddLog(level, label, message string) {
 		}
 		if s.logFile != nil {
 			if data, err := json.Marshal(entry); err == nil {
-				s.logFile.Write(data)
-				s.logFile.Write([]byte("\n"))
+				if _, werr := s.logFile.Write(append(data, '\n')); werr != nil {
+					slog.Error("Failed to write log entry", "error", werr, "component", "State")
+				}
+			} else {
+				slog.Error("Failed to marshal log entry", "error", err, "component", "State")
 			}
 		}
 	}
@@ -69,7 +72,9 @@ func (s *AppState) SetLogDir(dir string, retentionDays int) {
 // rotateLogFile opens a new log file for the given date. Must be called with s.mu held.
 func (s *AppState) rotateLogFile(date string) {
 	if s.logFile != nil {
-		s.logFile.Close()
+		if err := s.logFile.Close(); err != nil {
+			slog.Error("Failed to close log file during rotation", "error", err, "component", "State")
+		}
 		s.logFile = nil
 	}
 	path := filepath.Join(s.logDir, "omni-cd-"+date+".jsonlog")

@@ -1,6 +1,7 @@
 package state
 
 import (
+	"log/slog"
 	"os"
 	"sync"
 	"time"
@@ -262,18 +263,24 @@ func (s *AppState) SetOmniHealth(status, errMsg string) {
 	s.notifyChange()
 }
 
+// SetEnvLocked marks Omni credentials as sourced from environment variables
+// (read-only via UI). Call once at startup.
 func (s *AppState) SetEnvLocked(v bool) {
 	s.mu.Lock()
 	s.omniEnvLocked = v
 	s.mu.Unlock()
 }
 
+// IsEnvLocked reports whether Omni credentials are sourced from environment
+// variables and therefore cannot be changed via the web UI.
 func (s *AppState) IsEnvLocked() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.omniEnvLocked
 }
 
+// SetOmniConfigured flips the "Omni is reachable and authenticated" flag.
+// Triggers a state-change broadcast so the UI updates immediately.
 func (s *AppState) SetOmniConfigured(v bool) {
 	s.mu.Lock()
 	s.omniConfigured = v
@@ -281,18 +288,22 @@ func (s *AppState) SetOmniConfigured(v bool) {
 	s.notifyChange()
 }
 
+// IsOmniConfigured reports whether Omni is currently authenticated and ready.
 func (s *AppState) IsOmniConfigured() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.omniConfigured
 }
 
+// SetHasStoredKey records whether a service-account key is persisted in
+// instances.json (UI uses this to decide between "set new" vs "rotate").
 func (s *AppState) SetHasStoredKey(v bool) {
 	s.mu.Lock()
 	s.omniHasStoredKey = v
 	s.mu.Unlock()
 }
 
+// SetOmniEndpoint updates the Omni endpoint URL displayed in the UI.
 func (s *AppState) SetOmniEndpoint(endpoint string) {
 	s.mu.Lock()
 	s.OmniEndpoint = endpoint
@@ -345,6 +356,34 @@ func (s *AppState) SetReconcileFinished(success bool) {
 	s.notifyChange()
 }
 
+// Close flushes and closes the log and audit file handles so the tail of
+// the most recent day's data is durable before the process exits. After
+// Close, further AddLog/AppendAudit calls still update the in-memory ring
+// buffers but become no-ops on disk (rotateLogFile/rotateAuditFile would
+// re-open if dates advanced, but the caller should not depend on that).
+func (s *AppState) Close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.logFile != nil {
+		if err := s.logFile.Sync(); err != nil {
+			slog.Error("Failed to fsync log file on shutdown", "error", err, "component", "State")
+		}
+		if err := s.logFile.Close(); err != nil {
+			slog.Error("Failed to close log file on shutdown", "error", err, "component", "State")
+		}
+		s.logFile = nil
+	}
+	if s.auditFile != nil {
+		if err := s.auditFile.Sync(); err != nil {
+			slog.Error("Failed to fsync audit file on shutdown", "error", err, "component", "State")
+		}
+		if err := s.auditFile.Close(); err != nil {
+			slog.Error("Failed to close audit file on shutdown", "error", err, "component", "State")
+		}
+		s.auditFile = nil
+	}
+}
+
 // Snapshot returns a copy of the current state for JSON serialization.
 func (s *AppState) Snapshot() SnapshotData {
 	s.mu.RLock()
@@ -360,6 +399,17 @@ func (s *AppState) Snapshot() SnapshotData {
 			MCPath:       rc.MCPath,
 		}
 	}
+	// Deep-copy slice/map fields so the caller can JSON-marshal outside the
+	// lock without racing concurrent mutations (UpdateClusterStatus,
+	// SetClusters, AppendLog, etc. mutate the source backing arrays in place).
+	var reposCopy []GitInfo
+	if s.Repos != nil {
+		reposCopy = append([]GitInfo(nil), s.Repos...)
+	}
+	var logsCopy []LogEntry
+	if s.Logs != nil {
+		logsCopy = append([]LogEntry(nil), s.Logs...)
+	}
 	return SnapshotData{
 		ServerStartedAt:     s.ServerStartedAt,
 		AppVersion:          s.AppVersion,
@@ -370,15 +420,15 @@ func (s *AppState) Snapshot() SnapshotData {
 		OmniConfigured:      s.omniConfigured,
 		OmniHasStoredKey:    s.omniHasStoredKey,
 		Git:                 s.Git,
-		Repos:               s.Repos,
+		Repos:               reposCopy,
 		RepoConfigs:         repoViews,
 		LastReconcile:       s.LastReconcile,
-		MachineClasses:      s.MachineClasses,
-		Clusters:            s.Clusters,
+		MachineClasses:      cloneResources(s.MachineClasses),
+		Clusters:            cloneResources(s.Clusters),
 		ClustersEnabled:     s.ClustersEnabled,
-		RepoClusterMap:      s.RepoClusterMap,
-		RepoMachineClassMap: s.RepoMachineClassMap,
-		Logs:                s.Logs,
+		RepoClusterMap:      cloneStringSliceMap(s.RepoClusterMap),
+		RepoMachineClassMap: cloneStringSliceMap(s.RepoMachineClassMap),
+		Logs:                logsCopy,
 		LogLevel:            s.LogLevel,
 	}
 }

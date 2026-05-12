@@ -1,6 +1,7 @@
 package git
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +17,44 @@ import (
 	"omni-cd/internal/config"
 	"omni-cd/internal/state"
 )
+
+// cloneTimeout is the maximum time allowed for a git clone operation.
+// If a remote hangs, the clone is killed after this duration so the
+// reconcile goroutine can unblock and recover on the next cycle.
+const cloneTimeout = 5 * time.Minute
+
+// lsRemoteTimeout is the maximum time allowed for git ls-remote (test connection).
+const lsRemoteTimeout = 30 * time.Second
+
+// workDirLocks serialises Sync() calls across all Client instances that share
+// the same working directory path. buildMultiClient() constructs a fresh
+// MultiClient — with new Client instances and new per-instance mutexes — on
+// every call. When two goroutines call buildMultiClient().SyncAll() concurrently
+// (e.g. the main reconcile goroutine and a triggerDeleteMC goroutine) they each
+// get separate Client objects whose c.mu values are independent, so c.mu alone
+// cannot prevent both from operating on /tmp/repo-<name> at the same time.
+// This map provides a path-level lock that is shared across all Client instances
+// for a given directory.
+var workDirLocks sync.Map // string → *sync.Mutex
+
+// workDirMu returns the shared mutex for a given working directory path,
+// creating it on first use.
+func workDirMu(dir string) *sync.Mutex {
+	v, _ := workDirLocks.LoadOrStore(dir, new(sync.Mutex))
+	return v.(*sync.Mutex)
+}
+
+// RemoveWorkDir deletes the working directory for a repo while holding the
+// shared workDir lock. Callers outside this package (e.g. the reconcile
+// cleanup path in cmd/omni-cd/main.go) must use this helper rather than
+// os.RemoveAll directly so a concurrent Client.Sync() on the same path
+// cannot have its directory yanked out from underneath it mid-clone.
+func RemoveWorkDir(dir string) error {
+	mu := workDirMu(dir)
+	mu.Lock()
+	defer mu.Unlock()
+	return os.RemoveAll(dir)
+}
 
 // Client handles Git operations for a single repository.
 type Client struct {
@@ -48,15 +88,31 @@ func (c *Client) RepoDir() string {
 // single-cluster refresh goroutine and a full reconcile cannot clone/read
 // the working directory simultaneously.
 func (c *Client) Sync() (bool, error) {
+	// Acquire the path-level lock before the per-instance lock so that two
+	// Client instances created by separate buildMultiClient() calls cannot
+	// race on the same /tmp/repo-<name> directory (e.g. one removing it while
+	// the other is mid-clone).
+	dirMu := workDirMu(c.workDir)
+	dirMu.Lock()
+	defer dirMu.Unlock()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	repoURL := c.repoConfig.URL
 
-	// Remove old clone and start fresh
-	os.RemoveAll(c.workDir)
+	// Remove old clone and start fresh. If cleanup fails (permissions, EBUSY
+	// on a file still held by a stuck child process), abort early — cloning
+	// into a dirty workdir would produce a misleading "destination already
+	// exists" error and mask the real problem.
+	if err := os.RemoveAll(c.workDir); err != nil {
+		return false, fmt.Errorf("failed to clean work directory %q: %w", c.workDir, err)
+	}
 
-	// Shallow clone the target branch
-	cmd := exec.Command("git", "clone",
+	// Shallow clone the target branch — bounded by cloneTimeout so a
+	// hanging remote cannot block the reconcile goroutine indefinitely.
+	ctx, cancel := context.WithTimeout(context.Background(), cloneTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "clone",
 		"--branch", c.repoConfig.Branch,
 		"--single-branch",
 		"--depth", "1",
@@ -84,7 +140,8 @@ func (c *Client) Sync() (bool, error) {
 	}
 
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return false, fmt.Errorf("git clone failed: %w\n%s", err, string(out))
+		return false, fmt.Errorf("git clone failed for %s: %w\n%s",
+			sanitizeGitURL(repoURL), err, scrubGitOutput(string(out)))
 	}
 
 	// Get the current HEAD SHA
@@ -245,7 +302,9 @@ func TestConnection(repoURL, branch, token string) error {
 	if branch == "" {
 		branch = "main"
 	}
-	cmd := exec.Command("git", "ls-remote", "--heads", repoURL, "refs/heads/"+branch)
+	ctx, cancel := context.WithTimeout(context.Background(), lsRemoteTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--heads", repoURL, "refs/heads/"+branch)
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 
 	if token != "" {
@@ -272,7 +331,7 @@ func TestConnection(repoURL, branch, token string) error {
 			msg = err.Error()
 		}
 		msg = strings.TrimPrefix(msg, "fatal: ")
-		return fmt.Errorf("%s", msg)
+		return fmt.Errorf("%s", scrubGitOutput(msg))
 	}
 	if strings.TrimSpace(string(out)) == "" {
 		return fmt.Errorf("branch %q not found in repository", branch)
@@ -281,6 +340,39 @@ func TestConnection(repoURL, branch, token string) error {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// sanitizeGitURL strips userinfo (e.g. https://user:token@host/...) from a git
+// URL so it can safely appear in logs or error chains. Returns the input
+// unchanged on parse failure.
+func sanitizeGitURL(raw string) string {
+	if raw == "" {
+		return raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.User == nil {
+		return raw
+	}
+	u.User = nil
+	return u.String()
+}
+
+// scrubGitOutput redacts likely credential material from a git stderr/stdout
+// blob before it is logged or wrapped into an error. Catches both URL-embedded
+// tokens (https://x-access-token:abc@github.com) and bare-secret-looking
+// substrings emitted by some git versions.
+func scrubGitOutput(s string) string {
+	if s == "" {
+		return s
+	}
+	// Mask any userinfo embedded in URLs (https://user:pass@host -> https://***:***@host).
+	reURLAuth := regexp.MustCompile(`(https?://)([^:@\s/]+):([^@\s/]+)@`)
+	s = reURLAuth.ReplaceAllString(s, `$1***:***@`)
+	// Mask common token prefixes when echoed standalone. Accepts ":", "=" or
+	// whitespace between the keyword and the value (e.g. "bearer abc.def.ghi").
+	reToken := regexp.MustCompile(`(?i)(token|password|bearer)[\s:=]+\S+`)
+	s = reToken.ReplaceAllString(s, `$1=***`)
+	return s
+}
 
 // short returns the first 8 characters of a SHA.
 func short(sha string) string {
@@ -314,37 +406,43 @@ func (c *Client) logInfo(msg string, attrs ...any) {
 	}
 }
 
-// formatLogMessage formats a message with key-value pairs as JSON for display
+// formatLogMessage serialises a message with key-value pairs as a single
+// JSON object for display in the web UI. attrs is expected to be alternating
+// key/value pairs (slog convention); unpaired trailing keys are dropped.
+//
+// Builds an ordered slice of (key, value) entries and marshals them through
+// json.Marshal — keys with embedded quotes/backslashes are handled correctly
+// (the previous string-concat implementation could emit invalid JSON for
+// such inputs).
 func formatLogMessage(level, msg string, attrs ...any) string {
-	// Build a struct to ensure consistent field order
-	type logEntry struct {
-		Time  string `json:"time"`
-		Level string `json:"level"`
-		Msg   string `json:"msg"`
+	type kv struct {
+		Key string
+		Val any
+	}
+	entries := []kv{
+		{Key: "time", Val: time.Now().UTC().Format(time.RFC3339Nano)},
+		{Key: "level", Val: level},
+		{Key: "msg", Val: msg},
+	}
+	for i := 0; i+1 < len(attrs); i += 2 {
+		entries = append(entries, kv{Key: fmt.Sprint(attrs[i]), Val: attrs[i+1]})
 	}
 
-	entry := logEntry{
-		Time:  time.Now().UTC().Format(time.RFC3339Nano),
-		Level: level,
-		Msg:   msg,
-	}
-
-	// Start with the base fields
-	var jsonParts []string
-	baseJSON, _ := json.Marshal(entry)
-	baseStr := string(baseJSON)
-	// Remove closing brace
-	baseStr = baseStr[:len(baseStr)-1]
-	jsonParts = append(jsonParts, baseStr)
-
-	// Add all attributes in order
-	for i := 0; i < len(attrs); i += 2 {
-		if i+1 < len(attrs) {
-			key := fmt.Sprint(attrs[i])
-			valJSON, _ := json.Marshal(attrs[i+1])
-			jsonParts = append(jsonParts, fmt.Sprintf(`"%s":%s`, key, string(valJSON)))
+	var buf strings.Builder
+	buf.WriteByte('{')
+	for i, e := range entries {
+		if i > 0 {
+			buf.WriteByte(',')
 		}
+		keyJSON, _ := json.Marshal(e.Key)
+		valJSON, err := json.Marshal(e.Val)
+		if err != nil {
+			valJSON = []byte(`"<unrenderable>"`)
+		}
+		buf.Write(keyJSON)
+		buf.WriteByte(':')
+		buf.Write(valJSON)
 	}
-
-	return strings.Join(jsonParts, ",") + "}"
+	buf.WriteByte('}')
+	return buf.String()
 }

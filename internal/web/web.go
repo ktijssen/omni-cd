@@ -18,11 +18,24 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// withTimeout wraps a handler so each request must complete within d, after
+// which a 503 is sent. Use for handlers that may stream large bodies
+// (log/audit downloads) so a slow client cannot pin a connection.
+func withTimeout(d time.Duration, h http.Handler) http.Handler {
+	return http.TimeoutHandler(h, d, "request timed out")
+}
+
+// upgrader is the WebSocket upgrade configuration.
+//
+// CheckOrigin permits requests with no Origin header (non-browser clients,
+// e.g. CLI tools). This is safe because the /ws route is wrapped with
+// requireRole("viewer", ...) in Start(), which runs requireAuth and rejects
+// the request with 403 before the upgrade is attempted. A non-browser client
+// without a valid session cookie cannot reach this code path.
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		origin := r.Header.Get("Origin")
 		if origin == "" {
-			// No Origin header — non-browser client, allow.
 			return true
 		}
 		u, err := url.ParseRequestURI(origin)
@@ -59,6 +72,7 @@ type Server struct {
 	authDisabled           bool
 	sessions               sync.Map // token (string) -> sessionInfo
 	loginBuckets           sync.Map // IP (string) -> *loginBucket
+	webhookBuckets         sync.Map // IP (string) -> *loginBucket — reused for bad-signature lockouts
 	metricsCollector       *metrics.Collector
 	metricsPort            string
 	// OIDC
@@ -68,33 +82,60 @@ type Server struct {
 	oidcUsers  *oidcUserStore
 }
 
-// New creates a new web server.
-func New(appState *state.AppState, triggerHard chan struct{}, triggerSoft chan struct{}, triggerRefreshCluster chan string, triggerDeleteCluster chan string, triggerDeleteMC chan string, triggerMCRefresh chan struct{}, triggerMCRefreshSingle chan string, triggerRepoChange chan struct{}, triggerOmniConfigured chan struct{}, omniInstanceFile string, logDir string, auditDir string, port string, version string, authStore *auth.Store, authDisabled bool, oidcRT *OIDCRuntime, webhookSecret string, metricsCollector *metrics.Collector, metricsPort string) *Server {
+// Options bundles every dependency the web server needs. Using a struct
+// instead of positional arguments keeps the main.go call site readable and
+// lets new fields be added without breaking existing callers.
+type Options struct {
+	AppState               *state.AppState
+	TriggerHard            chan struct{}
+	TriggerSoft            chan struct{}
+	TriggerRefreshCluster  chan string
+	TriggerDeleteCluster   chan string
+	TriggerDeleteMC        chan string
+	TriggerMCRefresh       chan struct{}
+	TriggerMCRefreshSingle chan string
+	TriggerRepoChange      chan struct{}
+	TriggerOmniConfigured  chan struct{}
+	OmniInstanceFile       string
+	LogDir                 string
+	AuditDir               string
+	Port                   string
+	Version                string
+	AuthStore              *auth.Store
+	AuthDisabled           bool
+	OIDC                   *OIDCRuntime
+	WebhookSecret          string
+	Metrics                *metrics.Collector
+	MetricsPort            string
+}
+
+// New creates a new web server from the given options.
+func New(opts Options) *Server {
 	s := &Server{
-		appState:               appState,
-		triggerHard:            triggerHard,
-		triggerSoft:            triggerSoft,
-		triggerRefreshCluster:  triggerRefreshCluster,
-		triggerDeleteCluster:   triggerDeleteCluster,
-		triggerDeleteMC:        triggerDeleteMC,
-		triggerMCRefresh:       triggerMCRefresh,
-		triggerMCRefreshSingle: triggerMCRefreshSingle,
-		triggerRepoChange:      triggerRepoChange,
-		triggerOmniConfigured:  triggerOmniConfigured,
-		omniInstanceFile:       omniInstanceFile,
-		logDir:                 logDir,
-		auditDir:               auditDir,
-		port:                   port,
-		version:                version,
+		appState:               opts.AppState,
+		triggerHard:            opts.TriggerHard,
+		triggerSoft:            opts.TriggerSoft,
+		triggerRefreshCluster:  opts.TriggerRefreshCluster,
+		triggerDeleteCluster:   opts.TriggerDeleteCluster,
+		triggerDeleteMC:        opts.TriggerDeleteMC,
+		triggerMCRefresh:       opts.TriggerMCRefresh,
+		triggerMCRefreshSingle: opts.TriggerMCRefreshSingle,
+		triggerRepoChange:      opts.TriggerRepoChange,
+		triggerOmniConfigured:  opts.TriggerOmniConfigured,
+		omniInstanceFile:       opts.OmniInstanceFile,
+		logDir:                 opts.LogDir,
+		auditDir:               opts.AuditDir,
+		port:                   opts.Port,
+		version:                opts.Version,
 		clients:                make(map[*websocket.Conn]bool),
 		broadcast:              make(chan []byte, 256),
-		authStore:              authStore,
-		authDisabled:           authDisabled,
-		oidcRT:                 oidcRT,
-		webhookSecret:          webhookSecret,
+		authStore:              opts.AuthStore,
+		authDisabled:           opts.AuthDisabled,
+		oidcRT:                 opts.OIDC,
+		webhookSecret:          opts.WebhookSecret,
 		oidcUsers:              loadOIDCUserStore(oidcUsersPath),
-		metricsCollector:       metricsCollector,
-		metricsPort:            metricsPort,
+		metricsCollector:       opts.Metrics,
+		metricsPort:            opts.MetricsPort,
 	}
 
 	// Load persisted sessions so users stay logged in across restarts.
@@ -157,10 +198,12 @@ func (s *Server) Start() {
 	mux.HandleFunc("/api/me", s.requireRole("viewer", s.handleMe))
 	mux.HandleFunc("/api/state", s.requireRole("viewer", s.handleState))
 	mux.HandleFunc("/api/logs/files", s.requireRole("viewer", s.handleLogFiles))
-	mux.HandleFunc("/api/logs/download", s.requireRole("viewer", s.handleLogDownload))
+	// Downloads can serve large daily log/audit files; wrap with a per-request
+	// timeout so a slow client cannot pin a connection past WriteTimeout.
+	mux.Handle("/api/logs/download", withTimeout(30*time.Second, s.requireRole("viewer", s.handleLogDownload)))
 	mux.HandleFunc("/api/audit", s.requireRole("viewer", s.handleAudit))
 	mux.HandleFunc("/api/audit/files", s.requireRole("viewer", s.handleAuditFiles))
-	mux.HandleFunc("/api/audit/download", s.requireRole("viewer", s.handleAuditDownload))
+	mux.Handle("/api/audit/download", withTimeout(30*time.Second, s.requireRole("viewer", s.handleAuditDownload)))
 
 	// Write API endpoints — admin only
 	mux.HandleFunc("/api/reconcile", s.requireRole("admin", s.handleReconcile))
@@ -230,18 +273,27 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
+	// Send the initial state BEFORE registering the connection with the
+	// broadcaster. gorilla/websocket forbids concurrent WriteMessage calls
+	// on the same conn, so the initial write must complete before the
+	// broadcaster goroutine can pick this conn up from s.clients.
+	snapshot := s.appState.Snapshot()
+	data, err := json.Marshal(snapshot)
+	if err != nil {
+		slog.Error("Failed to marshal initial WS snapshot", "error", err, "component", "Web")
+		return
+	}
+	if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+		slog.Debug("Failed to send initial WS snapshot", "error", err, "component", "Web")
+		return
+	}
+
 	// Register client
 	s.clientsMu.Lock()
 	s.clients[conn] = true
 	s.clientsMu.Unlock()
 
 	slog.Debug("WebSocket client connected", "component", "Web")
-
-	// Send initial state
-	snapshot := s.appState.Snapshot()
-	if data, err := json.Marshal(snapshot); err == nil {
-		conn.WriteMessage(websocket.TextMessage, data)
-	}
 
 	// Wait for client disconnect
 	for {
@@ -261,19 +313,28 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 // handleBroadcasts sends state updates to all connected WebSocket clients.
 func (s *Server) handleBroadcasts() {
 	for message := range s.broadcast {
+		// Collect failed connections while holding the read lock continuously.
+		// Releasing and re-acquiring the lock mid-iteration allows concurrent
+		// handleWebSocket calls to modify s.clients, which corrupts the ongoing
+		// map iteration and can cause a panic or silent data loss.
+		var failed []*websocket.Conn
 		s.clientsMu.RLock()
 		for client := range s.clients {
-			err := client.WriteMessage(websocket.TextMessage, message)
-			if err != nil {
+			if err := client.WriteMessage(websocket.TextMessage, message); err != nil {
 				client.Close()
-				s.clientsMu.RUnlock()
-				s.clientsMu.Lock()
-				delete(s.clients, client)
-				s.clientsMu.Unlock()
-				s.clientsMu.RLock()
+				failed = append(failed, client)
 			}
 		}
 		s.clientsMu.RUnlock()
+		// Remove all failed connections in a single write-lock pass, after the
+		// iteration has fully completed.
+		if len(failed) > 0 {
+			s.clientsMu.Lock()
+			for _, client := range failed {
+				delete(s.clients, client)
+			}
+			s.clientsMu.Unlock()
+		}
 	}
 }
 
@@ -377,12 +438,34 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 }
 
 // securityHeadersMiddleware adds standard security response headers to every reply.
+//
+// CSP rationale: the frontend is built and served from the same origin, so
+// 'self' is the baseline. Bundled CSS includes inline style attributes from
+// the React build, so style-src needs 'unsafe-inline'. WebSocket upgrades use
+// the same origin (ws:// or wss://) — covered by 'self' for connect-src.
+//
+// HSTS is only emitted when the request appears to be HTTPS (direct TLS or
+// behind an X-Forwarded-Proto: https proxy) to avoid pinning HSTS on
+// development plaintext.
 func securityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; "+
+				"script-src 'self'; "+
+				"style-src 'self' 'unsafe-inline'; "+
+				"img-src 'self' data:; "+
+				"font-src 'self' data:; "+
+				"connect-src 'self' ws: wss:; "+
+				"frame-ancestors 'none'; "+
+				"base-uri 'self'; "+
+				"form-action 'self'")
+		if isSecure(r) {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

@@ -149,6 +149,38 @@ func (s *AppState) UpdateClusterStatus(id, status string) {
 	s.mu.Unlock()
 }
 
+// MarkClusterOrphaned sets a cluster's status to "orphaned" and clears every
+// field that was derived from the now-deleted source repository (RepoName,
+// the LastSync* group, SyncStatusSince, Diff, FileContent, Error). Intrinsic
+// fields owned by Omni — live health, topology, Talos/Kubernetes versions,
+// CreatedAt, and the user's AutoSync preference — are preserved so the cluster
+// card keeps showing real cluster state, just without stale repo metadata.
+//
+// No-op if id is not in state. Notifies subscribers on success.
+func (s *AppState) MarkClusterOrphaned(id string) {
+	s.mu.Lock()
+	for i := range s.Clusters {
+		if s.Clusters[i].ID == id {
+			s.Clusters[i].Status = "orphaned"
+			s.Clusters[i].RepoName = ""
+			s.Clusters[i].LastSyncResult = ""
+			s.Clusters[i].LastSyncError = ""
+			s.Clusters[i].LastSyncTime = time.Time{}
+			s.Clusters[i].LastSyncSHA = ""
+			s.Clusters[i].LastSyncAuthor = ""
+			s.Clusters[i].LastSyncMessage = ""
+			s.Clusters[i].SyncStatusSince = time.Time{}
+			s.Clusters[i].Diff = ""
+			s.Clusters[i].FileContent = ""
+			s.Clusters[i].Error = ""
+			s.mu.Unlock()
+			s.notifyChange()
+			return
+		}
+	}
+	s.mu.Unlock()
+}
+
 // UpsertClusterStatus updates the status of a cluster by ID, adding a minimal
 // entry if it is not yet tracked.
 func (s *AppState) UpsertClusterStatus(id, status string) {
@@ -384,12 +416,14 @@ func (s *AppState) AddForceClusterID(id string) {
 }
 
 // GetAndClearForceClusterIDs returns all queued force-sync IDs and clears the set.
+// The returned map is a copy — safe to iterate concurrently with future
+// AddForceClusterID writers.
 func (s *AppState) GetAndClearForceClusterIDs() map[string]bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ids := s.forceClusterIDs
+	out := cloneStringBoolMap(s.forceClusterIDs)
 	s.forceClusterIDs = nil
-	return ids
+	return out
 }
 
 // HasForceClusterIDs returns true if any cluster IDs are queued for force sync.

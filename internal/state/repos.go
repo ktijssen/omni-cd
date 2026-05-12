@@ -90,10 +90,15 @@ func (s *AppState) SetRepoClusters(repoName string, clusterIDs []string) {
 }
 
 // GetRepoClusters returns the last known cluster IDs for the named repo.
+// The returned slice is a copy — safe to iterate concurrently with writers.
 func (s *AppState) GetRepoClusters(repoName string) []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.RepoClusterMap[repoName]
+	v, ok := s.RepoClusterMap[repoName]
+	if !ok {
+		return nil
+	}
+	return append([]string(nil), v...)
 }
 
 // GetAllTrackedClusterIDs returns the union of all cluster IDs managed by any repo.
@@ -128,10 +133,15 @@ func (s *AppState) SetRepoMachineClasses(repoName string, mcIDs []string) {
 }
 
 // GetRepoMachineClasses returns the last known machine class IDs for the named repo.
+// The returned slice is a copy — safe to iterate concurrently with writers.
 func (s *AppState) GetRepoMachineClasses(repoName string) []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.RepoMachineClassMap[repoName]
+	v, ok := s.RepoMachineClassMap[repoName]
+	if !ok {
+		return nil
+	}
+	return append([]string(nil), v...)
 }
 
 // GetAllTrackedMachineClassIDs returns the union of all machine class IDs managed by any repo.
@@ -189,6 +199,10 @@ func (s *AppState) TakePendingRepoDeletes() []config.RepoConfig {
 }
 
 // SaveRepoConfigs persists the current repo configs to repoFile as JSON.
+//
+// The file write uses a temp + rename so a crash mid-write leaves either the
+// old file intact or the new file complete — never a truncated repos.json
+// (which would lose every configured repository on next startup).
 func (s *AppState) SaveRepoConfigs() error {
 	s.mu.RLock()
 	path := s.repoFile
@@ -205,7 +219,15 @@ func (s *AppState) SaveRepoConfigs() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0600)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // LoadRepoConfigs reads repo configs from repoFile if it exists.

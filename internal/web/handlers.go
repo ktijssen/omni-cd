@@ -29,15 +29,35 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	snapshot := s.appState.Snapshot()
-	json.NewEncoder(w).Encode(snapshot)
+	writeJSON(w, http.StatusOK, snapshot)
 }
 
 // handleWebhook accepts push events from GitHub (and in future GitLab) and
-// triggers a soft reconcile. The endpoint is public but protected by an
-// HMAC-SHA256 signature when WEBHOOK_SECRET is set.
+// triggers a soft reconcile. The endpoint is public but always requires an
+// HMAC-SHA256 signature backed by WEBHOOK_SECRET. Bad-signature attempts are
+// rate-limited per source IP to mitigate brute-force / DoS.
 func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Refuse webhooks entirely when no secret is configured — accepting
+	// unauthenticated POSTs would let anyone trigger reconciles.
+	if s.webhookSecret == "" {
+		slog.Warn("Webhook rejected: WEBHOOK_SECRET is not configured", "component", "Web")
+		http.Error(w, "Webhook not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Per-IP lockout for repeated bad signatures.
+	ip := clientIP(r)
+	bucket := s.webhookBucketFor(ip)
+	bucket.mu.Lock()
+	locked := time.Now().Before(bucket.lockedUntil)
+	bucket.mu.Unlock()
+	if locked {
+		http.Error(w, "Too many requests", http.StatusTooManyRequests)
 		return
 	}
 
@@ -47,27 +67,30 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate HMAC signature when a secret is configured.
-	if s.webhookSecret != "" {
-		sig := r.Header.Get("X-Hub-Signature-256")
-		if sig == "" {
-			http.Error(w, "Missing signature", http.StatusUnauthorized)
-			return
-		}
-		mac := hmac.New(sha256.New, []byte(s.webhookSecret))
-		mac.Write(body)
-		expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
-		if !hmac.Equal([]byte(sig), []byte(expected)) {
-			http.Error(w, "Invalid signature", http.StatusUnauthorized)
-			return
-		}
+	// Validate HMAC signature.
+	sig := r.Header.Get("X-Hub-Signature-256")
+	if sig == "" {
+		s.recordWebhookFailure(bucket, ip, "missing signature")
+		http.Error(w, "Missing signature", http.StatusUnauthorized)
+		return
 	}
+	mac := hmac.New(sha256.New, []byte(s.webhookSecret))
+	mac.Write(body)
+	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(sig), []byte(expected)) {
+		s.recordWebhookFailure(bucket, ip, "invalid signature")
+		http.Error(w, "Invalid signature", http.StatusUnauthorized)
+		return
+	}
+	// Success — reset the failure counter so a legitimate burst is not punished.
+	bucket.mu.Lock()
+	bucket.failures = 0
+	bucket.mu.Unlock()
 
 	// Only act on push events; ignore everything else silently.
 	event := r.Header.Get("X-GitHub-Event")
 	if event != "push" {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ignored", "event": event})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ignored", "event": event})
 		return
 	}
 
@@ -75,12 +98,9 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	s.appState.AppendAudit(state.AuditEntry{User: "webhook", Action: "refresh", Kind: "global"})
 	select {
 	case s.triggerSoft <- struct{}{}:
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "triggered"})
 	default:
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]string{"status": "already running"})
+		writeJSON(w, http.StatusConflict, map[string]string{"status": "already running"})
 	}
 }
 
@@ -94,12 +114,9 @@ func (s *Server) handleReconcile(w http.ResponseWriter, r *http.Request) {
 	select {
 	case s.triggerHard <- struct{}{}:
 		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "sync", Kind: "global"})
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "triggered"})
 	default:
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]string{"status": "already running"})
+		writeJSON(w, http.StatusConflict, map[string]string{"status": "already running"})
 	}
 }
 
@@ -113,12 +130,9 @@ func (s *Server) handleCheck(w http.ResponseWriter, r *http.Request) {
 	select {
 	case s.triggerSoft <- struct{}{}:
 		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "refresh", Kind: "global"})
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "triggered"})
 	default:
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]string{"status": "already running"})
+		writeJSON(w, http.StatusConflict, map[string]string{"status": "already running"})
 	}
 }
 
@@ -135,8 +149,7 @@ func (s *Server) handleClustersToggle(w http.ResponseWriter, r *http.Request) {
 		action = "global-sync-off"
 	}
 	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: action, Kind: "global"})
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, http.StatusOK, map[string]any{
 		"clustersEnabled": newState,
 	})
 }
@@ -165,12 +178,9 @@ func (s *Server) handleRefreshCluster(w http.ResponseWriter, r *http.Request) {
 	select {
 	case s.triggerRefreshCluster <- req.ID:
 		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "refresh", Resource: req.ID, Kind: "cluster"})
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "triggered"})
 	default:
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]string{"status": "already running"})
+		writeJSON(w, http.StatusConflict, map[string]string{"status": "already running"})
 	}
 }
 
@@ -194,12 +204,9 @@ func (s *Server) handleRefreshSingleMC(w http.ResponseWriter, r *http.Request) {
 	select {
 	case s.triggerMCRefreshSingle <- req.ID:
 		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "refresh", Resource: req.ID, Kind: "machineclass"})
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "triggered"})
 	default:
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]string{"status": "already running"})
+		writeJSON(w, http.StatusConflict, map[string]string{"status": "already running"})
 	}
 }
 
@@ -212,12 +219,9 @@ func (s *Server) handleRefreshMC(w http.ResponseWriter, r *http.Request) {
 	select {
 	case s.triggerMCRefresh <- struct{}{}:
 		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "refresh", Kind: "machineclass"})
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "triggered"})
 	default:
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		json.NewEncoder(w).Encode(map[string]string{"status": "already running"})
+		writeJSON(w, http.StatusConflict, map[string]string{"status": "already running"})
 	}
 }
 
@@ -245,8 +249,7 @@ func (s *Server) handleSetClusterAutoSync(w http.ResponseWriter, r *http.Request
 		autoSyncAction = "auto-sync-off"
 	}
 	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: autoSyncAction, Resource: req.ID, Kind: "cluster"})
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok", "id": req.ID, "autoSync": req.AutoSync})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "id": req.ID, "autoSync": req.AutoSync})
 }
 
 // handleDeleteCluster triggers deletion of a specific cluster without blocking the global reconcile.
@@ -275,20 +278,19 @@ func (s *Server) handleDeleteCluster(w http.ResponseWriter, r *http.Request) {
 	// operation on top of the in-flight one.
 	for _, c := range s.appState.GetClusters() {
 		if c.ID == req.ID && c.Status == "deleting" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusConflict)
-			json.NewEncoder(w).Encode(map[string]string{"status": "already deleting"})
+			writeJSON(w, http.StatusConflict, map[string]string{"status": "already deleting"})
 			return
 		}
 	}
 
 	select {
 	case s.triggerDeleteCluster <- req.ID:
+		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "delete", Resource: req.ID, Kind: "cluster"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "triggered"})
 	default:
+		slog.Warn("Cluster delete queue is full, request rejected", "component", "Web", "cluster", req.ID)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "delete queue full, retry shortly"})
 	}
-	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "delete", Resource: req.ID, Kind: "cluster"})
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
 }
 
 // handleDeleteMachineClass triggers deletion of a specific machine class from Omni.
@@ -314,11 +316,12 @@ func (s *Server) handleDeleteMachineClass(w http.ResponseWriter, r *http.Request
 
 	select {
 	case s.triggerDeleteMC <- req.ID:
+		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "delete", Resource: req.ID, Kind: "machineclass"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "triggered"})
 	default:
+		slog.Warn("Machine class delete queue is full, request rejected", "component", "Web", "machineclass", req.ID)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "delete queue full, retry shortly"})
 	}
-	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "delete", Resource: req.ID, Kind: "machineclass"})
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "triggered"})
 }
 
 // handleForceCluster sets a specific cluster to force sync.
@@ -348,8 +351,7 @@ func (s *Server) handleForceCluster(w http.ResponseWriter, r *http.Request) {
 	case s.triggerHard <- struct{}{}:
 	default:
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, http.StatusOK, map[string]any{
 		"status": "ok",
 		"id":     req.ID,
 	})
@@ -382,8 +384,7 @@ func (s *Server) handleSyncMachineClass(w http.ResponseWriter, r *http.Request) 
 	case s.triggerHard <- struct{}{}:
 	default:
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, http.StatusOK, map[string]any{
 		"status": "ok",
 		"id":     req.ID,
 	})
@@ -413,8 +414,7 @@ func (s *Server) handleSetMCAutoSync(w http.ResponseWriter, r *http.Request) {
 		mcAutoSyncAction = "auto-sync-off"
 	}
 	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: mcAutoSyncAction, Resource: req.ID, Kind: "machineclass"})
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok", "id": req.ID, "autoSync": req.AutoSync})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "id": req.ID, "autoSync": req.AutoSync})
 }
 
 // handleExportCluster exports an unmanaged cluster as a YAML template.
@@ -470,21 +470,19 @@ func (s *Server) handleClusterManifests(w http.ResponseWriter, r *http.Request) 
 	}
 	id := r.URL.Query().Get("id")
 	if id == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "id is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id is required"})
 		return
 	}
 	status, err := omni.GetClusterManifestStatus(id)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	if status == nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	json.NewEncoder(w).Encode(status)
+	writeJSON(w, http.StatusOK, status)
 }
 
 // handleRepos handles CRUD operations for git repository configurations.
@@ -542,18 +540,16 @@ func (s *Server) handleRepos(w http.ResponseWriter, r *http.Request) {
 			MCPath:       req.MCPath,
 		}
 		if err := s.appState.AddRepoConfig(rc); err != nil {
-			w.WriteHeader(http.StatusConflict)
-			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 			return
 		}
 		if err := s.appState.SaveRepoConfigs(); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "failed to persist: " + err.Error()})
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to persist: " + err.Error()})
 			return
 		}
 		s.signalRepoChange()
 		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "repo-add", Resource: rc.Name, Kind: "repo"})
-		json.NewEncoder(w).Encode(map[string]string{"status": "created", "name": rc.Name})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "created", "name": rc.Name})
 
 	case http.MethodPut:
 		var req repoRequest
@@ -599,18 +595,16 @@ func (s *Server) handleRepos(w http.ResponseWriter, r *http.Request) {
 			rc.Token = "\x00clear\x00"
 		}
 		if err := s.appState.UpdateRepoConfig(req.Name, rc); err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 			return
 		}
 		if err := s.appState.SaveRepoConfigs(); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "failed to persist: " + err.Error()})
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to persist: " + err.Error()})
 			return
 		}
 		s.signalRepoChange()
 		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "repo-update", Resource: rc.Name, Kind: "repo"})
-		json.NewEncoder(w).Encode(map[string]string{"status": "updated", "name": rc.Name})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "name": rc.Name})
 
 	case http.MethodDelete:
 		var req struct {
@@ -634,18 +628,16 @@ func (s *Server) handleRepos(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err := s.appState.DeleteRepoConfig(req.Name); err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 			return
 		}
 		if err := s.appState.SaveRepoConfigs(); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "failed to persist: " + err.Error()})
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to persist: " + err.Error()})
 			return
 		}
 		s.signalRepoChange()
 		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "repo-delete", Resource: req.Name, Kind: "repo"})
-		json.NewEncoder(w).Encode(map[string]string{"status": "deleted", "name": req.Name})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": req.Name})
 
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -684,8 +676,7 @@ func (s *Server) handleTestRepo(w http.ResponseWriter, r *http.Request) {
 
 	req.URL = strings.TrimSpace(req.URL)
 	if req.URL == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "url is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "url is required"})
 		return
 	}
 	if req.Branch == "" {
@@ -702,23 +693,30 @@ func (s *Server) handleTestRepo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := git.TestConnection(req.URL, req.Branch, req.Token); err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	// If testing an already-configured repo (name supplied), trigger a hard
+	// reconcile so a repo that was stuck or showing a SyncError recovers
+	// immediately without waiting for the next scheduled interval.
+	if req.Name != "" {
+		select {
+		case s.triggerHard <- struct{}{}:
+		default:
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // handleOmniInstance handles GET and POST for the Omni instance configuration.
 // GET returns the current endpoint and whether a key is stored (never the key itself).
 // POST saves new credentials after verifying connectivity. Returns 403 when ENV-locked.
 func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	if r.Method == http.MethodGet {
 		snap := s.appState.Snapshot()
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		writeJSON(w, http.StatusOK, map[string]any{
 			"endpoint":   snap.OmniEndpoint,
 			"hasKey":     snap.OmniHasStoredKey,
 			"envLocked":  snap.OmniEnvLocked,
@@ -729,13 +727,11 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodDelete {
 		if s.appState.IsEnvLocked() {
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{"error": "omni instance is configured via environment variables"})
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "omni instance is configured via environment variables"})
 			return
 		}
 		if err := os.Remove(s.omniInstanceFile); err != nil && !os.IsNotExist(err) {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "failed to delete config: " + err.Error()})
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete config: " + err.Error()})
 			return
 		}
 		s.appState.SetOmniEndpoint("")
@@ -746,7 +742,7 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 		omni.ClearCache()
 		s.appState.Save()
 		s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: "omni-delete", Kind: "omni"})
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
 
@@ -756,8 +752,7 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.appState.IsEnvLocked() {
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{"error": "omni instance is configured via environment variables"})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "omni instance is configured via environment variables"})
 		return
 	}
 
@@ -772,26 +767,22 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 	req.Endpoint = strings.TrimSpace(req.Endpoint)
 	req.ServiceAccountKey = strings.TrimSpace(req.ServiceAccountKey)
 	if req.Endpoint == "" || req.ServiceAccountKey == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "endpoint and serviceAccountKey are required"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "endpoint and serviceAccountKey are required"})
 		return
 	}
 
 	if err := omni.TestConnectivity(req.Endpoint, req.ServiceAccountKey); err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		json.NewEncoder(w).Encode(map[string]string{"error": "connectivity check failed: " + err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "connectivity check failed: " + err.Error()})
 		return
 	}
 
 	if err := omni.Init(req.Endpoint, req.ServiceAccountKey); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to initialise client: " + err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to initialise client: " + err.Error()})
 		return
 	}
 
 	if err := omniinstance.Save(s.omniInstanceFile, omniinstance.InstanceConfig{Endpoint: req.Endpoint, ServiceAccountKey: req.ServiceAccountKey}); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to save config: " + err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save config: " + err.Error()})
 		return
 	}
 
@@ -816,7 +807,7 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 	default:
 	}
 
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // handleTestOmniInstance tests connectivity for a given endpoint+key without
@@ -830,8 +821,7 @@ func (s *Server) handleTestOmniInstance(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if s.appState.IsEnvLocked() {
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{"error": "omni instance is configured via environment variables"})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "omni instance is configured via environment variables"})
 		return
 	}
 
@@ -850,12 +840,11 @@ func (s *Server) handleTestOmniInstance(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := omni.TestConnectivity(req.Endpoint, req.ServiceAccountKey); err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // handleRefreshOmniConnection re-checks connectivity and refreshes the Omni version in state.
@@ -866,20 +855,18 @@ func (s *Server) handleRefreshOmniConnection(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if !s.appState.IsOmniConfigured() {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "omni instance not configured"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "omni instance not configured"})
 		return
 	}
 	if err := omni.CheckConnectivity(); err != nil {
 		s.appState.SetOmniHealth("failed", err.Error())
-		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
 		return
 	}
 	s.appState.SetOmniHealth("healthy", "")
 	omniVersion := omni.GetOmniVersion()
 	s.appState.SetVersions(omniVersion)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "version": omniVersion})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": omniVersion})
 }
 
 // handleLogFiles returns a JSON list of available daily log files, newest first.
@@ -892,11 +879,10 @@ func (s *Server) handleLogFiles(w http.ResponseWriter, r *http.Request) {
 	entries, err := os.ReadDir(s.logDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			json.NewEncoder(w).Encode([]interface{}{})
+			writeJSON(w, http.StatusOK, []interface{}{})
 			return
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	type fileInfo struct {
@@ -930,7 +916,7 @@ func (s *Server) handleLogFiles(w http.ResponseWriter, r *http.Request) {
 	if files == nil {
 		files = []fileInfo{}
 	}
-	json.NewEncoder(w).Encode(files)
+	writeJSON(w, http.StatusOK, files)
 }
 
 // handleLogDownload streams a daily log file as a download.
@@ -962,8 +948,7 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	entries := s.appState.GetAuditLog()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(entries)
+	writeJSON(w, http.StatusOK, entries)
 }
 
 // handleAuditFiles returns a JSON list of available daily audit files, newest first.
@@ -976,11 +961,10 @@ func (s *Server) handleAuditFiles(w http.ResponseWriter, r *http.Request) {
 	dirEntries, err := os.ReadDir(s.auditDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			json.NewEncoder(w).Encode([]interface{}{})
+			writeJSON(w, http.StatusOK, []interface{}{})
 			return
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 	type fileInfo struct {
@@ -1012,7 +996,7 @@ func (s *Server) handleAuditFiles(w http.ResponseWriter, r *http.Request) {
 	if files == nil {
 		files = []fileInfo{}
 	}
-	json.NewEncoder(w).Encode(files)
+	writeJSON(w, http.StatusOK, files)
 }
 
 // handleAuditDownload streams a daily audit file as a download.
@@ -1060,6 +1044,5 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		AuthDisabled: s.authDisabled,
 		OIDCEnabled:  s.oidcEnabled(),
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	writeJSON(w, http.StatusOK, resp)
 }

@@ -1,7 +1,6 @@
 package web
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -13,8 +12,7 @@ import (
 
 // handleLoginConfig returns JSON describing which auth methods are available.
 func (s *Server) handleLoginConfig(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{
+	writeJSON(w, http.StatusOK, map[string]bool{
 		"oidcEnabled": s.oidcEnabled(),
 		"localAuth":   s.authStore != nil,
 	})
@@ -44,9 +42,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		if time.Now().Before(bucket.lockedUntil) {
 			bucket.mu.Unlock()
 			slog.Warn("Login blocked — too many failed attempts", "ip", ip, "component", "Auth")
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusTooManyRequests)
-			json.NewEncoder(w).Encode(map[string]string{"error": "Too many failed attempts — try again in 15 minutes"})
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "Too many failed attempts — try again in 15 minutes"})
 			return
 		}
 		bucket.mu.Unlock()
@@ -80,9 +76,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			})
 			slog.Info("User logged in", "username", username, "ip", ip, "component", "Auth")
 			s.appState.AppendAudit(state.AuditEntry{User: username, Action: "login", Kind: "session"})
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+			writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 			return
 		}
 
@@ -97,9 +91,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 		slog.Warn("Failed login attempt", "username", username, "ip", ip, "component", "Auth")
 		s.appState.AppendAudit(state.AuditEntry{User: username, Action: "login-failed", Kind: "session"})
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid username or password"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid username or password"})
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

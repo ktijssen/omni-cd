@@ -31,6 +31,11 @@ func (s *AppState) Save() {
 // SaveToFile persists state to disk. Full cluster and MC data is stored so
 // the UI can display last-known state during the window between server start
 // and the first reconcile completing.
+//
+// The marshal happens while RLock is held so concurrent mutations cannot tear
+// the slices/maps mid-encode. The file write itself uses a temp + rename so a
+// crash mid-write leaves either the old file intact or the new file complete —
+// never an empty/partial state.json.
 func (s *AppState) SaveToFile(path string) error {
 	s.mu.RLock()
 
@@ -60,18 +65,25 @@ func (s *AppState) SaveToFile(path string) error {
 		ClustersEnabled:     s.ClustersEnabled,
 	}
 
+	data, err := json.MarshalIndent(ps, "", "  ")
 	s.mu.RUnlock()
+	if err != nil {
+		return err
+	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
 		return err
 	}
 
-	data, err := json.MarshalIndent(ps, "", "  ")
-	if err != nil {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
 		return err
 	}
-
-	return os.WriteFile(path, data, 0600)
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // LoadFromFile restores state from disk. Full cluster and MC data is restored

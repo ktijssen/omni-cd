@@ -974,6 +974,11 @@ func (r *Reconciler) DeleteClusters(dir string) {
 		}(id)
 	}
 
+	// Persist the in-flight "deleting" status writes immediately so they are
+	// not lost on crash before the next periodic Save() — matches the
+	// single-cluster delete path at line 851-852.
+	r.state.Save()
+
 	// Snapshot protected clusters so the goroutine has a stable copy.
 	protectedSnapshotSingle := r.protectedClusters
 
@@ -1144,6 +1149,10 @@ func (r *Reconciler) DeleteClustersAll(dirs []string, liveIDs []string) {
 			}
 		}(id)
 	}
+
+	// Persist the in-flight "deleting" status writes immediately so they are
+	// not lost on crash before the next periodic Save().
+	r.state.Save()
 
 	// Snapshot protected clusters before launching the goroutine so that a
 	// subsequent reconcile calling SetProtectedResources cannot race with it.
@@ -1469,7 +1478,10 @@ func (r *Reconciler) forceDeleteClusters(dirs []string) {
 	for _, id := range clusterIDs {
 		if autoSyncDisabled[id] {
 			r.logInfo("Repo deleted but cluster auto-sync disabled, leaving as orphaned", "component", "Clusters", "cluster", id)
-			r.state.UpdateClusterStatus(id, "orphaned")
+			// Clears stale repo-derived metadata (RepoName, LastSync*, etc.) in
+			// addition to setting status — the repo is gone, those fields would
+			// only mislead the user.
+			r.state.MarkClusterOrphaned(id)
 			continue
 		}
 		if !omni.IsClusterTemplateManaged(id) {
@@ -1488,4 +1500,7 @@ func (r *Reconciler) forceDeleteClusters(dirs []string) {
 			r.state.RemoveCluster(id)
 		}
 	}
+	// Persist the (Removed/orphaned) state so a crash here does not resurrect
+	// already-deleted clusters on next boot.
+	r.state.Save()
 }

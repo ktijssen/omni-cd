@@ -148,7 +148,29 @@ func main() {
 	metricsCollector := metrics.New(appState)
 
 	// Start the web UI server early — needed for the setup UI in unconfigured mode.
-	webServer := web.New(appState, triggerHard, triggerSoft, triggerRefreshCluster, triggerDeleteCluster, triggerDeleteMC, triggerMCRefresh, triggerMCRefreshSingle, triggerRepoChange, triggerOmniConfigured, instanceFile, logDir, auditDir, cfg.WebPort, version, authStore, cfg.AuthDisabled, oidcRT, cfg.WebhookSecret, metricsCollector, cfg.MetricsPort)
+	webServer := web.New(web.Options{
+		AppState:               appState,
+		TriggerHard:            triggerHard,
+		TriggerSoft:            triggerSoft,
+		TriggerRefreshCluster:  triggerRefreshCluster,
+		TriggerDeleteCluster:   triggerDeleteCluster,
+		TriggerDeleteMC:        triggerDeleteMC,
+		TriggerMCRefresh:       triggerMCRefresh,
+		TriggerMCRefreshSingle: triggerMCRefreshSingle,
+		TriggerRepoChange:      triggerRepoChange,
+		TriggerOmniConfigured:  triggerOmniConfigured,
+		OmniInstanceFile:       instanceFile,
+		LogDir:                 logDir,
+		AuditDir:               auditDir,
+		Port:                   cfg.WebPort,
+		Version:                version,
+		AuthStore:              authStore,
+		AuthDisabled:           cfg.AuthDisabled,
+		OIDC:                   oidcRT,
+		WebhookSecret:          cfg.WebhookSecret,
+		Metrics:                metricsCollector,
+		MetricsPort:            cfg.MetricsPort,
+	})
 	webServer.Start()
 
 	// Set up graceful shutdown
@@ -207,6 +229,7 @@ func main() {
 			loadOmniStartupData()
 		case <-stop:
 			logInfo("Shutting down gracefully")
+			shutdown()
 			return
 		}
 	}
@@ -574,77 +597,61 @@ func main() {
 				// Re-diff after deletion so the MC immediately shows as Out of Sync
 				// (still in Git but no longer in Omni) without waiting for the next
 				// scheduled reconcile.
-				gc := buildMultiClient()
-				results := gc.SyncAll()
-				currentRepos := appState.GetRepoConfigs()
-				repoByName := make(map[string]config.RepoConfig, len(currentRepos))
-				for _, rc := range currentRepos {
-					repoByName[rc.Name] = rc
-				}
-				for _, r := range results {
-					if r.Err != nil {
-						continue
-					}
-					rc := repoByName[r.Name]
-					rec.DiffMachineClasses(r.RepoDir + "/" + rc.MCPath)
-				}
+				diffAllMCs(buildMultiClient(), rec, false)
 			}(mcID)
 		case mcID := <-triggerMCRefreshSingle:
 			logInfo(fmt.Sprintf("Machine class refresh triggered from web UI: %s", mcID))
-			go func(id string) {
-				gc := buildMultiClient()
-				results := gc.SyncAll()
-				for _, r := range results {
-					if r.Err != nil {
-						logError("Git sync failed during MC refresh", "repo", r.Name, "error", r.Err)
-						continue
-					}
-				}
-				currentRepos := appState.GetRepoConfigs()
-				repoByNameMC := make(map[string]config.RepoConfig, len(currentRepos))
-				for _, rc := range currentRepos {
-					repoByNameMC[rc.Name] = rc
-				}
-				for _, r := range results {
-					if r.Err != nil {
-						continue
-					}
-					rc := repoByNameMC[r.Name]
-					rec.DiffMachineClasses(r.RepoDir + "/" + rc.MCPath)
-				}
-			}(mcID)
+			go func() {
+				diffAllMCs(buildMultiClient(), rec, true)
+			}()
 		case <-triggerMCRefresh:
 			logInfo("Machine class refresh triggered from web UI")
 			go func() {
-				gc := buildMultiClient()
-				results := gc.SyncAll()
-				for _, r := range results {
-					if r.Err != nil {
-						logError("Git sync failed during MC refresh", "repo", r.Name, "error", r.Err)
-						continue
-					}
-				}
-				currentRepos := appState.GetRepoConfigs()
-				repoByName := make(map[string]config.RepoConfig, len(currentRepos))
-				for _, rc := range currentRepos {
-					repoByName[rc.Name] = rc
-				}
-				for _, r := range results {
-					if r.Err != nil {
-						continue
-					}
-					rc := repoByName[r.Name]
-					rec.DiffMachineClasses(r.RepoDir + "/" + rc.MCPath)
-				}
+				diffAllMCs(buildMultiClient(), rec, true)
 			}()
 		case <-triggerRepoChange:
 			logInfo("Repo configuration changed, triggering full sync")
 			runReconcile(true)
 		case <-stop:
 			logInfo("Shutting down gracefully")
+			shutdown()
 			return
 		}
 	}
+}
+
+// diffAllMCs runs SyncAll across every configured repo and re-diffs the
+// machine classes in each successfully synced repo's MCPath. If logSyncErrors
+// is true, individual repo sync failures are logged (callers in user-facing
+// refresh paths want this; the post-delete path stays quiet to avoid
+// double-logging the deletion failure).
+func diffAllMCs(gc *git.MultiClient, rec *reconciler.Reconciler, logSyncErrors bool) {
+	results := gc.SyncAll()
+	currentRepos := appState.GetRepoConfigs()
+	repoByName := make(map[string]config.RepoConfig, len(currentRepos))
+	for _, rc := range currentRepos {
+		repoByName[rc.Name] = rc
+	}
+	for _, r := range results {
+		if r.Err != nil {
+			if logSyncErrors {
+				logError("Git sync failed during MC refresh", "repo", r.Name, "error", r.Err)
+			}
+			continue
+		}
+		rc := repoByName[r.Name]
+		rec.DiffMachineClasses(r.RepoDir + "/" + rc.MCPath)
+	}
+}
+
+// shutdown persists state and closes file handles so the tail of the
+// log and audit files is flushed before the process exits.
+func shutdown() {
+	if appState == nil {
+		return
+	}
+	appState.Save()
+	appState.Close()
 }
 
 // doReconcile performs a git sync + reconcile cycle across all configured repos.
@@ -667,13 +674,23 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 				[]string{workDir + "/" + rc.ClustersPath},
 				[]string{workDir + "/" + rc.MCPath},
 			)
-			os.RemoveAll(workDir)
+			// Use git.RemoveWorkDir (not os.RemoveAll) so the path-level
+			// lock guarding Client.Sync() is acquired — otherwise a
+			// concurrent reconcile mid-clone races on the same directory.
+			if err := git.RemoveWorkDir(workDir); err != nil {
+				logError("Failed to clean up work directory for deleted repo",
+					"repo", rc.Name, "path", workDir, "error", err)
+			}
 			// Clusters skipped by ForceDeleteFromDirs due to auto-sync being
 			// disabled are no longer owned by any repo — mark them orphaned
 			// immediately so the UI reflects the correct state right away.
 			for _, c := range appState.GetClusters() {
 				if c.RepoName == rc.Name && c.AutoSync != nil && !*c.AutoSync {
-					appState.UpdateClusterStatus(c.ID, "orphaned")
+					// MarkClusterOrphaned also clears stale repo-derived metadata
+					// (RepoName, LastSync*, SyncStatusSince, Diff, FileContent,
+					// Error) so the UI card stops showing pointers to the now-gone
+					// repo. Intrinsic Omni state (health, topology) is preserved.
+					appState.MarkClusterOrphaned(c.ID)
 					logInfo("Cluster marked orphaned after repo deletion (auto-sync disabled)", "component", "Clusters", "cluster", c.ID)
 				}
 			}
@@ -852,7 +869,17 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 	// Use the watch cache when available to avoid an API call.
 	liveClusterIDs, _, cacheOK := omni.GetCachedClusterIDsWithPhases()
 	if !cacheOK {
-		liveClusterIDs, _ = omni.GetClusterIDs()
+		ids, err := omni.GetClusterIDs()
+		if err != nil {
+			logError("Failed to fetch cluster IDs from Omni — aborting reconcile", "error", err)
+			appState.SetReconcileFinished(false)
+			if col != nil {
+				col.RecordReconcile(false)
+			}
+			appState.Save()
+			return
+		}
+		liveClusterIDs = ids
 	}
 
 	if anyChanged {

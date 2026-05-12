@@ -282,22 +282,53 @@ func (s *Server) loginBucketFor(ip string) *loginBucket {
 	return bucket
 }
 
+// webhookBucketFor returns the rate-limit bucket for the given IP used to
+// throttle bad-signature webhook attempts. Distinct from loginBuckets so the
+// two surfaces have independent lockouts.
+func (s *Server) webhookBucketFor(ip string) *loginBucket {
+	v, _ := s.webhookBuckets.LoadOrStore(ip, &loginBucket{lastSeen: time.Now()})
+	bucket := v.(*loginBucket)
+	bucket.mu.Lock()
+	bucket.lastSeen = time.Now()
+	bucket.mu.Unlock()
+	return bucket
+}
+
+// recordWebhookFailure increments the failure counter for an IP and, after
+// 10 consecutive bad signatures, applies a 15-minute lockout.
+func (s *Server) recordWebhookFailure(bucket *loginBucket, ip, reason string) {
+	bucket.mu.Lock()
+	bucket.failures++
+	failures := bucket.failures
+	if failures >= 10 {
+		bucket.lockedUntil = time.Now().Add(15 * time.Minute)
+		bucket.failures = 0
+	}
+	bucket.mu.Unlock()
+	slog.Warn("Webhook auth failure", "component", "Web", "ip", ip, "reason", reason, "failures", failures)
+}
+
 // cleanupLoginBuckets periodically removes stale rate-limit buckets to prevent
-// unbounded memory growth when many distinct IPs attempt logins.
+// unbounded memory growth when many distinct IPs attempt logins or send
+// webhook requests.
 func (s *Server) cleanupLoginBuckets() {
 	ticker := time.NewTicker(30 * time.Minute)
 	defer ticker.Stop()
 	for range ticker.C {
 		cutoff := time.Now().Add(-30 * time.Minute)
-		s.loginBuckets.Range(func(key, value any) bool {
-			bucket := value.(*loginBucket)
-			bucket.mu.Lock()
-			stale := bucket.lastSeen.Before(cutoff)
-			bucket.mu.Unlock()
-			if stale {
-				s.loginBuckets.Delete(key)
-			}
-			return true
-		})
+		purge := func(m *sync.Map) {
+			m.Range(func(key, value any) bool {
+				bucket := value.(*loginBucket)
+				bucket.mu.Lock()
+				stale := bucket.lastSeen.Before(cutoff)
+				bucket.mu.Unlock()
+				if stale {
+					m.Delete(key)
+				}
+				return true
+			})
+		}
+		purge(&s.loginBuckets)
+		purge(&s.webhookBuckets)
 	}
 }
