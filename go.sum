@@ -36,8 +36,8 @@ github.com/containernetworking/cni v1.3.0 h1:v6EpN8RznAZj9765HhXQrtXgX+ECGebEYEm
 github.com/containernetworking/cni v1.3.0/go.mod h1:Bs8glZjjFfGPHMw6hQu82RUgEPNGEaBb9KS5KtNMnJ4=
 github.com/coreos/go-oidc/v3 v3.18.0 h1:V9orjXynvu5wiC9SemFTWnG4F45v403aIcjWo0d41+A=
 github.com/coreos/go-oidc/v3 v3.18.0/go.mod h1:DYCf24+ncYi+XkIH97GY1+dqoRlbaSI26KVTCI9SrY4=
-github.com/cosi-project/runtime v1.15.1 h1:EksoHi7tMTeitEN9PiRPw2OENfAj9OejfR1TJ8AlCKw=
-github.com/cosi-project/runtime v1.15.1/go.mod h1:SfzpfNx7YwK8byi1X6ytikDXVMmbC7UpiCWdzntRf8M=
+github.com/cosi-project/runtime v1.16.0 h1:9/chgP4ySF7VcfZVjEjiC73AgIbsNohM7oK1lIAnM7U=
+github.com/cosi-project/runtime v1.16.0/go.mod h1:+GrSnmJjMfWMe6NubevwwXQf/v7afddDLeCbLonvvps=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=

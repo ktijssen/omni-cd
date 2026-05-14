@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/coreos/go-oidc/v3 v3.18.0
-	github.com/cosi-project/runtime v1.15.1
+	github.com/cosi-project/runtime v1.16.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/prometheus/client_golang v1.23.2
 	go.yaml.in/yaml/v4 v4.0.0-rc.4
