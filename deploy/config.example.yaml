@@ -1,0 +1,51 @@
+# Example omni-cd configuration file.
+#
+# Pass to the binary with --config /path/to/config.yaml.
+# Environment variables override matching values when present.
+#
+# In the Helm chart this file is rendered into a Kubernetes Secret and
+# mounted at /etc/omni-cd/config.yaml — so sensitive fields
+# (serviceAccountKey, adminPassword, oidc.clientSecret, webhookSecret,
+# repos[].token) can be placed directly here.
+
+omni:
+  endpoint: ""
+  serviceAccountKey: ""
+
+refreshInterval: 300       # seconds between git pull cycles
+
+webPort: "8080"
+metricsPort: "9090"
+webhookSecret: ""          # HMAC secret for GitHub/GitLab webhook signatures
+
+adminPassword: ""          # bootstrap admin password (first-boot only)
+authDisabled: false        # true to skip login (development only)
+
+logLevel: INFO             # DEBUG | INFO | WARN | ERROR
+logRetentionDays: 7
+auditRetentionDays: 30
+
+oidc:
+  enabled: false
+  issuerUrl: ""
+  clientId: ""
+  clientSecret: ""
+  redirectUrl: ""          # auto-derived when empty
+  scopes: [openid, email, profile]
+  groupsClaim: groups
+  adminGroups: []
+  adminEmails: []
+  viewerGroups: []
+  viewerEmails: []
+  defaultRole: viewer      # admin | viewer | none
+  insecure: false          # skip TLS verification (self-signed only)
+
+# Optional initial repository list. Seeded on first boot; subsequent
+# changes happen via the UI.
+repos: []
+# - name: prod
+#   url: https://github.com/example/prod.git
+#   branch: main
+#   clusters_path: clusters
+#   mc_path: machineclasses
+#   token: ""              # optional; or embed in the URL

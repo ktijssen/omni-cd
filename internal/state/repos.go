@@ -2,12 +2,17 @@ package state
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"omni-cd/internal/config"
 )
+
+// ErrRepoLocked is returned by Update/Delete when the target repo is managed
+// via the config file. Callers (HTTP handlers) map this to 403 Forbidden.
+var ErrRepoLocked = errors.New("repo is managed via the config file and cannot be modified from the UI")
 
 // SetRepoFile sets the path used by SaveRepoConfigs / LoadRepoConfigs.
 func (s *AppState) SetRepoFile(path string) {
@@ -49,11 +54,15 @@ func (s *AppState) AddRepoConfig(rc config.RepoConfig) error {
 // UpdateRepoConfig replaces the repo with the given name.
 // If rc.Token is empty the existing token is preserved.
 // If rc.Token is the sentinel "\x00clear\x00" the token is removed.
+// Returns ErrRepoLocked when the target repo is managed via the config file.
 func (s *AppState) UpdateRepoConfig(name string, rc config.RepoConfig) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, r := range s.RepoConfigs {
 		if r.Name == name {
+			if r.FromConfig {
+				return fmt.Errorf("%w: %s", ErrRepoLocked, name)
+			}
 			if rc.Token == "\x00clear\x00" {
 				rc.Token = ""
 			} else if rc.Token == "" {
@@ -67,16 +76,55 @@ func (s *AppState) UpdateRepoConfig(name string, rc config.RepoConfig) error {
 }
 
 // DeleteRepoConfig removes the repo with the given name.
+// Returns ErrRepoLocked when the target repo is managed via the config file.
 func (s *AppState) DeleteRepoConfig(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, r := range s.RepoConfigs {
 		if r.Name == name {
+			if r.FromConfig {
+				return fmt.Errorf("%w: %s", ErrRepoLocked, name)
+			}
 			s.RepoConfigs = append(s.RepoConfigs[:i], s.RepoConfigs[i+1:]...)
 			return nil
 		}
 	}
 	return fmt.Errorf("repo %q not found", name)
+}
+
+// ApplyConfigRepos reconciles the repo list with config-file repos. Each
+// entry in repos is marked FromConfig=true and added or overrides any matching
+// entry by name. UI-managed repos (FromConfig=false in state) whose name
+// doesn't appear in repos are preserved. Call this on every startup so changes
+// to the config file take effect.
+func (s *AppState) ApplyConfigRepos(repos []config.RepoConfig) {
+	s.mu.Lock()
+	cfgByName := make(map[string]config.RepoConfig, len(repos))
+	for _, r := range repos {
+		r.FromConfig = true
+		cfgByName[r.Name] = r
+	}
+
+	merged := make([]config.RepoConfig, 0, len(s.RepoConfigs)+len(repos))
+	seen := make(map[string]bool, len(repos))
+	for _, existing := range s.RepoConfigs {
+		if cfgRepo, ok := cfgByName[existing.Name]; ok {
+			merged = append(merged, cfgRepo)
+			seen[existing.Name] = true
+		} else {
+			existing.FromConfig = false
+			merged = append(merged, existing)
+		}
+	}
+	for _, cfgRepo := range repos {
+		if !seen[cfgRepo.Name] {
+			cfgRepo.FromConfig = true
+			merged = append(merged, cfgRepo)
+		}
+	}
+	s.RepoConfigs = merged
+	s.mu.Unlock()
+	s.notifyChange()
 }
 
 // SetRepoClusters records which cluster IDs are managed by the named repo.
@@ -206,8 +254,13 @@ func (s *AppState) TakePendingRepoDeletes() []config.RepoConfig {
 func (s *AppState) SaveRepoConfigs() error {
 	s.mu.RLock()
 	path := s.repoFile
-	repos := make([]config.RepoConfig, len(s.RepoConfigs))
-	copy(repos, s.RepoConfigs)
+	var repos []config.RepoConfig
+	for _, r := range s.RepoConfigs {
+		if r.FromConfig {
+			continue // config-file repos live in the config file, not repos.json
+		}
+		repos = append(repos, r)
+	}
 	s.mu.RUnlock()
 	if path == "" {
 		return nil

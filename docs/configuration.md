@@ -1,73 +1,148 @@
 # Configuration
 
-All configuration is done via environment variables. The Omni endpoint and service account key can alternatively be set at runtime from the **Instances** page.
+Omni CD is configured via a YAML file. Environment variables and the **Instances** page in the web UI act as overrides on top of the file.
+
+**Precedence (lowest → highest):** built-in defaults → config file(s) → environment variables.
+
+## Pointing the binary at a config file
+
+The binary takes a repeatable `--config-path` flag:
+
+```bash
+omni-cd --config-path=/etc/omni-cd/config.yaml
+```
+
+Pass it multiple times to layer files (later wins per-field; lists are replaced when present in a layer):
+
+```bash
+omni-cd \
+  --config-path=/etc/omni-cd/base.yaml \
+  --config-path=/etc/omni-cd/overlay.yaml
+```
+
+A minimal config file is at [`deploy/config.example.yaml`](../deploy/config.example.yaml).
 
 ---
 
-## General
+## File schema
 
-| Variable | Default | Description |
-|---|---|---|
-| `OMNI_ENDPOINT` | — | Omni instance URL. If set via ENV, locked and cannot be changed from the UI. |
-| `OMNI_SERVICE_ACCOUNT_KEY` | — | Omni service account key. Same locking behaviour as above. |
-| `REFRESH_INTERVAL` | `300` | Seconds between git pull + drift checks. |
-| `WEB_PORT` | `8080` | Web UI and API port. |
-| `WEBHOOK_SECRET` | — | Optional secret to validate incoming webhook payloads. |
+```yaml
+omni:
+  endpoint: https://your-omni-instance.example.com
+  serviceAccountKey: "..."     # see Omni Service Account in installation.md
 
-## Authentication
+refreshInterval: 300            # seconds between git pull + drift checks
+webPort: "8080"
+metricsPort: "9090"             # set "" to disable the /metrics endpoint
+webhookSecret: ""               # HMAC secret for GitHub/GitLab webhook signatures
 
-| Variable | Default | Description |
-|---|---|---|
-| `ADMIN_PASSWORD` | — | Bootstrap password for the `admin` account, applied on first boot only. |
-| `AUTH_DISABLED` | `false` | Set `true` to disable login entirely (hides the Users page). |
+adminPassword: ""               # bootstrap password for the admin account (first boot only)
+authDisabled: false             # true → skip login entirely
 
-## Logging
+logLevel: INFO                  # DEBUG | INFO | WARN | ERROR
+logRetentionDays: 7
+auditRetentionDays: 30
 
-| Variable | Default | Description |
-|---|---|---|
-| `LOG_LEVEL` | `INFO` | Log verbosity: `DEBUG`, `INFO`, `WARN`, `ERROR`. |
-| `LOG_RETENTION_DAYS` | `7` | Days to keep daily log files before automatic deletion. |
-| `AUDIT_RETENTION_DAYS` | `30` | Days to keep daily audit files before automatic deletion. |
+oidc:
+  enabled: false
+  issuerUrl: ""
+  clientId: ""
+  clientSecret: ""
+  redirectUrl: ""               # auto-derived when empty
+  scopes: [openid, email, profile]
+  groupsClaim: groups
+  adminGroups: []
+  adminEmails: []
+  viewerGroups: []
+  viewerEmails: []
+  defaultRole: viewer           # admin | viewer | none
+  insecure: false               # skip TLS verification (self-signed IdP only)
 
-## Metrics
-
-| Variable | Default | Description |
-|---|---|---|
-| `METRICS_PORT` | `9090` | Port for the Prometheus `/metrics` endpoint. Set to `0` or empty to disable. |
-
-## OIDC / Single Sign-On
-
-Set `OIDC_ENABLED=true` and provide at minimum `OIDC_ISSUER_URL` and `OIDC_CLIENT_ID`. OIDC and Auth0 are mutually exclusive — only one may be enabled at a time.
-
-| Variable | Default | Description |
-|---|---|---|
-| `OIDC_ENABLED` | `false` | Enable OIDC authentication. |
-| `OIDC_ISSUER_URL` | — | OIDC provider discovery URL (e.g. `https://accounts.example.com`). |
-| `OIDC_CLIENT_ID` | — | OAuth2 client ID. |
-| `OIDC_CLIENT_SECRET` | — | OAuth2 client secret (optional for public clients). |
-| `OIDC_REDIRECT_URL` | — | Callback URL registered with your IdP. Leave empty to auto-derive. |
-| `OIDC_SCOPES` | `openid,email,profile` | Comma-separated scopes. |
-| `OIDC_GROUPS_CLAIM` | `groups` | JWT/userinfo claim containing group memberships. |
-| `OIDC_ADMIN_GROUPS` | — | Groups granted `admin` role. |
-| `OIDC_ADMIN_EMAILS` | — | Email addresses granted `admin` role. |
-| `OIDC_VIEWER_GROUPS` | — | Groups granted `viewer` role. |
-| `OIDC_VIEWER_EMAILS` | — | Email addresses granted `viewer` role. |
-| `OIDC_DEFAULT_ROLE` | `viewer` | Role when no rule matches: `admin`, `viewer`, or `none`. |
-| `OIDC_INSECURE` | `false` | Skip TLS verification — for self-signed IdP certificates only. |
+# Optional initial repository list. Repos defined here cannot be edited or
+# deleted from the UI — they're marked "from config" and managed via the
+# file. See "Repository management" below.
+repos: []
+# - name: prod
+#   url: https://github.com/example/prod.git
+#   branch: main
+#   clusters_path: clusters
+#   mc_path: machine-classes
+#   token: ""                   # optional; or embed in the URL
+```
 
 ---
 
-## Repository Structure
+## Environment variable overrides
 
-Git repositories are managed at runtime via the **Repos** page. Each repo supports:
+Every field has a corresponding env var. When set (and non-empty) it overrides the file value. Useful for per-deployment tweaks or for injecting secrets that you don't want baked into the file.
 
-- **URL** — HTTPS or SSH clone URL
-- **Branch** — defaults to `main`
-- **Token** — optional personal access token for private repos
-- **Clusters path** — directory containing `cluster.yaml` files (default: `clusters/`)
-- **Machine Classes path** — directory containing MachineClass YAMLs (default: `machine-classes/`)
+### General
 
-### Expected layout
+| Variable | Maps to | Notes |
+|---|---|---|
+| `OMNI_ENDPOINT` | `omni.endpoint` | When both Omni creds are set (file *or* env), the UI **Instances** page is read-only. |
+| `OMNI_SERVICE_ACCOUNT_KEY` | `omni.serviceAccountKey` | Same lock behavior. |
+| `REFRESH_INTERVAL` | `refreshInterval` | |
+| `WEB_PORT` | `webPort` | |
+| `METRICS_PORT` | `metricsPort` | |
+| `WEBHOOK_SECRET` | `webhookSecret` | |
+
+### Authentication
+
+| Variable | Maps to |
+|---|---|
+| `ADMIN_PASSWORD` | `adminPassword` |
+| `AUTH_DISABLED` | `authDisabled` |
+
+### Logging
+
+| Variable | Maps to |
+|---|---|
+| `LOG_LEVEL` | `logLevel` |
+| `LOG_RETENTION_DAYS` | `logRetentionDays` |
+| `AUDIT_RETENTION_DAYS` | `auditRetentionDays` |
+
+### OIDC / Single Sign-On
+
+OIDC requires `oidc.enabled: true` AND a non-empty issuer URL and client ID. OIDC list fields (`scopes`, `adminGroups`, `adminEmails`, `viewerGroups`, `viewerEmails`) accept comma-separated values via env vars.
+
+| Variable | Maps to |
+|---|---|
+| `OIDC_ENABLED` | `oidc.enabled` |
+| `OIDC_ISSUER_URL` | `oidc.issuerUrl` |
+| `OIDC_CLIENT_ID` | `oidc.clientId` |
+| `OIDC_CLIENT_SECRET` | `oidc.clientSecret` |
+| `OIDC_REDIRECT_URL` | `oidc.redirectUrl` |
+| `OIDC_SCOPES` | `oidc.scopes` (CSV) |
+| `OIDC_GROUPS_CLAIM` | `oidc.groupsClaim` |
+| `OIDC_ADMIN_GROUPS` | `oidc.adminGroups` (CSV) |
+| `OIDC_ADMIN_EMAILS` | `oidc.adminEmails` (CSV) |
+| `OIDC_VIEWER_GROUPS` | `oidc.viewerGroups` (CSV) |
+| `OIDC_VIEWER_EMAILS` | `oidc.viewerEmails` (CSV) |
+| `OIDC_DEFAULT_ROLE` | `oidc.defaultRole` |
+| `OIDC_INSECURE` | `oidc.insecure` |
+
+---
+
+## Repository management
+
+Repositories can be defined in two places:
+
+1. **Config file (`repos:`)** — Declarative. The UI shows these with a "📄 from config" badge; Edit and Delete are disabled. Manage them by editing the file and restarting.
+2. **Web UI (Repos page)** — Interactive. Persisted to `/data/config/repos.json` and fully editable.
+
+Both kinds coexist. If a name appears in both, the config file wins (the UI version is shadowed). Remove a repo from the config and restart to demote it back to UI-managed.
+
+Each repo entry supports:
+
+- **`name`** — display name, must be unique
+- **`url`** — HTTPS or SSH clone URL
+- **`branch`** — defaults to `main`
+- **`token`** — optional personal access token (allowed in the config file when stored in a Kubernetes Secret or equivalent)
+- **`clusters_path`** — directory containing `cluster.yaml` files (default: `clusters`)
+- **`mc_path`** — directory containing MachineClass YAMLs (default: `machine-classes`)
+
+### Expected git layout
 
 ```
 your-infra-repo/

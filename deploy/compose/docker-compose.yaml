@@ -5,37 +5,16 @@ services:
       args:
         APP_VERSION: ${APP_VERSION:-dev}
     restart: unless-stopped
-    environment:
-      - OMNI_ENDPOINT=${OMNI_ENDPOINT}
-      - OMNI_SERVICE_ACCOUNT_KEY=${OMNI_SERVICE_ACCOUNT_KEY}
-      - REFRESH_INTERVAL=${REFRESH_INTERVAL:-300}
-      - WEB_PORT=${WEB_PORT:-8080}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - AUTH_DISABLED=${AUTH_DISABLED:-false}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - LOG_RETENTION_DAYS=${LOG_RETENTION_DAYS:-7}
-      - AUDIT_RETENTION_DAYS=${AUDIT_RETENTION_DAYS:-30}
-      - OIDC_ENABLED=${OIDC_ENABLED:-false}
-      - OIDC_ISSUER_URL=${OIDC_ISSUER_URL}
-      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
-      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
-      - OIDC_REDIRECT_URL=${OIDC_REDIRECT_URL}
-      - OIDC_SCOPES=${OIDC_SCOPES}
-      - OIDC_GROUPS_CLAIM=${OIDC_GROUPS_CLAIM}
-      - OIDC_ADMIN_GROUPS=${OIDC_ADMIN_GROUPS}
-      - OIDC_ADMIN_EMAILS=${OIDC_ADMIN_EMAILS}
-      - OIDC_VIEWER_GROUPS=${OIDC_VIEWER_GROUPS}
-      - OIDC_VIEWER_EMAILS=${OIDC_VIEWER_EMAILS}
-      - OIDC_DEFAULT_ROLE=${OIDC_DEFAULT_ROLE}
-      - OIDC_INSECURE=${OIDC_INSECURE:-false}
-      - METRICS_PORT=${METRICS_PORT:-9090}
+    command: ["--config-path=/config/config.yaml"]
+    # Keep these in sync with webPort / metricsPort in config.yaml.
     ports:
-      - "${WEB_PORT:-8080}:${WEB_PORT:-8080}"
-      - "${METRICS_PORT:-9090}:${METRICS_PORT:-9090}"
+      - "8080:8080"
+      - "9090:9090"
     volumes:
+      - ./config.yaml:/config/config.yaml:ro
       - ./data:/data
     healthcheck:
-      test: ["CMD", "sh", "-c", "wget -qO- http://localhost:$$WEB_PORT/"]
+      test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8080/"]
       interval: 30s
       timeout: 5s
       retries: 3

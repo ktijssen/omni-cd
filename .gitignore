@@ -14,6 +14,9 @@ deploy/compose/.env
 .env
 *.env
 
+# Local compose config (contains credentials)
+deploy/compose/config.yaml
+
 # Helm
 deploy/helm/*/charts/
 deploy/helm/*/*.tgz

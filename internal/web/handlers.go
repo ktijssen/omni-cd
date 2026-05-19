@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -595,7 +596,11 @@ func (s *Server) handleRepos(w http.ResponseWriter, r *http.Request) {
 			rc.Token = "\x00clear\x00"
 		}
 		if err := s.appState.UpdateRepoConfig(req.Name, rc); err != nil {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			status := http.StatusNotFound
+			if errors.Is(err, state.ErrRepoLocked) {
+				status = http.StatusForbidden
+			}
+			writeJSON(w, status, map[string]string{"error": err.Error()})
 			return
 		}
 		if err := s.appState.SaveRepoConfigs(); err != nil {
@@ -619,17 +624,28 @@ func (s *Server) handleRepos(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "name is required", http.StatusBadRequest)
 			return
 		}
-		// Capture the repo config before deletion so we can force-delete its
-		// clusters and machine classes on the next reconcile cycle.
+		// Capture the repo config so we can force-delete its clusters and
+		// machine classes on the next reconcile cycle. Only scheduled if the
+		// delete succeeds — locked (config-managed) repos must not leave a
+		// pending cleanup behind.
+		var pending *config.RepoConfig
 		for _, rc := range s.appState.GetRepoConfigs() {
 			if rc.Name == req.Name {
-				s.appState.AddPendingRepoDelete(rc)
+				rcCopy := rc
+				pending = &rcCopy
 				break
 			}
 		}
 		if err := s.appState.DeleteRepoConfig(req.Name); err != nil {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			status := http.StatusNotFound
+			if errors.Is(err, state.ErrRepoLocked) {
+				status = http.StatusForbidden
+			}
+			writeJSON(w, status, map[string]string{"error": err.Error()})
 			return
+		}
+		if pending != nil {
+			s.appState.AddPendingRepoDelete(*pending)
 		}
 		if err := s.appState.SaveRepoConfigs(); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to persist: " + err.Error()})

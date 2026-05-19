@@ -21,26 +21,80 @@ helm install omni-cd oci://ghcr.io/ktijssen/charts/omni-cd \
   -f values.yaml
 ```
 
-## Existing Secret
+## Configuration
 
-To avoid storing credentials in `values.yaml`, create a Kubernetes Secret yourself and reference it:
+The chart renders a Kubernetes Secret containing a single `config.yaml` key and mounts it into the container at `/config/config.yaml`. The container is started with `--config-path=/config/config.yaml`; the file is the only configuration surface — there are no environment variables on the Pod (use `env` / `envFrom` in `values.yaml` if you need to inject any).
+
+A Secret (not a ConfigMap) is used because the file holds sensitive values: `omni.serviceAccountKey`, `adminPassword`, `webhookSecret`, `oidc.clientSecret`, and any per-repo `token`.
+
+See [`deploy/config.example.yaml`](../../config.example.yaml) for the full schema.
+
+### Initial repositories
+
+`config.repos` declares repositories that the operator manages. Repos defined here show up in the UI with a "📄 from config" badge and **cannot be edited or deleted from the UI** — update the chart values to change them. Tokens are allowed since the file lives in a Secret:
+
+```yaml
+config:
+  repos:
+    - name: prod
+      url: https://github.com/example/prod.git
+      branch: main
+      clusters_path: clusters
+      mc_path: machineclasses
+      token: ""        # optional; or embed in the URL
+```
+
+### Existing Secret
+
+To manage the config Secret outside Helm (e.g. via external-secrets or a sealed-secrets controller), create a Secret with a single `config.yaml` key and reference it:
 
 ```yaml
 apiVersion: v1
 kind: Secret
 metadata:
-  name: omni-cd-credentials
+  name: omni-cd-config
 type: Opaque
 stringData:
-  OMNI_ENDPOINT: "https://your-omni-instance.example.com"
-  OMNI_SERVICE_ACCOUNT_KEY: "your-service-account-key"
-  ADMIN_PASSWORD: "your-admin-password"
+  config.yaml: |
+    omni:
+      endpoint: https://your-omni-instance.example.com
+      serviceAccountKey: your-service-account-key
+    adminPassword: your-admin-password
+    # ...rest of the configuration
 ```
 
 ```yaml
 # values.yaml
-existingSecret: omni-cd-credentials
+existingSecret: omni-cd-config
 ```
+
+> **Upgrading from a previous chart version:** earlier releases stored secrets as individual keys (`OMNI_ENDPOINT`, `OMNI_SERVICE_ACCOUNT_KEY`, …) and injected them as env vars. Existing custom Secrets must be reshaped to a single `config.yaml` key.
+
+### Layering additional config sources
+
+For workflows where part of the config is managed by a separate controller (ExternalSecret, sealed-secrets, etc.), `additionalConfigSources` mounts extra Secrets or ConfigMaps and layers them on top of the main config. Later sources override earlier ones; the binary unmarshals each layer into the same struct, so a partial source only touches the fields it specifies.
+
+```yaml
+additionalConfigSources:
+  # ExternalSecret-managed Secret holding just the omni subtree:
+  #   stringData:
+  #     config.yaml: |
+  #       omni:
+  #         endpoint: https://omni.example.com
+  #         serviceAccountKey: ...
+  - secret: omni-credentials
+
+  # ConfigMap whose key is named something other than config.yaml:
+  - configMap: feature-flags
+    key: features.yaml
+```
+
+Each entry is mounted at `/config/additional-<index>/config.yaml` (the source's own key is always projected to `config.yaml`).
+
+Notes:
+
+- **Lists are replaced, not merged.** A layer that defines `repos: [...]` replaces the prior list. Manage `repos:` in one source.
+- **Empty strings overwrite.** A layer that sets `endpoint: ""` clears it. Omit the field instead to keep the prior value.
 
 ## Ingress
 
@@ -202,11 +256,19 @@ To import the dashboard manually, use `deploy/grafana/omni-cd-dashboard.json`.
 | `metrics.grafanaDashboard.namespace` | `""` | Namespace for the ConfigMap (defaults to release namespace) |
 | `metrics.grafanaDashboard.labels` | `{grafana_dashboard: "1"}` | Labels for Grafana sidecar discovery |
 
+### Repositories
+
+| Key | Default | Description |
+|---|---|---|
+| `config.repos` | `[]` | Repos declared in the chart values (each entry: `name`, `url`, `branch`, `clusters_path`, `mc_path`, optional `token`). Read-only from the UI — edit `values.yaml` to change them. UI-added repos coexist as a separate set. |
+
 ### Storage & Secrets
 
 | Key | Default | Description |
 |---|---|---|
-| `existingSecret` | `""` | Name of an existing Secret containing credentials |
+| `existingSecret` | `""` | Name of an existing Secret containing a single `config.yaml` key (skip chart-rendered Secret) |
+| `additionalConfigSources` | `[]` | Extra Secret / ConfigMap sources layered on top of the main config (later overrides earlier). Each entry: `{secret: name}` or `{configMap: name}` with optional `key` (default `config.yaml`). |
+| `args` | `[]` | Free-form extra args appended after all `--config-path` flags |
 | `persistence.enabled` | `true` | Enable persistent volume for `/data` |
 | `persistence.storageClass` | `""` | Storage class (uses cluster default when empty) |
 | `persistence.accessMode` | `ReadWriteOnce` | PVC access mode |
@@ -217,6 +279,10 @@ To import the dashboard manually, use `deploy/grafana/omni-cd-dashboard.json`.
 | Key | Default | Description |
 |---|---|---|
 | `resources` | `{}` | Pod resource requests and limits |
+| `env` | `[]` | Extra container env vars (merged into the Pod spec; override individual config values via `LOG_LEVEL` etc.) |
+| `envFrom` | `[]` | Extra `envFrom` sources (Secret/ConfigMap refs) |
+| `livenessProbe` | `httpGet: /` on port `http`, 10s delay / 30s period | Container liveness probe |
+| `readinessProbe` | `httpGet: /` on port `http`, 5s delay / 10s period | Container readiness probe |
 | `podAnnotations` | `{}` | Extra pod annotations |
 | `podSecurityContext` | `{}` | Pod-level security context |
 | `securityContext` | `{}` | Container-level security context |

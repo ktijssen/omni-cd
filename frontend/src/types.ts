@@ -84,6 +84,7 @@ export interface RepoConfigView {
   hasToken: boolean
   clustersPath: string
   mcPath: string
+  fromConfig: boolean
 }
 
 export interface SnapshotData {

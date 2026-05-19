@@ -46,6 +46,9 @@
           <template v-if="rc.hasToken">
             &nbsp;·&nbsp; <span style="color:#4ade80;font-size:11px">🔑 token set</span>
           </template>
+          <template v-if="rc.fromConfig">
+            &nbsp;·&nbsp; <span style="color:#9fa1a6;font-size:11px" title="Managed via the config file — read-only from the UI">📄 from config</span>
+          </template>
           <br />
           <template v-if="repoCommitMessage(rc.name)">{{ repoCommitMessage(rc.name) }}<br /></template>
           <template v-if="repoLastSync(rc.name)">Last sync: {{ ago(repoLastSync(rc.name)) }}</template>
@@ -69,8 +72,18 @@
             :disabled="testingRepo === rc.name"
             @click="testRepoConnection(rc.name)"
           >{{ testingRepo === rc.name ? 'Testing...' : 'Test Connection' }}</button>
-          <button class="btn-omni" @click="openRepoModal(rc)">Edit</button>
-          <button class="btn-omni" @click="deleteRepo(rc.name)">Delete</button>
+          <button
+            class="btn-omni"
+            :disabled="rc.fromConfig"
+            :title="rc.fromConfig ? 'Managed via the config file — edit there instead' : ''"
+            @click="openRepoModal(rc)"
+          >Edit</button>
+          <button
+            class="btn-omni"
+            :disabled="rc.fromConfig"
+            :title="rc.fromConfig ? 'Managed via the config file — remove from the config to delete' : ''"
+            @click="deleteRepo(rc.name)"
+          >Delete</button>
         </div>
       </div>
     </div>
