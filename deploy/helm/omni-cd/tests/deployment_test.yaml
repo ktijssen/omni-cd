@@ -29,33 +29,175 @@ tests:
           path: spec.replicas
           value: 3
 
-  - it: Should set WEB_PORT env var
+  - it: Should pass --config-path arg to the container
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: WEB_PORT
-            value: "8080"
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --config-path=/config/config.yaml
 
-  - it: Should set REFRESH_INTERVAL env var
+  - it: Should append --config-path for each additionalConfigSource
     set:
-      config.refreshInterval: "600"
+      additionalConfigSources:
+        - secret: omni-creds
+        - configMap: feature-flags
+          key: features.yaml
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: REFRESH_INTERVAL
-            value: "600"
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --config-path=/config/config.yaml
+            - --config-path=/config/additional-0/config.yaml
+            - --config-path=/config/additional-1/config.yaml
 
-  - it: Should set LOG_LEVEL env var
+  - it: Should mount additionalConfigSources as Secret and ConfigMap volumes
     set:
-      config.logLevel: "DEBUG"
+      additionalConfigSources:
+        - secret: omni-creds
+        - configMap: feature-flags
+          key: features.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: additional-0
+            mountPath: /config/additional-0
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: additional-0
+            secret:
+              secretName: omni-creds
+              items:
+                - key: config.yaml
+                  path: config.yaml
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: additional-1
+            configMap:
+              name: feature-flags
+              items:
+                - key: features.yaml
+                  path: config.yaml
+
+  - it: Should fail when additionalConfigSources entry has neither secret nor configMap
+    set:
+      additionalConfigSources:
+        - key: config.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "additionalConfigSources[0] must set either 'secret' or 'configMap'"
+
+  - it: Should append free-form args after --config-path
+    set:
+      args:
+        - --my-flag=value
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --config-path=/config/config.yaml
+            - "--my-flag=value"
+
+  - it: Should mount the config Secret at /config
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: config
+            mountPath: /config
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            secret:
+              secretName: RELEASE-NAME-omni-cd
+
+  - it: Should mount the existingSecret when set
+    set:
+      existingSecret: my-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: config
+            secret:
+              secretName: my-secret
+
+  - it: Should not set env block by default
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].env
+
+  - it: Should render env block when provided
+    set:
+      env:
+        - name: HTTPS_PROXY
+          value: http://proxy.example.com:8080
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: LOG_LEVEL
-            value: "DEBUG"
+            name: HTTPS_PROXY
+            value: http://proxy.example.com:8080
+
+  - it: Should not set envFrom block by default
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].envFrom
+
+  - it: Should render envFrom block when provided
+    set:
+      envFrom:
+        - secretRef:
+            name: extra-secrets
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: extra-secrets
+
+  - it: Should set default liveness and readiness probes
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.initialDelaySeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 5
+
+  - it: Should override liveness probe from values
+    set:
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: http
+        initialDelaySeconds: 60
+        periodSeconds: 15
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /healthz
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.initialDelaySeconds
+          value: 60
+
+  - it: Should omit probes when explicitly set to null/empty
+    set:
+      livenessProbe: ~
+      readinessProbe: ~
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
 
   - it: Should mount data volume when persistence is enabled
     set:
@@ -77,50 +219,11 @@ tests:
     set:
       persistence.enabled: false
     asserts:
-      - notExists:
-          path: spec.template.spec.volumes
-      - notExists:
-          path: spec.template.spec.containers[0].volumeMounts
-
-  - it: Should use existingSecret for OMNI_ENDPOINT
-    set:
-      existingSecret: my-secret
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: OMNI_ENDPOINT
-            valueFrom:
-              secretKeyRef:
-                name: my-secret
-                key: OMNI_ENDPOINT
-
-  - it: Should enable OIDC env vars when oidc.enabled is true
-    set:
-      config.oidc.enabled: true
-      config.oidc.issuerUrl: "https://sso.example.com"
-      config.oidc.clientId: "omni-cd"
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: OIDC_ENABLED
-            value: "true"
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: OIDC_ISSUER_URL
-            value: "https://sso.example.com"
-
-  - it: Should not include OIDC env vars when oidc.enabled is false
-    set:
-      config.oidc.enabled: false
-    asserts:
       - notContains:
-          path: spec.template.spec.containers[0].env
+          path: spec.template.spec.containers[0].volumeMounts
           content:
-            name: OIDC_ENABLED
-            value: "true"
+            name: data
+            mountPath: /data
 
   - it: Should set pod annotations
     set:

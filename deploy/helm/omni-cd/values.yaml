@@ -89,9 +89,38 @@ config:
     # -- Skip TLS verification for the OIDC provider (not recommended)
     insecure: "false"
 
-# -- Store sensitive values in an existing secret instead of values.yaml
-# -- Secret must contain keys matching the env var names
+  # -- Optional initial repository list. Seeded into the config file on
+  # -- first boot, then managed via the web UI. Tokens are allowed here
+  # -- because the rendered config lives in a Kubernetes Secret.
+  repos: []
+  # - name: prod
+  #   url: https://github.com/example/prod.git
+  #   branch: main
+  #   clusters_path: clusters
+  #   mc_path: machineclasses
+  #   token: ""
+
+# -- Use an existing Secret instead of rendering one from these values.
+# -- The Secret must contain a `config.yaml` key with the full omni-cd
+# -- configuration; see deploy/config.example.yaml for the schema.
 existingSecret: ""
+
+# -- Additional config files layered on top of the main config.yaml. Each
+# -- source is mounted under /config/additional-<index>/config.yaml and
+# -- passed to the binary via --config-path. Later sources override earlier
+# -- ones, so this is the supported way to inject an externally-managed
+# -- subtree (e.g. omni credentials from an ExternalSecret). Lists like
+# -- `repos:` are replaced when present in a layer.
+additionalConfigSources: []
+# - secret: omni-credentials      # name of a Secret
+#   # key: config.yaml            # optional; default 'config.yaml'
+# - configMap: feature-flags      # name of a ConfigMap
+#   key: features.yaml
+
+# -- Free-form extra arguments appended to the container command line after
+# -- all --config-path flags.
+args: []
+# - --some-flag=value
 
 metrics:
   enabled: false
@@ -114,6 +143,32 @@ persistence:
   size: 1Gi
 
 resources: {}
+
+# -- Extra environment variables to inject into the container (advanced).
+# -- Useful for proxy settings, debugging, or overriding individual config
+# -- values (env vars take precedence over the YAML config file).
+env: []
+# - name: HTTPS_PROXY
+#   value: http://proxy.example.com:8080
+
+# -- envFrom sources (ConfigMaps / Secrets) mounted as env vars.
+envFrom: []
+# - secretRef:
+#     name: extra-credentials
+
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 30
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
 
 podAnnotations: {}
 

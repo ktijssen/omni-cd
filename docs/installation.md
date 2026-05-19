@@ -19,25 +19,29 @@ Omni CD requires a service account with at least the **Operator** role to manage
 ```bash
 docker run -d \
   -v omni-cd-data:/data \
+  -v $(pwd)/config.yaml:/config/config.yaml:ro \
   -p 8080:8080 \
-  ghcr.io/ktijssen/omni-cd:latest
+  ghcr.io/ktijssen/omni-cd:latest \
+  --config-path=/config/config.yaml
 ```
 
-The Omni endpoint and service account key can be set via environment variables **or** configured at runtime from the **Instances** page in the web UI.
+`config.yaml` is a YAML file with the schema described in [Configuration](configuration.md). A starter example is at [`deploy/config.example.yaml`](../deploy/config.example.yaml).
 
-On first boot you will be redirected to `/setup` to create the initial admin account (username `admin`).
+If you skip `--config-path`, the binary still starts — you'll be redirected to `/setup` on first boot to create the admin account, and you can configure Omni from the **Instances** page in the web UI. Environment variables also work as an override layer; see [Configuration](configuration.md).
 
 ---
 
 ## Docker Compose
 
+The compose stack mounts a local `config.yaml` into the container.
+
 ```bash
-cp deploy/compose/.env.example deploy/compose/.env
-# Edit .env with your values
+cp deploy/config.example.yaml deploy/compose/config.yaml
+# Edit deploy/compose/config.yaml with your values
 cd deploy/compose && docker compose up -d
 ```
 
-A full example with all variables is in [`deploy/compose/`](../deploy/compose/).
+`deploy/compose/config.yaml` is gitignored. The compose file passes `--config-path=/config/config.yaml` and keeps the host ports in sync with the `webPort` / `metricsPort` values in the config. See [`deploy/compose/docker-compose.yaml`](../deploy/compose/docker-compose.yaml).
 
 ---
 
@@ -51,7 +55,7 @@ helm install omni-cd oci://ghcr.io/ktijssen/charts/omni-cd \
   --set config.omni.serviceAccountKey=your-service-account-key
 ```
 
-See [`deploy/helm/omni-cd/README.md`](../deploy/helm/omni-cd/README.md) for the full chart documentation including values, existing secret support, and Gateway API (HTTPRoute) configuration.
+The chart renders a Kubernetes Secret containing a single `config.yaml` key and mounts it at `/config/config.yaml`. See [`deploy/helm/omni-cd/README.md`](../deploy/helm/omni-cd/README.md) for the full chart documentation including `existingSecret`, layered `additionalConfigSources` (e.g. for ExternalSecret-managed credentials), Ingress / HTTPRoute, and Prometheus ServiceMonitor support.
 
 ---
 

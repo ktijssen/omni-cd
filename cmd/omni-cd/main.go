@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -28,11 +29,21 @@ import (
 // version is set at build time via -ldflags "-X main.version=v1.0.0"
 var version = "dev"
 
+// stringListFlag collects repeated string flag values into a slice.
+type stringListFlag []string
+
+func (s *stringListFlag) String() string     { return strings.Join(*s, ",") }
+func (s *stringListFlag) Set(v string) error { *s = append(*s, v); return nil }
+
 var appState *state.AppState
 
 func main() {
+	var configPaths stringListFlag
+	flag.Var(&configPaths, "config-path", "Path to YAML config file (repeatable; later files override earlier; env vars override all)")
+	flag.Parse()
+
 	// Load config first to get log level
-	cfg, err := config.Load()
+	cfg, err := config.Load(configPaths)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
 		os.Exit(1)
@@ -177,15 +188,14 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
-	// loadOmniStartupData seeds repo configs from cfg.Repos (if none loaded from
-	// disk) and fetches the Omni version after Omni is ready. Repo file setup is
-	// done unconditionally above so SaveRepoConfigs() always writes to disk.
+	// loadOmniStartupData overlays config-file repos onto whatever was loaded
+	// from repos.json and fetches the Omni version after Omni is ready. Repo
+	// file setup is done unconditionally above so SaveRepoConfigs() persists
+	// UI-managed repos to disk. Config-file repos are recomputed every boot.
 	loadOmniStartupData := func() {
-		if len(appState.GetRepoConfigs()) == 0 {
-			appState.SetRepoConfigs(cfg.Repos)
-			if err := appState.SaveRepoConfigs(); err != nil {
-				logError("Failed to persist initial repo configs", "error", err)
-			}
+		appState.ApplyConfigRepos(cfg.Repos)
+		if err := appState.SaveRepoConfigs(); err != nil {
+			logError("Failed to persist repo configs", "error", err)
 		}
 		omniVersion := omni.GetOmniVersion()
 		appState.SetVersions(omniVersion)

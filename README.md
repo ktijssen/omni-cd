@@ -33,7 +33,7 @@ docker run -d \
   ghcr.io/ktijssen/omni-cd:latest
 ```
 
-Open `http://localhost:8080` — you will be redirected to `/setup` to create the admin account on first boot. The Omni endpoint and service account key can be configured there or via environment variables.
+Open `http://localhost:8080` — you will be redirected to `/setup` to create the admin account on first boot. The Omni endpoint and service account key can be configured there, declared in a YAML config file (mount with `--config-path=/config/config.yaml`), or supplied via environment variables. See [`deploy/config.example.yaml`](deploy/config.example.yaml) for the file schema.
 
 → For Docker Compose and Helm see [Installation](docs/installation.md).
 

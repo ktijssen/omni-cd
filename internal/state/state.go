@@ -43,6 +43,9 @@ type RepoConfigView struct {
 	HasToken     bool   `json:"hasToken"`
 	ClustersPath string `json:"clustersPath"`
 	MCPath       string `json:"mcPath"`
+	// FromConfig is true when the repo is managed via the config file.
+	// The UI hides edit/delete affordances for these.
+	FromConfig bool `json:"fromConfig"`
 }
 
 // GitInfo holds information about the current git state.
@@ -397,6 +400,7 @@ func (s *AppState) Snapshot() SnapshotData {
 			HasToken:     rc.Token != "",
 			ClustersPath: rc.ClustersPath,
 			MCPath:       rc.MCPath,
+			FromConfig:   rc.FromConfig,
 		}
 	}
 	// Deep-copy slice/map fields so the caller can JSON-marshal outside the
