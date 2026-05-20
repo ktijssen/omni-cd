@@ -1,5 +1,5 @@
 # Frontend build stage
-FROM node:25-alpine AS frontend
+FROM node:26-alpine AS frontend
 
 WORKDIR /frontend
 COPY frontend/package.json ./
@@ -8,7 +8,7 @@ COPY frontend/ .
 RUN npm run build
 
 # Go build stage
-FROM golang:1.26.2-alpine AS builder
+FROM golang:1.26.3-alpine AS builder
 
 RUN apk add --no-cache git
 
