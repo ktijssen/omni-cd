@@ -115,9 +115,7 @@ jobs:
 
       - name: Push Helm chart to OCI registry
         if: steps.check.outputs.skip == 'false'
-        run: |
-          helm push omni-cd-${{ steps.chart.outputs.chart_version }}.tgz \
-            oci://ghcr.io/${{ github.repository_owner }}/charts
+        run: helm push omni-cd-${{ steps.chart.outputs.chart_version }}.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
 
       - name: Create GitHub Release
         if: steps.check.outputs.skip == 'false'
