@@ -5,7 +5,6 @@ on:
     types: [closed]
     branches:
       - main
-  workflow_dispatch:
 
 concurrency:
   group: beta
@@ -15,9 +14,8 @@ jobs:
   helm-test:
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.merged == true &&
-       startsWith(github.event.pull_request.head.ref, 'beta/'))
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'beta/')
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -35,9 +33,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: helm-test
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.merged == true &&
-       startsWith(github.event.pull_request.head.ref, 'beta/'))
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'beta/')
     permissions:
       packages: write
     steps:
@@ -46,17 +43,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Compute beta version
+      - name: Extract beta version from branch name
         id: version
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          # Read current version and strip patch, append -beta-gSHA
-          VERSION=$(cat hack/VERSION | tr -d '[:space:]')
-          # Extract major.minor (strip leading v and patch segment)
-          MAJOR_MINOR=$(echo "$VERSION" | sed 's/^v//' | cut -d. -f1,2)
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          BETA_VERSION="v${MAJOR_MINOR}.0-beta-g${SHORT_SHA}"
-          echo "version=$BETA_VERSION" >> $GITHUB_OUTPUT
-          echo "Beta version: $BETA_VERSION"
+          VERSION="${HEAD_REF#beta/}"
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.0-beta\.[0-9]+$ ]]; then
+            echo "::error::Branch name '$HEAD_REF' must match 'beta/v<MAJOR>.<MINOR>.0-beta.<N>' (e.g. beta/v0.4.0-beta.1)"
+            exit 1
+          fi
+          CHART_VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "chart_version=$CHART_VERSION" >> $GITHUB_OUTPUT
+          echo "Beta version: $VERSION (chart $CHART_VERSION)"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -85,14 +85,13 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v5
 
-      - name: Sync Chart.yaml version
-        id: chart
+      - name: Sync Chart.yaml version for this beta
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          CHART_VERSION: ${{ steps.version.outputs.chart_version }}
         run: |
-          APP_VERSION="${{ steps.version.outputs.version }}"
-          CHART_VERSION="${APP_VERSION#v}"
           sed -i "s/^version:.*/version: $CHART_VERSION/" deploy/helm/omni-cd/Chart.yaml
           sed -i "s/^appVersion:.*/appVersion: $APP_VERSION/" deploy/helm/omni-cd/Chart.yaml
-          echo "chart_version=$CHART_VERSION" >> $GITHUB_OUTPUT
 
       - name: Package Helm chart
         run: helm package deploy/helm/omni-cd --destination .
@@ -102,5 +101,4 @@ jobs:
 
       - name: Push Helm chart to OCI registry
         run: |
-          helm push omni-cd-${{ steps.chart.outputs.chart_version }}.tgz \
-            oci://ghcr.io/${{ github.repository_owner }}/charts
+          helm push omni-cd-${{ steps.version.outputs.chart_version }}.tgz \
