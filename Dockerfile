@@ -25,7 +25,11 @@ FROM alpine:3.23
 
 RUN apk add --no-cache \
     git \
-    ca-certificates
+    ca-certificates \
+    && rm -rf /bin/sh \
+    && rm -rf /bin/ash \
+    && rm -rf /bin/bash \
+    && rm -rf /usr/bin/env
 
 COPY --from=builder /omni-cd /usr/local/bin/omni-cd
 

@@ -70,7 +70,7 @@
           <tr v-for="(e, i) in filtered" :key="i">
             <td class="audit-ts">{{ formatTs(e.timestamp) }}</td>
             <td>{{ e.user || '—' }}</td>
-            <td>{{ e.action }}</td>
+            <td :style="{ color: actionColor(e.action) }">{{ e.action }}</td>
             <td>{{ e.resource || '—' }}</td>
             <td><span class="audit-kind">{{ e.kind }}</span></td>
           </tr>
@@ -167,6 +167,26 @@ function clearFilters() {
   search.value = ''
   kindFilter.value = ''
   actionFilter.value = ''
+}
+
+function actionColor(action: string): string {
+  // Create
+  if (action === 'repo-add') return '#4ade80'
+  // Delete
+  if (action.endsWith('-delete') || action === 'delete') return '#f87171'
+  // Update — anything that mutates state
+  if (
+    action === 'sync' ||
+    action.startsWith('auto-sync-') ||
+    action.startsWith('global-sync-') ||
+    action === 'repo-update' ||
+    action === 'omni-update' ||
+    action === 'update-profile' ||
+    action === 'change-password' ||
+    action === 'oidc-role-update'
+  ) return '#60a5fa'
+  // Read + session + unknown — stay neutral gray
+  return '#7d7d85'
 }
 
 function formatTs(ts: string): string {

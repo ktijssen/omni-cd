@@ -802,18 +802,15 @@ func (r *Reconciler) DeleteSingleCluster(id string) {
 	// Check the local app state instead of making a blocking Omni API call.
 	// omni.IsClusterTemplateManaged would block if another Omni operation is
 	// already in flight (e.g. a concurrent delete), causing this to time out
-	// and silently skip the deletion. Instead, trust the state: any cluster
-	// tracked with a non-'unmanaged' status was created by our reconciler.
+	// and silently skip the deletion.
 	clusters := r.state.GetClusters()
 	var found bool
 	var isOrphaned bool
+	var originalStatus string
 	for _, c := range clusters {
 		if c.ID == id {
-			if c.Status == "unmanaged" {
-				r.logWarn("Cluster is unmanaged (not created by templates), skipping delete", "component", "Clusters", "cluster", id)
-				return
-			}
 			found = true
+			originalStatus = c.Status
 			isOrphaned = c.Status == "orphaned"
 			break
 		}
@@ -860,11 +857,7 @@ func (r *Reconciler) DeleteSingleCluster(id string) {
 	if err := omni.DeleteCluster(id); err != nil {
 		r.logError("Cluster delete failed", "component", "Clusters", "cluster", id, "error", err)
 		// Restore the previous status on failure.
-		if isOrphaned {
-			r.state.UpdateClusterStatus(id, "orphaned")
-		} else {
-			r.state.UpdateClusterStatus(id, "outofsync")
-		}
+		r.state.UpdateClusterStatus(id, originalStatus)
 		r.state.Save()
 		return
 	}

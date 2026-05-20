@@ -357,7 +357,7 @@
                   title="Toggle per-cluster auto sync"
                 >{{ cluster.autoSync === false ? '○ Auto-Sync: Off' : '● Auto-Sync: On' }}</button>
                 <button
-                  v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged'"
+                  v-if="cluster.status !== 'deleting'"
                   class="btn-omni"
                   @click="deleteCluster(cluster)"
                   title="Delete this cluster from Omni"
@@ -438,9 +438,9 @@
                       :class="{ active: cluster.autoSync !== false }"
                       @click="toggleAutoSync(cluster); openMenuId = null"
                     >{{ cluster.autoSync === false ? '○ Auto-Sync: Off' : '● Auto-Sync: On' }}</button>
-                    <div v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged'" class="cluster-list-menu-divider"></div>
+                    <div v-if="cluster.status !== 'deleting'" class="cluster-list-menu-divider"></div>
                     <button
-                      v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged'"
+                      v-if="cluster.status !== 'deleting'"
                       class="cluster-list-menu-item danger"
                       @click="deleteCluster(cluster); openMenuId = null"
                     >✕ Delete</button>

@@ -108,6 +108,93 @@ func TestCleanOldAuditFiles(t *testing.T) {
 	}
 }
 
+func TestSetAuditDir_RestoresAcrossDayRollover(t *testing.T) {
+	dir := t.TempDir()
+
+	today := time.Now().UTC().Format("2006-01-02")
+	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+
+	writeFile := func(date string, count int, actionPrefix string) {
+		path := filepath.Join(dir, "audit-"+date+".jsonlog")
+		var lines []byte
+		for i := 0; i < count; i++ {
+			data, _ := json.Marshal(AuditEntry{
+				Timestamp: time.Now().UTC(),
+				Action:    actionPrefix,
+				Kind:      "cluster",
+			})
+			lines = append(lines, data...)
+			lines = append(lines, '\n')
+		}
+		if err := os.WriteFile(path, lines, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Yesterday has 400 entries, today has 50 — restored buffer should be 450
+	// with today's entries at the newest end.
+	writeFile(yesterday, 400, "yday")
+	writeFile(today, 50, "today")
+
+	s := New(100, "", true, "")
+	s.SetAuditDir(dir, 30)
+
+	entries := s.GetAuditLog()
+	if len(entries) != 450 {
+		t.Fatalf("expected 450 entries across two days, got %d", len(entries))
+	}
+	// GetAuditLog returns newest-first.
+	if entries[0].Action != "today" {
+		t.Errorf("newest entry should be from today, got %q", entries[0].Action)
+	}
+	if entries[len(entries)-1].Action != "yday" {
+		t.Errorf("oldest entry should be from yesterday, got %q", entries[len(entries)-1].Action)
+	}
+}
+
+func TestSetAuditDir_Caps500AcrossDays(t *testing.T) {
+	dir := t.TempDir()
+
+	today := time.Now().UTC().Format("2006-01-02")
+	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+
+	writeFile := func(date string, count int, actionPrefix string) {
+		path := filepath.Join(dir, "audit-"+date+".jsonlog")
+		var lines []byte
+		for i := 0; i < count; i++ {
+			data, _ := json.Marshal(AuditEntry{
+				Timestamp: time.Now().UTC(),
+				Action:    actionPrefix,
+				Kind:      "cluster",
+			})
+			lines = append(lines, data...)
+			lines = append(lines, '\n')
+		}
+		if err := os.WriteFile(path, lines, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Yesterday has 600 entries, today is empty — restored buffer should be
+	// exactly 500, all from yesterday's tail.
+	writeFile(yesterday, 600, "yday")
+	writeFile(today, 0, "today")
+
+	s := New(100, "", true, "")
+	s.SetAuditDir(dir, 30)
+
+	entries := s.GetAuditLog()
+	if len(entries) != maxAuditEntries {
+		t.Fatalf("expected %d entries, got %d", maxAuditEntries, len(entries))
+	}
+	for _, e := range entries {
+		if e.Action != "yday" {
+			t.Errorf("all entries should be from yesterday, got %q", e.Action)
+			break
+		}
+	}
+}
+
 func TestReadLastNAuditEntries(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "audit-test.jsonlog")
