@@ -51,7 +51,7 @@
             @click="toggleAutoSync"
           >{{ cluster.autoSync === false ? '○ Auto-Sync: Off' : '● Auto-Sync: On' }}</button>
           <button
-            v-if="cluster.status !== 'deleting' && cluster.status !== 'unmanaged'"
+            v-if="cluster.status !== 'deleting'"
             class="btn-omni"
             @click="deleteCluster"
           >✕ Delete</button>

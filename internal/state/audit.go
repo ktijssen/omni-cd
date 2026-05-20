@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -75,9 +76,10 @@ func (s *AppState) SetAuditDir(dir string, retentionDays int) {
 	s.rotateAuditFile(today)
 	s.mu.Unlock()
 
-	// Restore recent entries from today's file.
-	path := filepath.Join(dir, "audit-"+today+".jsonlog")
-	if entries := readLastNAuditEntries(path, maxAuditEntries); len(entries) > 0 {
+	// Restore recent entries from disk, walking daily files newest → oldest
+	// so a restart shortly after midnight still surfaces yesterday's tail
+	// instead of just the few entries written so far today.
+	if entries := readRecentAuditEntries(dir, maxAuditEntries); len(entries) > 0 {
 		s.mu.Lock()
 		s.auditLog = append(entries, s.auditLog...)
 		if len(s.auditLog) > maxAuditEntries {
@@ -138,6 +140,53 @@ func (s *AppState) cleanOldAuditFiles() {
 			os.Remove(filepath.Join(dir, name))
 		}
 	}
+}
+
+// readRecentAuditEntries returns up to n most recent audit entries from
+// the audit directory, walking daily files newest → oldest. Returned in
+// chronological order (oldest first), matching AppState.auditLog layout.
+func readRecentAuditEntries(dir string, n int) []AuditEntry {
+	if dir == "" || n <= 0 {
+		return nil
+	}
+	dirEntries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var dates []string
+	for _, e := range dirEntries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasPrefix(name, "audit-") || !strings.HasSuffix(name, ".jsonlog") {
+			continue
+		}
+		dateStr := strings.TrimSuffix(strings.TrimPrefix(name, "audit-"), ".jsonlog")
+		if _, err := time.Parse("2006-01-02", dateStr); err != nil {
+			continue
+		}
+		dates = append(dates, dateStr)
+	}
+	// ISO YYYY-MM-DD sorts lexically the same as chronologically.
+	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
+
+	var collected []AuditEntry
+	for _, d := range dates {
+		remaining := n - len(collected)
+		if remaining <= 0 {
+			break
+		}
+		path := filepath.Join(dir, "audit-"+d+".jsonlog")
+		entries := readLastNAuditEntries(path, remaining)
+		if len(entries) == 0 {
+			continue
+		}
+		// We walked newest → oldest, so this file's entries are older
+		// than what's already collected — prepend to keep chronological order.
+		collected = append(entries, collected...)
+	}
+	return collected
 }
 
 func readLastNAuditEntries(path string, n int) []AuditEntry {
