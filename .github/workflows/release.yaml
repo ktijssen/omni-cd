@@ -1,7 +1,8 @@
 name: Build and Release
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - main
     paths:
@@ -15,6 +16,10 @@ concurrency:
 jobs:
   helm-test:
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'release/'))
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -31,6 +36,10 @@ jobs:
   release:
     runs-on: ubuntu-latest
     needs: helm-test
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'release/'))
     permissions:
       contents: write
       packages: write
@@ -84,6 +93,32 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Set up Helm
+        if: steps.check.outputs.skip == 'false'
+        uses: azure/setup-helm@v5
+
+      - name: Resolve chart version
+        if: steps.check.outputs.skip == 'false'
+        id: chart
+        run: |
+          echo "chart_version=${VERSION#v}" >> $GITHUB_OUTPUT
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Package Helm chart
+        if: steps.check.outputs.skip == 'false'
+        run: helm package deploy/helm/omni-cd --destination .
+
+      - name: Log in to GHCR for Helm
+        if: steps.check.outputs.skip == 'false'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push Helm chart to OCI registry
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          helm push omni-cd-${{ steps.chart.outputs.chart_version }}.tgz \
+            oci://ghcr.io/${{ github.repository_owner }}/charts
+
       - name: Create GitHub Release
         if: steps.check.outputs.skip == 'false'
         uses: softprops/action-gh-release@v3
@@ -99,14 +134,11 @@ jobs:
             docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
             ```
 
-            ### Docker Compose Quick Start
+            ### Helm (OCI)
             ```bash
-            docker run -d \
-              -e OMNI_ENDPOINT=https://your-omni.example.com \
-              -e OMNI_SERVICE_ACCOUNT_KEY=your-key \
-              -e ADMIN_PASSWORD=changeme \
-              -p 8080:8080 \
-              ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+            helm install omni-cd oci://ghcr.io/${{ github.repository_owner }}/charts/omni-cd \
+              --version ${{ steps.chart.outputs.chart_version }} \
+              --namespace omni-cd --create-namespace
             ```
 
           draft: false

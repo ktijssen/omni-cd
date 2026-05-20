@@ -12,8 +12,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  helm-test:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'beta/'))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+
+      - name: Install helm-unittest plugin
+        run: helm plugin install --verify=false https://github.com/helm-unittest/helm-unittest.git
+
+      - name: Run Helm unit tests
+        run: helm unittest deploy/helm/omni-cd
+
   beta:
     runs-on: ubuntu-latest
+    needs: helm-test
     if: |
       github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.merged == true &&
@@ -61,3 +81,26 @@ jobs:
             APP_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+
+      - name: Sync Chart.yaml version
+        id: chart
+        run: |
+          APP_VERSION="${{ steps.version.outputs.version }}"
+          CHART_VERSION="${APP_VERSION#v}"
+          sed -i "s/^version:.*/version: $CHART_VERSION/" deploy/helm/omni-cd/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: $APP_VERSION/" deploy/helm/omni-cd/Chart.yaml
+          echo "chart_version=$CHART_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Package Helm chart
+        run: helm package deploy/helm/omni-cd --destination .
+
+      - name: Log in to GHCR for Helm
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push Helm chart to OCI registry
+        run: |
+          helm push omni-cd-${{ steps.chart.outputs.chart_version }}.tgz \
+            oci://ghcr.io/${{ github.repository_owner }}/charts
