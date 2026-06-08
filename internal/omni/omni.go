@@ -482,7 +482,12 @@ func ClusterTemplateValidate(file string) error {
 			return err
 		}
 		defer f.Close() //nolint:errcheck
-		return operations.ValidateTemplate(f)
+		root, err := os.OpenRoot(".")
+		if err != nil {
+			return err
+		}
+		defer root.Close() //nolint:errcheck
+		return operations.ValidateTemplate(f, root)
 	})
 }
 
@@ -497,10 +502,15 @@ func ClusterTemplateSync(file string) error {
 			return err
 		}
 		defer f.Close() //nolint:errcheck
+		root, err := os.OpenRoot(".")
+		if err != nil {
+			return err
+		}
+		defer root.Close() //nolint:errcheck
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 		return operations.SyncTemplate(ctx, f, io.Discard, omniState,
-			operations.SyncOptions{})
+			operations.SyncOptions{}, root)
 	})
 }
 
@@ -517,10 +527,15 @@ func ClusterTemplateDiff(file string) (string, error) {
 			return err
 		}
 		defer f.Close() //nolint:errcheck
+		root, err := os.OpenRoot(".")
+		if err != nil {
+			return err
+		}
+		defer root.Close() //nolint:errcheck
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		var buf strings.Builder
-		if err := operations.DiffTemplate(ctx, f, &buf, omniState); err != nil {
+		if err := operations.DiffTemplate(ctx, f, &buf, omniState, root); err != nil {
 			return err
 		}
 		result = buf.String()
