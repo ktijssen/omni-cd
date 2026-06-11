@@ -21,7 +21,7 @@ ARG APP_VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.version=${APP_VERSION}" -o /omni-cd ./cmd/omni-cd
 
 # Runtime stage
-FROM alpine:3.23
+FROM alpine:3.24
 
 RUN apk add --no-cache \
     git \
