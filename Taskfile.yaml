@@ -118,13 +118,15 @@ tasks:
       - go mod tidy -e
 
   deps:update:
-    desc: Update all dependencies (Go + npm) to latest versions (runs inside Docker to avoid local Go version constraints)
+    desc: Update all dependencies (Go + npm) locally inside Docker (requires local Docker daemon)
     vars:
       GO_IMAGE:
         sh: grep '^FROM golang:' Dockerfile | head -1 | awk '{print $2}'
+      NODE_IMAGE:
+        sh: grep '^FROM node:' Dockerfile | head -1 | awk '{print $2}'
     cmds:
       - docker run --rm -v "{{.ROOT_DIR}}:/src" -w /src {{.GO_IMAGE}} sh -c "go get -u ./cmd/... ./internal/... && go mod tidy -e"
-      - docker run --rm -v "{{.ROOT_DIR}}/frontend:/app" -w /app node:22-alpine sh -c "npx --yes npm-check-updates -u && npm install"
+      - docker run --rm -v "{{.ROOT_DIR}}/frontend:/app" -w /app {{.NODE_IMAGE}} sh -c "npx --yes npm-check-updates -u && npm install"
 
   # Docker tasks
   docker:build:
