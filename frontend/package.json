@@ -13,7 +13,7 @@
     "vue-router": "^5.1.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^6.0.7",
+    "@vitejs/plugin-vue": "^6.0.8",
     "esbuild": "^0.28.1",
     "typescript": "^6.0.3",
     "vite": "^8.1.3",
