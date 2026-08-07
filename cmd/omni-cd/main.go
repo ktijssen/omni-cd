@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -28,6 +29,12 @@ import (
 
 // version is set at build time via -ldflags "-X main.version=v1.0.0"
 var version = "dev"
+
+// watchIdleTimeout bounds how long an Omni watch may deliver no events before it
+// is treated as stalled and reconnected. Generous on purpose: a quiet Omni
+// legitimately produces no events for long stretches, and an unnecessary
+// reconnect only costs one re-bootstrap.
+const watchIdleTimeout = 10 * time.Minute
 
 // stringListFlag collects repeated string flag values into a slice.
 type stringListFlag []string
@@ -302,6 +309,53 @@ func main() {
 	// startWatcher runs WatchClusters with automatic reconnect on failure.
 	// Falls back to a 60-second safety-net ticker so no state is permanently missed.
 	startWatcher := func() {
+		// startWatchdog cancels a watch's context when it has delivered no events
+		// for watchIdleTimeout, forcing its reconnect loop to re-establish the
+		// stream and re-bootstrap the watch-maintained caches.
+		//
+		// gRPC keepalive (see omni.Init) is the primary defence: it turns a
+		// black-holed connection into a stream error, which the reconnect loops
+		// already handle. This covers the remaining case — a stream that stays
+		// open and answers pings but stops delivering events — which would
+		// otherwise leave the watch blocked forever and its cache frozen until
+		// the process was restarted.
+		//
+		// Reconnecting during a genuinely quiet period is harmless: the watch
+		// re-bootstraps and the caches are refreshed. beat must be called from the
+		// watch's callbacks on every delivered event; stop must be called once the
+		// watch returns.
+		startWatchdog := func(name string, cancel context.CancelFunc) (beat func(), stop func()) {
+			var mu sync.Mutex
+			last := time.Now()
+			done := make(chan struct{})
+			go func() {
+				ticker := time.NewTicker(time.Minute)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-done:
+						return
+					case <-ticker.C:
+						mu.Lock()
+						idle := time.Since(last)
+						mu.Unlock()
+						if idle > watchIdleTimeout {
+							logInfo("Watch idle, forcing reconnect", "watch", name, "idle", idle.Round(time.Second).String())
+							cancel()
+							return
+						}
+					}
+				}
+			}()
+			return func() {
+					mu.Lock()
+					last = time.Now()
+					mu.Unlock()
+				}, func() {
+					close(done)
+				}
+		}
+
 		// Safety-net: re-poll every 60s in case the watch misses an event.
 		go func() {
 			ticker := time.NewTicker(60 * time.Second)
@@ -419,7 +473,9 @@ func main() {
 			connected := false
 			for {
 				ctx, cancel := context.WithCancel(context.Background())
+				beat, stopWatchdog := startWatchdog("clusters", cancel)
 				err := omni.WatchClusters(ctx, func(statuses map[string]omni.ClusterStatus, allIDs []string, tearingDown map[string]bool) {
+					beat()
 					if !connected {
 						connected = true
 						if appState.IsOmniConfigured() {
@@ -432,9 +488,15 @@ func main() {
 					if changed {
 						appState.Save()
 					}
-				}, addPending)
+				}, func(clusterID string) {
+					// Count cluster events as liveness even before the status watch has
+					// bootstrapped, since onUpdate stays silent until then.
+					beat()
+					addPending(clusterID)
+				})
+				stopWatchdog()
 				cancel()
-				if err != nil {
+				if err != nil && !errors.Is(err, context.Canceled) {
 					if connected && appState.IsOmniConfigured() {
 						appState.SetOmniHealth("failed", err.Error())
 					}
@@ -481,7 +543,9 @@ func main() {
 			var prevSnapshot map[string]string
 			for {
 				ctx, cancel := context.WithCancel(context.Background())
+				beat, stopWatchdog := startWatchdog("machine-classes", cancel)
 				err := omni.WatchMachineClasses(ctx, func(content map[string]string) {
+					beat()
 					omni.CacheMachineClassSnapshot(content)
 
 					// Detect real changes (skip the initial bootstrap delivery).
@@ -513,8 +577,9 @@ func main() {
 						prevSnapshot[k] = v
 					}
 				})
+				stopWatchdog()
 				cancel()
-				if err != nil {
+				if err != nil && !errors.Is(err, context.Canceled) {
 					logError("Machine class watch failed, retrying in 5s", "error", err)
 				}
 				time.Sleep(5 * time.Second)
@@ -789,13 +854,12 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 	if len(appState.GetRepoConfigs()) == 0 {
 		logInfo("No repositories configured, collecting unmanaged resources from Omni")
 		appState.ClearRepoMaps()
-		liveClusterIDs, _, _ := omni.GetCachedClusterIDsWithPhases()
-		if len(liveClusterIDs) == 0 {
-			if ids, err := omni.GetClusterIDs(); err == nil {
-				liveClusterIDs = ids
-			}
+		// Authoritative fetch, not the watch cache — see doReconcile.
+		liveClusterIDs, liveTearingDown, err := omni.GetClusterIDsWithPhases()
+		if err != nil {
+			logError("Failed to fetch cluster IDs from Omni", "error", err)
 		}
-		rec.CollectUnmanagedClusters(nil, liveClusterIDs)
+		rec.CollectUnmanagedClusters(nil, liveClusterIDs, liveTearingDown)
 		liveMCStates, _ := omni.GetCachedMachineClasses()
 		rec.CollectUnmanagedMachineClasses(nil, liveMCStates)
 		appState.SetReconcileFinished(true)
@@ -876,20 +940,18 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 	crossRepoDuplicatesMC := rec.DetectCrossRepoDuplicatesMC(allMCDirs)
 
 	// Fetch live cluster IDs once — reused by delete and unmanaged passes.
-	// Use the watch cache when available to avoid an API call.
-	liveClusterIDs, _, cacheOK := omni.GetCachedClusterIDsWithPhases()
-	if !cacheOK {
-		ids, err := omni.GetClusterIDs()
-		if err != nil {
-			logError("Failed to fetch cluster IDs from Omni — aborting reconcile", "error", err)
-			appState.SetReconcileFinished(false)
-			if col != nil {
-				col.RecordReconcile(false)
-			}
-			appState.Save()
-			return
+	// Deliberately NOT from the watch cache: this list decides which clusters
+	// exist in Omni, and a stalled watch would make clusters created directly in
+	// Omni invisible to every reconcile until the process restarted.
+	liveClusterIDs, liveTearingDown, err := omni.GetClusterIDsWithPhases()
+	if err != nil {
+		logError("Failed to fetch cluster IDs from Omni — aborting reconcile", "error", err)
+		appState.SetReconcileFinished(false)
+		if col != nil {
+			col.RecordReconcile(false)
 		}
-		liveClusterIDs = ids
+		appState.Save()
+		return
 	}
 
 	if anyChanged {
@@ -934,16 +996,14 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 	// 5. Collect unmanaged/out-of-sync clusters across ALL repos in one pass.
 	//    Must be after ApplyClusters for all repos so no repo's clusters are
 	//    incorrectly flagged as unmanaged by a single-repo view.
-	//    Re-read the cache after apply so newly created clusters (picked up by
-	//    the watch) are included and not incorrectly flagged as externally deleted.
+	//    Re-fetch after apply so clusters this reconcile just created are included
+	//    and not incorrectly flagged as externally deleted.
 	if anyChanged {
-		if freshIDs, _, ok := omni.GetCachedClusterIDsWithPhases(); ok {
-			liveClusterIDs = freshIDs
-		} else if freshIDs, err := omni.GetClusterIDs(); err == nil {
-			liveClusterIDs = freshIDs
+		if freshIDs, freshTearingDown, err := omni.GetClusterIDsWithPhases(); err == nil {
+			liveClusterIDs, liveTearingDown = freshIDs, freshTearingDown
 		}
 	}
-	rec.CollectUnmanagedClusters(allClusterDirs, liveClusterIDs)
+	rec.CollectUnmanagedClusters(allClusterDirs, liveClusterIDs, liveTearingDown)
 
 	// 6. Same treatment for machine classes.
 	liveMCStates, _ := omni.GetCachedMachineClasses()

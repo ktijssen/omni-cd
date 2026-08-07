@@ -458,7 +458,7 @@ const syncStatusBadge = computed(() => {
         : `<span style="color:#ff8b59">${escHtml(branchSha)}</span>`)
     : ''
   const hasSyncError = !!(c.error || c.lastSyncError)
-  const badge = (c.status === 'outofsync' && hasSyncError)
+  const badge = ((c.status === 'outofsync' || c.status === 'missing') && hasSyncError)
     ? `<span style="color:#f87171">${failedIconSVG} Sync Failed</span>`
     : syncBadge(c.status || '')
   return branchShaHtml ? badge + ' from ' + branchShaHtml : badge
@@ -467,7 +467,7 @@ const syncStatusBadge = computed(() => {
 const syncSinceStr = computed(() => {
   const c = cluster.value
   if (!c) return ''
-  if (c.status === 'outofsync' && c.syncStatusSince) return relTime(c.syncStatusSince)
+  if ((c.status === 'outofsync' || c.status === 'missing') && c.syncStatusSince) return relTime(c.syncStatusSince)
   if ((c.status === 'success' || c.status === 'applied') && c.lastSyncTime) return relTime(c.lastSyncTime)
   return ''
 })
@@ -604,6 +604,7 @@ function statusBadge(val?: string): string {
 function syncBadge(status: string): string {
   if (status === 'success' || status === 'applied') return `<span style="color:#4ade80">${syncedIconSVG} Synced</span>`
   if (status === 'outofsync') return `<span style="color:#fb923c">${outOfSyncIconSVG} Out of Sync</span>`
+  if (status === 'missing') return '<span style="color:#facc15">○ Missing</span>'
   if (status === 'orphaned') return '<span style="color:#a78bfa">● Orphaned</span>'
   if (status === 'failed') return `<span style="color:#f87171">${failedIconSVG} Failed</span>`
   if (status === 'syncing') return '<span style="color:#2dd4bf">● Syncing</span>'

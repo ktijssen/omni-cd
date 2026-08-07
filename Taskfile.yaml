@@ -87,12 +87,21 @@ tasks:
     cmds:
       - go test -v ./internal/...
 
+  frontend:typecheck:
+    desc: Type-check the frontend inside Docker (requires local Docker daemon)
+    vars:
+      NODE_IMAGE:
+        sh: grep '^FROM node:' Dockerfile | head -1 | awk '{print $2}'
+    cmds:
+      - docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "{{.ROOT_DIR}}/frontend:/app" -w /app {{.NODE_IMAGE}} sh -c "npm install --no-audit --no-fund && npm run typecheck"
+
   check:
-    desc: Run all code quality checks (fmt, vet, tests)
+    desc: Run all code quality checks (fmt, vet, tests, frontend types)
     cmds:
       - task: fmt
       - task: vet
       - task: test
+      - task: frontend:typecheck
 
   # Version tasks
   version:bump:

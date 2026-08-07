@@ -72,7 +72,7 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 	duplicateIDs := make(map[string]bool)
 	repoRoot := filepath.Dir(dir)
 	var resources []state.ResourceInfo
-	inSync, outOfSync, applied, failed := 0, 0, 0, 0
+	inSync, outOfSync, missing, applied, failed := 0, 0, 0, 0, 0
 
 	for id, idFiles := range idToFiles {
 		if len(idFiles) > 1 {
@@ -298,23 +298,42 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 				applied += len(idsToApply)
 			}
 		}
-		// IDs not selected for apply (auto-sync off, not forced) stay outofsync.
+		// IDs not selected for apply (auto-sync off, not forced) stay pending sync:
+		// "missing" when they do not exist in Omni at all, "outofsync" otherwise.
 		skipped := idsToSkip
 		if len(skipped) > 0 {
+			var pendingCreate, drifted []string
+			for _, id := range skipped {
+				if perIDResults[id].Missing {
+					pendingCreate = append(pendingCreate, id)
+				} else {
+					drifted = append(drifted, id)
+				}
+			}
+			suffix := "(refresh only, skipping apply)"
 			if applyChanges {
-				r.logInfo("Machine class out of sync (auto-sync disabled)", "component", "MachineClasses", "ids", strings.Join(skipped, ", "))
-			} else {
-				r.logInfo("Machine class out of sync (refresh only, skipping apply)", "component", "MachineClasses", "ids", strings.Join(skipped, ", "))
+				suffix = "(auto-sync disabled)"
+			}
+			if len(drifted) > 0 {
+				r.logInfo("Machine class out of sync "+suffix, "component", "MachineClasses", "ids", strings.Join(drifted, ", "))
+			}
+			if len(pendingCreate) > 0 {
+				r.logInfo("Machine class missing from Omni "+suffix, "component", "MachineClasses", "ids", strings.Join(pendingCreate, ", "))
 			}
 			for _, id := range skipped {
+				driftStatus := "outofsync"
+				if perIDResults[id].Missing {
+					driftStatus = "missing"
+				}
 				liveContent := allLiveStates[id]
-				if liveContent == "" {
+				// A missing machine class has no live state to fetch — skip the RPC.
+				if liveContent == "" && !perIDResults[id].Missing {
 					liveContent, _ = omni.GetLiveMachineClass(id)
 				}
 				resources = append(resources, state.ResourceInfo{
 					ID:            id,
 					Type:          "MachineClass",
-					Status:        "outofsync",
+					Status:        driftStatus,
 					ProvisionType: provisionType,
 					Diff:          perIDResults[id].Diff,
 					FileContent:   fileContent,
@@ -322,7 +341,8 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 					CreatedAt:     omni.GetMachineClassCreatedAt(id),
 				})
 			}
-			outOfSync += len(skipped)
+			outOfSync += len(drifted)
+			missing += len(pendingCreate)
 		}
 	}
 
@@ -345,9 +365,9 @@ func (r *Reconciler) processMachineClasses(dir string, applyChanges bool, crossR
 
 	r.state.MergeMachineClasses(resources)
 	if applyChanges {
-		r.logInfo(fmt.Sprintf("Machine class sync complete: %d applied, %d out of sync, %d failed", applied, outOfSync, failed), "component", "MachineClasses")
+		r.logInfo(fmt.Sprintf("Machine class sync complete: %d applied, %d out of sync, %d missing, %d failed", applied, outOfSync, missing, failed), "component", "MachineClasses")
 	} else {
-		r.logInfo(fmt.Sprintf("Machine class drift check complete: %d in sync, %d out of sync, %d failed", inSync, outOfSync, failed), "component", "MachineClasses")
+		r.logInfo(fmt.Sprintf("Machine class drift check complete: %d in sync, %d out of sync, %d missing, %d failed", inSync, outOfSync, missing, failed), "component", "MachineClasses")
 	}
 }
 
