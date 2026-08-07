@@ -74,6 +74,7 @@ task                         # List all available tasks
 | Problem | Likely Cause | Fix |
 |---|---|---|
 | Cluster stuck in Out of Sync | Drift detected but not applied | Check the **Diff** tab, then click **Sync** or check **Logs** for errors |
+| Cluster stuck in Missing | Defined in git but not present in Omni — it has never been created, or it was deleted outside omni-cd | Enable **Auto-Sync** or click **Sync** to create it |
 | MachineClass not applying | Validation error | Open the resource modal and check the Error tab |
 | State lost after restart | No persistent volume | Ensure `/data` is mounted as a persistent volume |
 | Login not working | Wrong password or stale setup | Use `admin` + the password from `/setup` or `ADMIN_PASSWORD`. Once a user exists `ADMIN_PASSWORD` is ignored — use the Users page or set `AUTH_DISABLED=true` |

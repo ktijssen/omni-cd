@@ -23,6 +23,8 @@ import (
 	sysresources "github.com/siderolabs/omni/client/pkg/omni/resources/system"
 	"github.com/siderolabs/omni/client/pkg/template/operations"
 	"go.yaml.in/yaml/v4"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 )
 
 // ============================================================
@@ -36,38 +38,53 @@ var (
 	omniServiceAccountKey string
 )
 
+// CacheTTL bounds how long a watch-maintained cache is trusted after its last
+// update. The caches have exactly one writer — the watch callbacks — so a watch
+// that stalls without returning an error would otherwise serve frozen data
+// forever, making resources created directly in Omni permanently invisible.
+// Past the TTL the getters report not-ok and every caller falls back to a direct
+// query, so staleness is bounded even when the watch is wedged.
+const CacheTTL = 90 * time.Second
+
 // clusterSnapshot caches the latest cluster IDs and tearing-down set from
 // WatchClusters so reconcile can skip API round-trips.
 var (
 	clusterCacheMu    sync.RWMutex
 	cachedClusterIDs  []string
 	cachedTearingDown map[string]bool
-	clusterCacheReady bool
+	clusterCacheAt    time.Time // zero = never populated
 )
 
 // machineClassCache caches the latest MachineClass content from WatchMachineClasses.
 var (
 	mcCacheMu            sync.RWMutex
 	cachedMachineClasses map[string]string // id -> YAML content
-	mcCacheReady         bool
+	mcCacheAt            time.Time         // zero = never populated
 )
 
+// cacheFresh reports whether a cache stamped at the given time is still within
+// CacheTTL. A zero time means the cache was never populated.
+func cacheFresh(at time.Time) bool {
+	return !at.IsZero() && time.Since(at) < CacheTTL
+}
+
 // CacheClusterSnapshot stores the latest IDs and tearing-down set from the
-// watch so doReconcile can read them without an extra API call.
+// watch so callers can read them without an extra API call.
 func CacheClusterSnapshot(allIDs []string, tearingDown map[string]bool) {
 	clusterCacheMu.Lock()
 	cachedClusterIDs = allIDs
 	cachedTearingDown = tearingDown
-	clusterCacheReady = true
+	clusterCacheAt = time.Now()
 	clusterCacheMu.Unlock()
 }
 
 // GetCachedClusterIDsWithPhases returns the watch-maintained cache.
-// ok is false when the cache hasn't been populated yet (before first bootstrap).
+// ok is false when the cache has not been populated yet (before the first watch
+// bootstrap) or when its contents are older than CacheTTL.
 func GetCachedClusterIDsWithPhases() (allIDs []string, tearingDown map[string]bool, ok bool) {
 	clusterCacheMu.RLock()
 	defer clusterCacheMu.RUnlock()
-	if !clusterCacheReady {
+	if !cacheFresh(clusterCacheAt) {
 		return nil, nil, false
 	}
 	ids := make([]string, len(cachedClusterIDs))
@@ -83,16 +100,17 @@ func GetCachedClusterIDsWithPhases() (allIDs []string, tearingDown map[string]bo
 func CacheMachineClassSnapshot(content map[string]string) {
 	mcCacheMu.Lock()
 	cachedMachineClasses = content
-	mcCacheReady = true
+	mcCacheAt = time.Now()
 	mcCacheMu.Unlock()
 }
 
 // GetCachedMachineClasses returns the watch-maintained machine class cache.
-// ok is false when the cache hasn't been populated yet.
+// ok is false when the cache has not been populated yet or when its contents are
+// older than CacheTTL.
 func GetCachedMachineClasses() (map[string]string, bool) {
 	mcCacheMu.RLock()
 	defer mcCacheMu.RUnlock()
-	if !mcCacheReady {
+	if !cacheFresh(mcCacheAt) {
 		return nil, false
 	}
 	out := make(map[string]string, len(cachedMachineClasses))
@@ -109,20 +127,37 @@ func ClearCache() {
 	clusterCacheMu.Lock()
 	cachedClusterIDs = nil
 	cachedTearingDown = nil
-	clusterCacheReady = false
+	clusterCacheAt = time.Time{}
 	clusterCacheMu.Unlock()
 
 	mcCacheMu.Lock()
 	cachedMachineClasses = nil
-	mcCacheReady = false
+	mcCacheAt = time.Time{}
 	mcCacheMu.Unlock()
+}
+
+// keepaliveParams enables gRPC-level keepalive pings on the persistent client.
+//
+// Without these, a connection that is silently black-holed (NAT/load-balancer
+// idle timeout, DNS or routing change, Omni restart) stays "open" from gRPC's
+// point of view indefinitely. Long-lived watch streams then block forever
+// without ever returning an error, so their reconnect loops never fire and the
+// watch-maintained caches freeze. Pinging every 30s means a dead connection
+// surfaces as a stream error within ~40s and the watch reconnects on its own.
+var keepaliveParams = keepalive.ClientParameters{
+	Time:                30 * time.Second,
+	Timeout:             10 * time.Second,
+	PermitWithoutStream: true,
 }
 
 // Init creates the Omni gRPC client. Must be called once at startup before
 // any other function in this package.
 func Init(endpoint, serviceAccountKey string) error {
 	ClearCache()
-	c, err := client.New(endpoint, client.WithServiceAccount(serviceAccountKey))
+	c, err := client.New(endpoint,
+		client.WithServiceAccount(serviceAccountKey),
+		client.WithGrpcOpts(grpc.WithKeepaliveParams(keepaliveParams)),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create Omni client: %w", err)
 	}
@@ -248,7 +283,10 @@ func applyBytes(ctx context.Context, data []byte, allowedIDs map[string]bool) er
 // MCDryRunResult holds the per-resource result of a dry run.
 type MCDryRunResult struct {
 	Diff string // empty = in sync
-	Err  error  // non-nil = decode/API error for this resource
+	// Missing is true when the resource does not exist in Omni at all, i.e. the
+	// diff is a pure creation rather than a change to an existing resource.
+	Missing bool
+	Err     error // non-nil = decode/API error for this resource
 }
 
 // MachineClassDryRunPerID runs a dry-run for every resource in file and returns
@@ -277,9 +315,9 @@ func MachineClassDryRunPerID(file string) (map[string]MCDryRunResult, error) {
 		if cosistate.IsNotFoundError(err) {
 			fileYAML, specErr := marshalResourceYAML(fileRes)
 			if specErr != nil {
-				results[id] = MCDryRunResult{Diff: fmt.Sprintf("+ new: %s %q", fileRes.Metadata().Type(), id)}
+				results[id] = MCDryRunResult{Missing: true, Diff: fmt.Sprintf("+ new: %s %q", fileRes.Metadata().Type(), id)}
 			} else {
-				results[id] = MCDryRunResult{Diff: fmt.Sprintf("+ new: %s %q\n+++ desired\n%s", fileRes.Metadata().Type(), id, fileYAML)}
+				results[id] = MCDryRunResult{Missing: true, Diff: fmt.Sprintf("+ new: %s %q\n+++ desired\n%s", fileRes.Metadata().Type(), id, fileYAML)}
 			}
 			continue
 		}
@@ -583,6 +621,39 @@ func GetClusterIDsWithPhases() (allIDs []string, tearingDown map[string]bool, er
 	return allIDs, tearingDown, nil
 }
 
+// ClusterExistsInOmni reports whether a Cluster resource with the given ID
+// currently exists in Omni.
+//
+// It prefers the watch-maintained snapshot so the common case costs no RPC.
+// When the snapshot has not been bootstrapped yet — at startup, and after
+// ClearCache() on an Omni instance switch — it falls back to a direct Get, so
+// callers never have to infer absence from an unpopulated cache.
+//
+// ok is false only when Omni itself could not be reached. Callers MUST treat
+// ok=false as "unknown" and keep their previous behaviour; reporting a cluster
+// as absent on the strength of exists=false when ok=false would make every
+// cluster flash as missing whenever Omni is briefly unreachable.
+func ClusterExistsInOmni(id string) (exists, ok bool) {
+	if cachedIDs, _, cacheOK := GetCachedClusterIDsWithPhases(); cacheOK {
+		for _, cid := range cachedIDs {
+			if cid == id {
+				return true, true
+			}
+		}
+		return false, true
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if _, err := safe.StateGet[*omniapi.Cluster](ctx, omniState, omniapi.NewCluster(id).Metadata()); err != nil {
+		if cosistate.IsNotFoundError(err) {
+			return false, true
+		}
+		return false, false
+	}
+	return true, true
+}
+
 // WatchClusterConfigChanges watches MachineSet resources for changes made
 // directly in Omni (outside of omni-cd). Calls onChanged with the affected
 // cluster ID on every Created, Updated, or Destroyed event.
@@ -663,6 +734,18 @@ func WatchMachineClasses(ctx context.Context, onUpdate func(content map[string]s
 		return out
 	}
 
+	// Suppress callbacks until the initial contents have all been delivered.
+	//
+	// With WithBootstrapContents(true) every pre-existing MachineClass arrives as
+	// its own Created event, so emitting per event would hand the caller a series
+	// of progressively larger partial snapshots. Callers diff consecutive
+	// snapshots to detect real changes, and every one of those partial deliveries
+	// looks like a change — producing a burst of spurious reactive applies on
+	// startup and on every watch reconnect. Emit once on Bootstrapped instead,
+	// then on genuine post-bootstrap changes. This mirrors how WatchClusters gates
+	// notify() on its own bootstrap flags.
+	bootstrapped := false
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -670,6 +753,7 @@ func WatchMachineClasses(ctx context.Context, onUpdate func(content map[string]s
 		case event := <-ch:
 			switch event.Type() {
 			case cosistate.Bootstrapped:
+				bootstrapped = true
 				onUpdate(snapshot())
 			case cosistate.Created, cosistate.Updated:
 				r, err := event.Resource()
@@ -681,12 +765,16 @@ func WatchMachineClasses(ctx context.Context, onUpdate func(content map[string]s
 					continue
 				}
 				cache[r.Metadata().ID()] = y
-				onUpdate(snapshot())
+				if bootstrapped {
+					onUpdate(snapshot())
+				}
 			case cosistate.Destroyed:
 				r, err := event.Resource()
 				if err == nil {
 					delete(cache, r.Metadata().ID())
-					onUpdate(snapshot())
+					if bootstrapped {
+						onUpdate(snapshot())
+					}
 				}
 			}
 		}

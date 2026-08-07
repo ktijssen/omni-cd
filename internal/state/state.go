@@ -121,7 +121,8 @@ type ResourceInfo struct {
 	LastSyncAuthor string `json:"lastSyncAuthor,omitempty"`
 	// LastSyncMessage is the commit message at the time of the most recent sync attempt.
 	LastSyncMessage string `json:"lastSyncMessage,omitempty"`
-	// SyncStatusSince is the timestamp when the cluster first entered the outofsync state.
+	// SyncStatusSince is the timestamp when the cluster first entered a
+	// pending-sync state (outofsync or missing).
 	SyncStatusSince time.Time `json:"syncStatusSince,omitempty"`
 	// CreatedAt is the timestamp when the cluster resource was created in Omni.
 	CreatedAt time.Time `json:"createdAt,omitempty"`
@@ -129,6 +130,15 @@ type ResourceInfo struct {
 	AutoSync *bool `json:"autoSync,omitempty"`
 	// RepoName is the name of the git repo this resource was sourced from.
 	RepoName string `json:"repoName,omitempty"`
+}
+
+// IsPendingSync reports whether a status means "git and Omni disagree and a
+// sync is needed to converge": "outofsync" when the resource exists in Omni
+// with a different config, "missing" when it does not exist in Omni at all.
+// Both share the same bookkeeping — SyncStatusSince stamping, and carrying the
+// previous error forward when no apply was attempted this pass.
+func IsPendingSync(status string) bool {
+	return status == "outofsync" || status == "missing"
 }
 
 // LogEntry holds a single log entry.

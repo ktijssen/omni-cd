@@ -458,6 +458,7 @@
           <div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid #2c2e38;margin-bottom:8px;">
             <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="toggleSelectModalAll">All</button>
             <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set(machineClasses.filter(mc => selectableMC(mc) && mc.status === 'outofsync').map(mc => mc.id))">Out of Sync</button>
+            <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set(machineClasses.filter(mc => selectableMC(mc) && mc.status === 'missing').map(mc => mc.id))">Missing</button>
             <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set()">None</button>
           </div>
           <template v-for="mc in machineClasses" :key="mc.id">
@@ -561,6 +562,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenu))
 const allStatusDefs = [
   { key: 'failed',    label: 'Failed' },
   { key: 'managed',   label: 'Managed' },
+  { key: 'missing',   label: 'Missing' },
   { key: 'outofsync', label: 'Out of Sync' },
   { key: 'synced',    label: 'Synced' },
   { key: 'unmanaged', label: 'Unmanaged' },
@@ -829,6 +831,8 @@ async function doSelectModalAction() {
   selectModal.value = null
 }
 function mcSyncColor(mc: ResourceInfo): string {
+  if (mc.status === 'missing' && (mc.error || mc.lastSyncError)) return '#f87171'
+  if (mc.status === 'missing') return '#facc15'
   if (mc.status === 'outofsync' && (mc.error || mc.lastSyncError)) return '#f87171'
   if (mc.status === 'outofsync') return '#fb923c'
   if (mc.status === 'failed') return '#f87171'
@@ -837,6 +841,8 @@ function mcSyncColor(mc: ResourceInfo): string {
   return '#5b5c64'
 }
 function mcSyncText(mc: ResourceInfo): string {
+  if (mc.status === 'missing' && (mc.error || mc.lastSyncError)) return 'Sync Failed'
+  if (mc.status === 'missing') return 'Missing'
   if (mc.status === 'outofsync' && (mc.error || mc.lastSyncError)) return 'Sync Failed'
   if (mc.status === 'outofsync') return 'Out of Sync'
   if (mc.status === 'failed') return 'Failed'
@@ -937,6 +943,8 @@ function syncStatusColor(mc: ResourceInfo): string {
   const status = mc.status
   if (status === 'success' || status === 'applied') return '#4ade80'
   if (status === 'failed') return '#f87171'
+  if (status === 'missing' && (mc.error || mc.lastSyncError)) return '#f87171'
+  if (status === 'missing') return '#facc15'
   if (status === 'outofsync' && (mc.error || mc.lastSyncError)) return '#f87171'
   if (status === 'outofsync') return '#fb923c'
   if (status === 'syncing') return '#2dd4bf'
@@ -947,6 +955,8 @@ function syncStatusText(mc: ResourceInfo): string {
   const s = mc.status
   if (s === 'success' || s === 'applied') return syncedIconSVG + ' Synced'
   if (s === 'failed') return failedIconSVG + ' Failed'
+  if (s === 'missing' && (mc.error || mc.lastSyncError)) return failedIconSVG + ' Sync Failed'
+  if (s === 'missing') return '○ Missing'
   if (s === 'outofsync' && (mc.error || mc.lastSyncError)) return failedIconSVG + ' Sync Failed'
   if (s === 'outofsync') return outOfSyncIconSVG + ' Out of Sync'
   if (s === 'syncing') return '● Syncing'

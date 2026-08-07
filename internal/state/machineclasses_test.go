@@ -155,3 +155,55 @@ func TestMergeMachineClasses_SyncStatusSince_PreservedOnSubsequentOutofsync(t *t
 		t.Errorf("SyncStatusSince should be preserved: got %v, want %v", mc.SyncStatusSince, since)
 	}
 }
+
+func TestMergeMachineClasses_SyncStatusSince_SetOnFirstMissing(t *testing.T) {
+	s := newState()
+	// Establish the MC in a non-pending state first.
+	s.SetMachineClasses([]state.ResourceInfo{
+		{ID: "mc1", Status: "success"},
+	})
+	before := time.Now()
+	// Transition to missing — SyncStatusSince must be set.
+	s.MergeMachineClasses([]state.ResourceInfo{
+		{ID: "mc1", Status: "missing"},
+	})
+	mc := s.GetMachineClasses()[0]
+	if mc.SyncStatusSince.IsZero() {
+		t.Error("SyncStatusSince should be set when MC transitions to missing")
+	}
+	if mc.SyncStatusSince.Before(before) {
+		t.Error("SyncStatusSince should be >= time before the call")
+	}
+}
+
+func TestMergeMachineClasses_SyncStatusSince_PreservedAcrossOutofsyncToMissing(t *testing.T) {
+	s := newState()
+	since := time.Now().UTC().Add(-2 * time.Hour)
+	s.SetMachineClasses([]state.ResourceInfo{
+		{ID: "mc1", Status: "outofsync", SyncStatusSince: since},
+	})
+	// outofsync -> missing stays pending sync, so the clock must not reset.
+	s.MergeMachineClasses([]state.ResourceInfo{
+		{ID: "mc1", Status: "missing"},
+	})
+	mc := s.GetMachineClasses()[0]
+	if !mc.SyncStatusSince.Equal(since) {
+		t.Errorf("SyncStatusSince should be preserved: got %v, want %v", mc.SyncStatusSince, since)
+	}
+}
+
+func TestMergeMachineClasses_PreservesErrorWhenMissing(t *testing.T) {
+	s := newState()
+	s.SetMachineClasses([]state.ResourceInfo{
+		{ID: "mc1", Status: "failed", Error: "boom", LastSyncResult: "failed"},
+	})
+	// Diff-only pass reports "missing" and attempted no apply — the previous error
+	// must survive so the UI keeps its Sync Failed badge.
+	s.MergeMachineClasses([]state.ResourceInfo{
+		{ID: "mc1", Status: "missing"},
+	})
+	mc := s.GetMachineClasses()[0]
+	if mc.Error != "boom" {
+		t.Errorf("Error should be preserved: got %q, want %q", mc.Error, "boom")
+	}
+}

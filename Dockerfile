@@ -5,10 +5,11 @@ WORKDIR /frontend
 COPY frontend/package.json ./
 RUN npm install
 COPY frontend/ .
-RUN npm run build
+# Bundle only -- type checking runs via `task check`, not in the release build.
+RUN npm run build:app
 
 # Go build stage
-FROM golang:1.26.4-alpine AS builder
+FROM golang:1.26.5-alpine AS builder
 
 RUN apk add --no-cache git
 

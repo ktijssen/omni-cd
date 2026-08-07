@@ -479,6 +479,7 @@
           <div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid #2c2e38;margin-bottom:8px;">
             <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="toggleSelectModalAll">All</button>
             <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set(allClusters.filter(c => c.status === 'outofsync').map(c => c.id))">Out of Sync</button>
+            <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set(allClusters.filter(c => c.status === 'missing').map(c => c.id))">Missing</button>
             <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set()">None</button>
           </div>
           <template v-for="cluster in allClusters" :key="cluster.id">
@@ -621,11 +622,26 @@ const isRunning = computed(() => state.value?.lastReconcile?.status === 'running
 const syncDefs = [
   { key: 'failed',    label: 'Failed' },
   { key: 'managed',   label: 'Managed' },
+  { key: 'missing',   label: 'Missing' },
   { key: 'outofsync', label: 'Out of Sync' },
   { key: 'orphaned',  label: 'Orphaned' },
   { key: 'synced',    label: 'Synced' },
   { key: 'unmanaged', label: 'Unmanaged' },
 ]
+
+// Maps a raw backend status to its filter-chip key. Returns null for statuses
+// with no chip (e.g. 'syncing', 'deleting') — callers must treat null as
+// "matches no sync filter". Shared by visibleSyncDefs and displayClusters so a
+// new backend status only ever has to be added here.
+function syncFilterKey(status: string): string | null {
+  if (status === 'success' || status === 'applied' || status === 'synced') return 'synced'
+  if (status === 'outofsync') return 'outofsync'
+  if (status === 'missing') return 'missing'
+  if (status === 'failed') return 'failed'
+  if (status === 'unmanaged') return 'unmanaged'
+  if (status === 'orphaned') return 'orphaned'
+  return null
+}
 
 const healthDefs = [
   { key: 'ready',         label: 'Ready' },
@@ -639,13 +655,7 @@ const healthDefs = [
 const visibleSyncDefs = computed(() => {
   const presentKeys = new Set<string>()
   allClusters.value.forEach(c => {
-    const st = c.status || ''
-    const key = (st === 'success' || st === 'applied' || st === 'synced') ? 'synced'
-      : st === 'outofsync' ? 'outofsync'
-      : st === 'failed' ? 'failed'
-      : st === 'unmanaged' ? 'unmanaged'
-      : st === 'orphaned' ? 'orphaned'
-      : null
+    const key = syncFilterKey(c.status || '')
     if (key) { presentKeys.add(key); presentKeys.add('managed') }
   })
   return syncDefs.filter(d => presentKeys.has(d.key))
@@ -685,12 +695,7 @@ const displayClusters = computed(() => {
     }
     if (activeSyncKeys.length > 0) {
       const isManaged = st !== 'unmanaged' && st !== 'orphaned'
-      const syncKey = (st === 'success' || st === 'applied' || st === 'synced') ? 'synced'
-        : st === 'outofsync' ? 'outofsync'
-        : st === 'failed' ? 'failed'
-        : st === 'unmanaged' ? 'unmanaged'
-        : st === 'orphaned' ? 'orphaned'
-        : null
+      const syncKey = syncFilterKey(st)
       const matches =
         (clusterSyncFilters['managed'] && isManaged) ||
         (syncKey && clusterSyncFilters[syncKey])
@@ -840,6 +845,8 @@ function syncText(c: ResourceInfo): string {
     return '<span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span> Syncing'
   }
   if (c.status === 'unmanaged' || c.status === 'orphaned') return '—'
+  if (c.status === 'missing' && (c.error || c.lastSyncError)) return failedIconSVG + ' Sync Failed'
+  if (c.status === 'missing') return '○ Missing'
   if (c.status === 'outofsync' && (c.error || c.lastSyncError)) return failedIconSVG + ' Sync Failed'
   if (c.status === 'outofsync') return outOfSyncIconSVG + ' Out of Sync'
   if (c.status === 'failed') return failedIconSVG + ' Failed'
@@ -849,6 +856,8 @@ function syncText(c: ResourceInfo): string {
 }
 function syncColor(c: ResourceInfo): string {
   if (c.status === 'unmanaged' || c.status === 'orphaned') return '#5b5c64'
+  if (c.status === 'missing' && (c.error || c.lastSyncError)) return '#f87171'
+  if (c.status === 'missing') return '#facc15'
   if (c.status === 'outofsync' && (c.error || c.lastSyncError)) return '#f87171'
   if (c.status === 'outofsync') return '#fb923c'
   if (c.status === 'failed') return '#f87171'

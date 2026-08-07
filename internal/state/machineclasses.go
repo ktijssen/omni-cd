@@ -43,7 +43,7 @@ func (s *AppState) MergeMachineClasses(resources []ResourceInfo) {
 				res.LastSyncMessage = prev.LastSyncMessage
 				// Preserve the error when no apply was attempted (diff-only or auto-sync
 				// disabled). Clear it only when the resource is now fully in sync.
-				if res.Status == "outofsync" && res.Error == "" {
+				if IsPendingSync(res.Status) && res.Error == "" {
 					res.Error = prev.Error
 				}
 			}
@@ -51,9 +51,10 @@ func (s *AppState) MergeMachineClasses(resources []ResourceInfo) {
 			if res.CreatedAt.IsZero() {
 				res.CreatedAt = prev.CreatedAt
 			}
-			// Carry forward SyncStatusSince when staying outofsync.
-			if res.Status == "outofsync" {
-				if prev.Status == "outofsync" && !prev.SyncStatusSince.IsZero() {
+			// Carry forward SyncStatusSince while the resource stays pending sync
+			// (outofsync or missing).
+			if IsPendingSync(res.Status) {
+				if IsPendingSync(prev.Status) && !prev.SyncStatusSince.IsZero() {
 					res.SyncStatusSince = prev.SyncStatusSince
 				} else if res.SyncStatusSince.IsZero() {
 					res.SyncStatusSince = time.Now().UTC()

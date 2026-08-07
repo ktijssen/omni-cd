@@ -223,10 +223,21 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 			// Per-cluster auto-sync: if disabled and this is not a manual force-sync,
 			// record the diff as out-of-sync but do NOT apply it.
 			if !isForceSync && !r.state.GetClusterAutoSync(clusterName) {
-				r.logInfo("Cluster out of sync (auto sync disabled, use Sync button to apply)", "component", "Clusters", "cluster", clusterName)
-				r.state.UpsertClusterStatus(clusterName, "outofsync")
+				// A cluster that does not exist in Omni at all is "missing" rather than
+				// merely drifted. The raw diff is all-additions in both cases, so the
+				// diff buffer alone cannot tell "never deployed" from "deployed but
+				// drifted" — ask Omni directly.
+				driftStatus := "outofsync"
+				if existsInOmni, ok := omni.ClusterExistsInOmni(clusterName); ok && !existsInOmni {
+					driftStatus = "missing"
+					r.logInfo("Cluster missing from Omni (auto sync disabled, use Sync button to create)", "component", "Clusters", "cluster", clusterName)
+				} else {
+					r.logInfo("Cluster out of sync (auto sync disabled, use Sync button to apply)", "component", "Clusters", "cluster", clusterName)
+				}
+				r.state.UpsertClusterStatus(clusterName, driftStatus)
 				liveContentAS := allLiveStates[clusterName]
-				if liveContentAS == "" {
+				// A missing cluster has no live state to fetch — skip the RPC.
+				if liveContentAS == "" && driftStatus != "missing" {
 					liveContentAS, _ = omni.GetLiveCluster(clusterName)
 				}
 				talosAS, k8sAS, cpAS, wkAS, clusterExtsAS, machExtsAS := clusterDetailFromLive(liveContentAS)
@@ -235,7 +246,7 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 				resources = append(resources, state.ResourceInfo{
 					ID:                clusterName,
 					Type:              "Cluster",
-					Status:            "outofsync",
+					Status:            driftStatus,
 					Diff:              diffOutput,
 					FileContent:       fileContent,
 					LiveContent:       liveContentAS,
@@ -373,9 +384,12 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 			if updated.CreatedAt.IsZero() {
 				updated.CreatedAt = omni.GetClusterCreatedAt(updated.ID)
 			}
-			// Track when the cluster entered outofsync — preserve if already set, stamp if newly entered
-			if updated.Status == "outofsync" {
-				if existingCluster.Status == "outofsync" && !existingCluster.SyncStatusSince.IsZero() {
+			// Track when the cluster entered a pending-sync state (outofsync or
+			// missing) — preserve if already set, stamp if newly entered. The clock
+			// deliberately does not reset across outofsync <-> missing: a cluster that
+			// drifted at T and was then deleted from Omni is still pending since T.
+			if state.IsPendingSync(updated.Status) {
+				if state.IsPendingSync(existingCluster.Status) && !existingCluster.SyncStatusSince.IsZero() {
 					updated.SyncStatusSince = existingCluster.SyncStatusSince
 				} else {
 					updated.SyncStatusSince = time.Now().UTC()
@@ -557,8 +571,15 @@ func (r *Reconciler) RefreshSingleCluster(dir, id string) {
 
 	status := "success"
 	if diffOutput != "" && !strings.Contains(diffOutput, "no changes") {
-		status = "outofsync"
-		r.logInfo("Cluster out of sync", "component", "Clusters", "cluster", id)
+		// A non-empty diff means either "exists in Omni but drifted" or "not in Omni
+		// at all" — the diff renders both as additions, so ask Omni which it is.
+		if existsInOmni, ok := omni.ClusterExistsInOmni(id); ok && !existsInOmni {
+			status = "missing"
+			r.logInfo("Cluster missing from Omni", "component", "Clusters", "cluster", id)
+		} else {
+			status = "outofsync"
+			r.logInfo("Cluster out of sync", "component", "Clusters", "cluster", id)
+		}
 	} else {
 		r.logDebug("Cluster in sync", "component", "Clusters", "cluster", id)
 	}
@@ -583,10 +604,10 @@ func (r *Reconciler) RefreshSingleCluster(dir, id string) {
 			lastSyncSHA = c.LastSyncSHA
 			lastSyncAuthor = c.LastSyncAuthor
 			lastSyncMessage = c.LastSyncMessage
-			if c.Status == "outofsync" {
+			if state.IsPendingSync(c.Status) {
 				syncStatusSince = c.SyncStatusSince
 			}
-			if status == "outofsync" && c.Status == "failed" && c.LastSyncError != "" {
+			if state.IsPendingSync(status) && c.Status == "failed" && c.LastSyncError != "" {
 				status = "failed"
 				r.logWarn("Preserving failed status from previous sync error", "component", "Clusters", "cluster", id)
 			}
@@ -608,7 +629,7 @@ func (r *Reconciler) RefreshSingleCluster(dir, id string) {
 		LastSyncAuthor:  lastSyncAuthor,
 		LastSyncMessage: lastSyncMessage,
 		SyncStatusSince: func() time.Time {
-			if status != "outofsync" {
+			if !state.IsPendingSync(status) {
 				return time.Time{}
 			}
 			if !syncStatusSince.IsZero() {
@@ -640,13 +661,13 @@ func (r *Reconciler) DiffClusters(dir string) {
 	if err != nil {
 		r.logWarn("Directory not found, skipping", "component", "Clusters", "path", dir)
 		// Still need to collect unmanaged clusters even if directory doesn't exist
-		r.collectUnmanagedClusters([]string{dir}, nil)
+		r.collectUnmanagedClusters([]string{dir}, nil, nil)
 		return
 	}
 	if len(templates) == 0 {
 		r.logWarn("No cluster templates found", "component", "Clusters")
 		// Still need to collect unmanaged clusters even if no templates found
-		r.collectUnmanagedClusters([]string{dir}, nil)
+		r.collectUnmanagedClusters([]string{dir}, nil, nil)
 		return
 	}
 
@@ -663,7 +684,7 @@ func (r *Reconciler) DiffClusters(dir string) {
 	}
 
 	var resources []state.ResourceInfo
-	inSync, outOfSync, errCount := 0, 0, 0
+	inSync, outOfSync, missing, errCount := 0, 0, 0, 0
 
 	for _, tmpl := range templates {
 		name := extractClusterName(tmpl)
@@ -728,11 +749,19 @@ func (r *Reconciler) DiffClusters(dir string) {
 			})
 			inSync++
 		} else {
-			r.logInfo("Cluster out of sync (sync disabled, skipping...)", "component", "Clusters", "cluster", name)
+			driftStatus := "outofsync"
+			if existsInOmni, ok := omni.ClusterExistsInOmni(name); ok && !existsInOmni {
+				driftStatus = "missing"
+				missing++
+				r.logInfo("Cluster missing from Omni (sync disabled, skipping...)", "component", "Clusters", "cluster", name)
+			} else {
+				outOfSync++
+				r.logInfo("Cluster out of sync (sync disabled, skipping...)", "component", "Clusters", "cluster", name)
+			}
 			resources = append(resources, state.ResourceInfo{
 				ID:                name,
 				Type:              "Cluster",
-				Status:            "outofsync",
+				Status:            driftStatus,
 				Diff:              diffOutput,
 				FileContent:       fileContent,
 				LiveContent:       liveContent,
@@ -744,7 +773,6 @@ func (r *Reconciler) DiffClusters(dir string) {
 				MachineExtensions: machExts,
 				MachineHostnames:  extractHostnames(allHostnames, cp, wk),
 			})
-			outOfSync++
 		}
 	}
 
@@ -782,10 +810,10 @@ func (r *Reconciler) DiffClusters(dir string) {
 	}
 
 	r.state.SetClusters(final)
-	r.logInfo(fmt.Sprintf("Cluster drift check complete: %d in sync, %d out of sync, %d failed", inSync, outOfSync, errCount), "component", "Clusters")
+	r.logInfo(fmt.Sprintf("Cluster drift check complete: %d in sync, %d out of sync, %d missing, %d failed", inSync, outOfSync, missing, errCount), "component", "Clusters")
 
 	// Also detect unmanaged clusters
-	r.collectUnmanagedClusters([]string{dir}, nil)
+	r.collectUnmanagedClusters([]string{dir}, nil, nil)
 
 	// Save state to disk
 	r.state.Save()
@@ -1221,18 +1249,20 @@ func (r *Reconciler) DeleteClustersAll(dirs []string, liveIDs []string) {
 // CollectUnmanagedClusters is the exported entry point for post-reconcile
 // unmanaged-cluster detection across all repo dirs. Call this once after all
 // per-repo ApplyClusters calls are done so every repo's clusters are in scope.
-// liveIDs is the pre-fetched list of all cluster IDs in Omni; if nil the
-// function fetches it internally (allows reuse of a single API call when the
-// caller already has the list).
-func (r *Reconciler) CollectUnmanagedClusters(dirs []string, liveIDs []string) {
-	r.collectUnmanagedClusters(dirs, liveIDs)
+// liveIDs / liveTearingDown are a pre-fetched pair from
+// omni.GetClusterIDsWithPhases, allowing reuse of a single API call when the
+// caller already has them; pass nil to fetch internally. They must come from
+// Omni rather than the watch cache — see collectUnmanagedClusters.
+func (r *Reconciler) CollectUnmanagedClusters(dirs []string, liveIDs []string, liveTearingDown map[string]bool) {
+	r.collectUnmanagedClusters(dirs, liveIDs, liveTearingDown)
 }
 
 // collectUnmanagedClusters finds clusters in Omni that are not managed by
 // cluster templates and adds them to state with "unmanaged" status.
 // Also removes clusters from state that are no longer in git or Omni.
-// liveIDs is an optional pre-fetched cluster ID list; pass nil to fetch inside.
-func (r *Reconciler) collectUnmanagedClusters(dirs []string, liveIDs []string) {
+// liveIDs / liveTearingDown are an optional pre-fetched pair from
+// omni.GetClusterIDsWithPhases; pass nil to fetch inside.
+func (r *Reconciler) collectUnmanagedClusters(dirs []string, liveIDs []string, liveTearingDown map[string]bool) {
 	// Collect unique cluster IDs from all provided dirs.
 	seen := make(map[string]bool)
 	var desiredIDs []string
@@ -1257,21 +1287,24 @@ func (r *Reconciler) collectUnmanagedClusters(dirs []string, liveIDs []string) {
 	allTracked := r.state.GetAllTrackedClusterIDs()
 	allHostnames, _ := omni.GetAllMachineHostnames()
 
-	// Fetch cluster IDs with phase info so we can detect TearingDown clusters.
-	var allIDs []string
-	tearingDownMap := make(map[string]bool)
-	if liveIDs != nil {
-		allIDs = liveIDs
-		// Still need phase info — fetch it separately when IDs were pre-supplied.
-		if _, td, err := omni.GetClusterIDsWithPhases(); err == nil {
-			tearingDownMap = td
-		}
-	} else {
+	// Cluster IDs with phase info, so we can detect TearingDown clusters.
+	//
+	// This list decides which clusters exist in Omni, so it MUST be authoritative:
+	// sourcing it from the watch cache made clusters created directly in Omni
+	// invisible to unmanaged discovery for as long as the watch stayed stale.
+	// Callers may pass a pre-fetched pair to avoid a duplicate round-trip, but
+	// what they pass has to come from Omni, not from a cache.
+	allIDs := liveIDs
+	tearingDownMap := liveTearingDown
+	if allIDs == nil {
 		var err error
 		allIDs, tearingDownMap, err = omni.GetClusterIDsWithPhases()
 		if err != nil {
 			return
 		}
+	}
+	if tearingDownMap == nil {
+		tearingDownMap = make(map[string]bool)
 	}
 
 	existing := r.state.GetClusters()
@@ -1303,9 +1336,10 @@ func (r *Reconciler) collectUnmanagedClusters(dirs []string, liveIDs []string) {
 			} else if !omniMap[cluster.ID] {
 				switch cluster.Status {
 				case "deleting":
-					// Deletion completed but template still in git — revert to outofsync
-					// so the cluster stays visible and can be re-synced or removed from git.
-					cluster.Status = "outofsync"
+					// Deletion completed but template still in git — the cluster is gone
+					// from Omni, so it is "missing": it stays visible and can be
+					// re-created by a Sync or removed from git.
+					cluster.Status = "missing"
 					cluster.LiveContent = ""
 				case "success", "applied":
 					// Cluster was running but disappeared from Omni externally — mark as deleting.

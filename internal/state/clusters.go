@@ -92,7 +92,7 @@ func (s *AppState) SetClusters(resources []ResourceInfo) {
 				resources[i].LastSyncMessage = f.LastSyncMessage
 				// Preserve the error when no apply was attempted (diff-only or auto-sync
 				// disabled). Clear it only when the resource is now fully in sync.
-				if resources[i].Status == "outofsync" && resources[i].Error == "" {
+				if IsPendingSync(resources[i].Status) && resources[i].Error == "" {
 					resources[i].Error = f.Error
 				}
 			}
@@ -236,7 +236,7 @@ func (s *AppState) UpsertClusterInfo(id string, info ResourceInfo) {
 				info.LastSyncSHA = s.Clusters[i].LastSyncSHA
 				info.LastSyncAuthor = s.Clusters[i].LastSyncAuthor
 				info.LastSyncMessage = s.Clusters[i].LastSyncMessage
-				if info.Status == "outofsync" && info.Error == "" {
+				if IsPendingSync(info.Status) && info.Error == "" {
 					info.Error = s.Clusters[i].Error
 				}
 			}

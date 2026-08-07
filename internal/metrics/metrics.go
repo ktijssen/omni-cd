@@ -112,7 +112,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	s := c.appState.Snapshot()
 
 	// omni_cd_clusters_total — grouped by status, always emit all known statuses
-	clusterStatuses := []string{"success", "outofsync", "failed", "syncing", "unmanaged", "deleting", "orphaned"}
+	clusterStatuses := []string{"success", "outofsync", "missing", "failed", "syncing", "unmanaged", "deleting", "orphaned"}
 	statusCounts := map[string]int{}
 	for _, st := range clusterStatuses {
 		statusCounts[st] = 0
@@ -136,7 +136,7 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	// omni_cd_machine_classes_total — grouped by status, always emit all known statuses
-	mcStatuses := []string{"success", "outofsync", "failed", "syncing", "unmanaged"}
+	mcStatuses := []string{"success", "outofsync", "missing", "failed", "syncing", "unmanaged"}
 	mcCounts := map[string]int{}
 	for _, st := range mcStatuses {
 		mcCounts[st] = 0

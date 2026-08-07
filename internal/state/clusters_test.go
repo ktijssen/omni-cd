@@ -367,3 +367,85 @@ func TestMarkClusterOrphaned_UnknownIDIsNoOp(t *testing.T) {
 		t.Errorf("unrelated cluster mutated: %+v", cs[0])
 	}
 }
+
+func TestUpdateTearingDownStatuses_KeepsMissing(t *testing.T) {
+	s := newState()
+	s.SetClusters([]state.ResourceInfo{
+		{ID: "gone-missing", Status: "missing"},
+		{ID: "still-here", Status: "success"},
+	})
+	// A "missing" cluster is absent from Omni by definition — it is defined in git
+	// but never created, so it must survive the prune that removes clusters which
+	// have disappeared from Omni.
+	s.UpdateTearingDownStatuses([]string{"still-here"}, nil)
+	clusters := s.GetClusters()
+	if len(clusters) != 2 {
+		t.Fatalf("expected 2 clusters remaining, got %d", len(clusters))
+	}
+	found := map[string]string{}
+	for _, c := range clusters {
+		found[c.ID] = c.Status
+	}
+	if found["gone-missing"] != "missing" {
+		t.Errorf("missing cluster should be kept with status 'missing', got %q", found["gone-missing"])
+	}
+}
+
+func TestSetClusters_PreservesErrorWhenMissing(t *testing.T) {
+	s := newState()
+	s.SetClusters([]state.ResourceInfo{
+		{ID: "c1", Status: "failed", Error: "boom", LastSyncResult: "failed"},
+	})
+	// Diff-only pass reports "missing" and attempted no apply — the error explaining
+	// the previous failed sync must survive so the UI keeps its Sync Failed badge.
+	s.SetClusters([]state.ResourceInfo{
+		{ID: "c1", Status: "missing"},
+	})
+	c := s.GetClusters()[0]
+	if c.Error != "boom" {
+		t.Errorf("Error should be preserved: got %q, want %q", c.Error, "boom")
+	}
+}
+
+func TestSetClusters_PreservesDeletingOverMissing(t *testing.T) {
+	s := newState()
+	s.SetClusters([]state.ResourceInfo{
+		{ID: "c1", Status: "deleting"},
+	})
+	s.SetClusters([]state.ResourceInfo{
+		{ID: "c1", Status: "missing"},
+	})
+	c := s.GetClusters()[0]
+	if c.Status != "deleting" {
+		t.Errorf("status should remain 'deleting', got %q", c.Status)
+	}
+}
+
+func TestUpsertClusterInfo_PreservesErrorWhenMissing(t *testing.T) {
+	s := newState()
+	s.SetClusters([]state.ResourceInfo{
+		{ID: "c1", Status: "failed", Error: "boom", LastSyncResult: "failed"},
+	})
+	s.UpsertClusterInfo("c1", state.ResourceInfo{ID: "c1", Status: "missing"})
+	c := s.GetClusters()[0]
+	if c.Error != "boom" {
+		t.Errorf("Error should be preserved: got %q, want %q", c.Error, "boom")
+	}
+}
+
+func TestSetClusters_SyncStatusSince_PreservedAcrossOutofsyncToMissing(t *testing.T) {
+	s := newState()
+	since := time.Now().UTC().Add(-time.Hour)
+	s.SetClusters([]state.ResourceInfo{
+		{ID: "c1", Status: "outofsync", SyncStatusSince: since},
+	})
+	// The cluster was drifted, then deleted from Omni. It has still been pending
+	// since the original timestamp — the clock must not reset.
+	s.SetClusters([]state.ResourceInfo{
+		{ID: "c1", Status: "missing"},
+	})
+	c := s.GetClusters()[0]
+	if !c.SyncStatusSince.Equal(since) {
+		t.Errorf("SyncStatusSince should be preserved: got %v, want %v", c.SyncStatusSince, since)
+	}
+}
