@@ -91,7 +91,7 @@ jobs:
           build-args: |
             APP_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
 
       - name: Set up Helm
         if: steps.check.outputs.skip == 'false'

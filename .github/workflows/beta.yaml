@@ -80,7 +80,7 @@ jobs:
           build-args: |
             APP_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
 
       - name: Set up Helm
         uses: azure/setup-helm@v5
