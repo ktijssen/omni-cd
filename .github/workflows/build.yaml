@@ -6,21 +6,23 @@
 # So this file resolves a "channel" once, up front, and the build job reads the
 # answers off that job's outputs.
 #
-#   channel   trigger                                   image tags        chart   GH release
-#   -------   ---------------------------------------   ---------------   -----   ----------
-#   dev       any other branch merged into main         <describe>        no      no
-#   beta      beta/* PR (opened/sync/reopened/merged)   <version>, beta   yes*    no
-#   release   release/* PR merged, or workflow_dispatch <version>, latest yes     yes
+#   channel   selected by                                image tags        chart   GH release
+#   -------   ----------------------------------------   ---------------   -----   ----------
+#   dev       any other branch targeting main            <describe>        no      no
+#   beta      beta/* branch                              <version>, beta   yes     no
+#   release   release/* branch, or workflow_dispatch     <version>, latest yes     yes
 #
-#   * beta packages the chart on every run but only pushes it on the merge, so a
-#     broken chart fails the PR before anything is published.
+# Two phases, on every channel:
+#
+#   * while the PR is open  — build the image and package the chart, publish
+#     nothing. A broken build or a broken chart fails the PR instead of failing
+#     after the merge.
+#   * once the PR is merged — build again and publish: image tags always, chart
+#     for beta/release, GitHub Release for release only.
 
 name: Build
 
 on:
-  # One trigger set for all three channels. Non-beta channels only act on the
-  # merge, so the extra opened/synchronize events just resolve to run=false and
-  # the build job skips.
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
@@ -30,18 +32,19 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # Concurrency is evaluated before any job runs, so the channel has to be
-  # re-derived here from the event alone rather than read from a job output.
-  # Grouping is per channel (not per PR) to match the old workflows: two dev
-  # merges queue behind each other instead of racing.
+  # Concurrency is evaluated before any job runs, so this can't read a job
+  # output and has to re-derive what it needs from the event alone.
+  #
+  # Open PRs get one group each, keyed on the branch, so PRs never queue behind
+  # each other. Everything that publishes shares a single "publish" group, so
+  # two merges can't race to push tags.
   group: >-
-    build-${{ github.event_name == 'workflow_dispatch' && 'release'
-      || startsWith(github.event.pull_request.head.ref, 'beta/') && 'beta'
-      || startsWith(github.event.pull_request.head.ref, 'release/') && 'release'
-      || 'dev' }}
-  # Only beta churns — a new push to a beta PR makes the in-flight build
-  # pointless. Dev and release builds publish immutable tags, so let them finish.
-  cancel-in-progress: ${{ startsWith(github.event.pull_request.head.ref, 'beta/') }}
+    build-${{ github.event.pull_request.merged && 'publish'
+      || github.event.pull_request.head.ref
+      || github.ref }}
+  # A new push to an open PR makes the in-flight build pointless, so cancel it.
+  # Never cancel a publishing run.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !github.event.pull_request.merged }}
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -55,15 +58,16 @@ jobs:
     outputs:
       # dev | beta | release
       channel: ${{ steps.channel.outputs.channel }}
-      # 'true' only if there is actually something to build. Also goes false for
-      # a release whose tag already exists, so re-runs are no-ops.
+      # 'true' if there is anything to do. Goes false for a PR closed without
+      # merging, and for a release whose tag already exists.
       run: ${{ steps.resolve.outputs.proceed }}
+      # 'true' once merged: this is what separates "build to validate" from
+      # "build to publish". Every publishing step keys off it.
+      push: ${{ steps.resolve.outputs.push }}
       version: ${{ steps.resolve.outputs.version }}
       chart_version: ${{ steps.resolve.outputs.chart_version }}
       # Comma-separated; docker/build-push-action splits on commas and newlines.
       tags: ${{ steps.resolve.outputs.tags }}
-      # Whether this run publishes, or is only a build-for-validation.
-      push: ${{ steps.resolve.outputs.push }}
       # Passed straight through to build-push-action's cache-to.
       cache_to: ${{ steps.resolve.outputs.cache_to }}
     steps:
@@ -72,8 +76,8 @@ jobs:
         with:
           # For a merged PR, resolve the version against the commit that landed
           # on main: 'git describe' has to count from main's history for the dev
-          # build number to line up. An empty ref means "workflow default", which
-          # is right for pre-merge beta runs and for workflow_dispatch.
+          # build number to line up. An empty ref means "workflow default",
+          # which is right for open PRs (the merge ref) and workflow_dispatch.
           ref: ${{ github.event.pull_request.merged && github.event.pull_request.merge_commit_sha || '' }}
           # Full history + tags: needed by 'git describe' (dev) and by the
           # existing-tag check (release).
@@ -102,22 +106,27 @@ jobs:
             CHANNEL=dev
           fi
 
-          # Should this event do anything at all?
-          RUN=true
-          if [[ "$EVENT" == "pull_request" ]]; then
-            if [[ "$ACTION" == "closed" && "$MERGED" != "true" ]]; then
-              # PR closed without merging — nothing was added to main.
-              RUN=false
-            elif [[ "$CHANNEL" != "beta" && "$MERGED" != "true" ]]; then
-              # dev and release publish on the merge only. Beta is the sole
-              # channel that also builds pre-merge, as a PR check.
-              RUN=false
-            fi
+          # A PR closed without merging is the one event with nothing to build:
+          # its code never reached main, and there is no longer a PR to validate.
+          if [[ "$ACTION" == "closed" && "$MERGED" != "true" ]]; then
+            RUN=false
+          else
+            RUN=true
           fi
 
-          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
-          echo "run=$RUN" >> "$GITHUB_OUTPUT"
-          echo "Channel: $CHANNEL (run=$RUN, event=$EVENT/${ACTION:-none}, merged=${MERGED:-n/a})"
+          # Publish only from the merge, or from a manual release dispatch.
+          if [[ "$MERGED" == "true" || "$EVENT" == "workflow_dispatch" ]]; then
+            PUSH=true
+          else
+            PUSH=false
+          fi
+
+          {
+            echo "channel=$CHANNEL"
+            echo "run=$RUN"
+            echo "push=$PUSH"
+          } >> "$GITHUB_OUTPUT"
+          echo "Channel: $CHANNEL (run=$RUN, push=$PUSH, event=$EVENT/${ACTION:-none}, merged=${MERGED:-n/a})"
 
       - name: Resolve version and build parameters
         id: resolve
@@ -126,8 +135,8 @@ jobs:
         if: steps.channel.outputs.run == 'true'
         env:
           CHANNEL: ${{ steps.channel.outputs.channel }}
+          PUSH: ${{ steps.channel.outputs.push }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          MERGED: ${{ github.event.pull_request.merged }}
           IMAGE: ghcr.io/${{ github.repository }}
         run: |
           set -euo pipefail
@@ -135,7 +144,9 @@ jobs:
 
           case "$CHANNEL" in
             dev)
-              # Version is derived from history: v0.5.0-3-gabc1234.
+              # Version is derived from history: v0.5.0-3-gabc1234. On an open PR
+              # this describes the throwaway merge ref, which is fine — nothing
+              # is published, the string only lands in the binary's -ldflags.
               if ! VERSION="$(git describe --tags --abbrev=7 --match 'v[0-9]*')"; then
                 echo "::error::No v* tag found — cannot derive a dev version"
                 exit 1
@@ -148,10 +159,6 @@ jobs:
                 exit 1
               fi
               TAGS="$IMAGE:$VERSION"
-              PUSH=true          # dev only ever runs post-merge
-              # No cache-to: this only runs on a closed PR, so the cache would be
-              # written to that PR's ref scope and never read by anything again.
-              CACHE_TO=""
               ;;
 
             beta)
@@ -162,17 +169,6 @@ jobs:
                 exit 1
               fi
               TAGS="$IMAGE:$VERSION,$IMAGE:beta"
-              # Pre-merge runs build but publish nothing.
-              PUSH="${MERGED:-false}"
-              # Only the pre-merge run populates the cache. The merged run
-              # rebuilds the same commit and would collide with the keys it
-              # already wrote (GHA cache keys are immutable), which cancels the
-              # push. ignore-error keeps a cache hiccup from failing the build.
-              if [[ "$PUSH" == "true" ]]; then
-                CACHE_TO=""
-              else
-                CACHE_TO="type=gha,mode=min,ignore-error=true"
-              fi
               ;;
 
             release)
@@ -186,15 +182,28 @@ jobs:
               # shipped. Matters for workflow_dispatch re-runs, and replaces the
               # old 'paths: hack/VERSION' trigger filter (a workflow-level filter
               # can't be scoped to one channel).
-              if git tag --list | grep -qx "$VERSION"; then
+              #
+              # Only applied to publishing runs. An open release/* PR that hasn't
+              # bumped hack/VERSION yet still gets its validation build.
+              if [[ "$PUSH" == "true" ]] && git tag --list | grep -qx "$VERSION"; then
                 echo "::notice::Tag $VERSION already exists — skipping release."
                 PROCEED=false
               fi
               TAGS="$IMAGE:$VERSION,$IMAGE:latest"
-              PUSH=true
-              CACHE_TO="type=gha,mode=min,ignore-error=true"
               ;;
           esac
+
+          # Cache policy, uniform across channels: the open-PR build writes the
+          # cache, the publishing build only reads it. Two reasons they can't
+          # both write — GHA cache keys are immutable, so the second write of the
+          # same commit collides and cancels the push; and a cache written during
+          # a closed-PR run lands in that PR's ref scope, where nothing can ever
+          # read it again. ignore-error keeps a cache hiccup from failing a build.
+          if [[ "$PUSH" == "true" ]]; then
+            CACHE_TO=""
+          else
+            CACHE_TO="type=gha,mode=min,ignore-error=true"
+          fi
 
           # Helm chart versions are semver without the leading 'v'.
           CHART_VERSION="${VERSION#v}"
@@ -236,8 +245,8 @@ jobs:
         run: helm unittest deploy/helm/omni-cd
 
   # ---------------------------------------------------------------------------
-  # The single build. Every step is either unconditional or gated on the
-  # channel/push outputs resolved above.
+  # The single build. Runs on open PRs and on merges alike; the 'push' output
+  # decides whether anything leaves the runner.
   # ---------------------------------------------------------------------------
   build:
     runs-on: ubuntu-latest
@@ -259,7 +268,7 @@ jobs:
         with:
           # Same reasoning as the channel job: build the commit that landed on
           # main, not the ephemeral refs/pull/N/merge. Shallow is fine here — the
-          # version is already resolved and passed in as a build-arg.
+          # version is already resolved and arrives as a build-arg.
           ref: ${{ github.event.pull_request.merged && github.event.pull_request.merge_commit_sha || '' }}
 
       - name: Set up Docker Buildx
@@ -267,7 +276,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        # Skipped on pre-merge beta runs, which build but never push.
+        # Skipped on open-PR runs, which build but never push.
         if: needs.channel.outputs.push == 'true'
         uses: docker/login-action@v4
         with:
@@ -275,7 +284,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build image
+        # On an open PR this builds and throws the result away: it proves the
+        # Dockerfile still works, and warms the cache that the merge build reads.
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -306,8 +317,8 @@ jobs:
           sed -i "s/^appVersion:.*/appVersion: $APP_VERSION/" deploy/helm/omni-cd/Chart.yaml
 
       - name: Package Helm chart
-        # Runs even on pre-merge beta runs: packaging is itself a validity check,
-        # and it costs nothing to fail here rather than after the merge.
+        # Runs on open PRs too: packaging is itself a validity check, and it
+        # costs nothing to fail here rather than after the merge.
         if: needs.channel.outputs.channel != 'dev'
         run: helm package deploy/helm/omni-cd --destination .
 
@@ -324,7 +335,7 @@ jobs:
       # --- GitHub Release: release only -------------------------------------
 
       - name: Create GitHub Release
-        if: needs.channel.outputs.channel == 'release'
+        if: needs.channel.outputs.channel == 'release' && needs.channel.outputs.push == 'true'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.channel.outputs.version }}
