@@ -105,7 +105,7 @@ require (
 	github.com/siderolabs/go-api-signature v0.3.13 // indirect
 	github.com/siderolabs/go-pointer v1.0.1 // indirect
 	github.com/siderolabs/net v0.4.0 // indirect
-	github.com/siderolabs/omni/client v1.9.3
+	github.com/siderolabs/omni/client v1.10.0
 	github.com/siderolabs/proto-codec v0.1.4 // indirect
 	github.com/siderolabs/protoenc v0.2.4 // indirect
 	github.com/siderolabs/talos/pkg/machinery v1.14.0-beta.1 // indirect
