@@ -77,7 +77,11 @@ jobs:
           build-args: |
             APP_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
-          cache-to: type=gha,mode=min
+          # Only the pre-merge run populates the cache. The merged run rebuilds the
+          # same commit and would collide with the keys it already wrote (GHA cache
+          # keys are immutable), which cancels the push. ignore-error keeps a cache
+          # hiccup from failing the build either way.
+          cache-to: ${{ !github.event.pull_request.merged && 'type=gha,mode=min,ignore-error=true' || '' }}
 
       - name: Set up Helm
         uses: azure/setup-helm@v5
