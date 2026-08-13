@@ -14,11 +14,14 @@
 #
 # Two phases, on every channel:
 #
-#   * while the PR is open  — build the image and package the chart, publish
-#     nothing. A broken build or a broken chart fails the PR instead of failing
-#     after the merge.
-#   * once the PR is merged — build again and publish: image tags always, chart
-#     for beta/release, GitHub Release for release only.
+#   * while the PR is open  — run the chart tests, build the image, package the
+#     chart. Publish nothing. A broken build, chart, or chart test fails the PR
+#     instead of failing after the merge.
+#   * once the PR is merged — same checks again, then publish: image tags always,
+#     chart for beta/release, GitHub Release for release only.
+#
+# The chart tests gate the image build, so they run for dev PRs too even though
+# dev publishes no chart.
 
 name: Build
 
@@ -220,16 +223,16 @@ jobs:
           echo "Version: $VERSION (chart $CHART_VERSION) — tags: $TAGS, push: $PUSH, proceed: $PROCEED"
 
   # ---------------------------------------------------------------------------
-  # Gate the channels that ship a chart on the chart's own tests. Dev builds
-  # skip this, matching the old dev.yaml — dev never publishes a chart, so
-  # there is nothing for these tests to protect.
+  # Chart tests, on every channel and both phases — same treatment as the image
+  # build. A dev PR never publishes a chart, but it can still break one, and the
+  # break should surface on that PR rather than on the next beta.
+  #
+  # This gates the build job, so a failing chart test blocks the image too.
   # ---------------------------------------------------------------------------
   helm-test:
     runs-on: ubuntu-latest
     needs: channel
-    if: >-
-      needs.channel.outputs.run == 'true' &&
-      contains(fromJSON('["beta","release"]'), needs.channel.outputs.channel)
+    if: needs.channel.outputs.run == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -250,15 +253,11 @@ jobs:
   # ---------------------------------------------------------------------------
   build:
     runs-on: ubuntu-latest
+    # Plain 'needs' now that helm-test runs on every channel: both must succeed,
+    # and if either skipped there is nothing to build anyway. The explicit check
+    # states the intent rather than leaning on skip propagation.
     needs: [channel, helm-test]
-    # helm-test is 'skipped' for dev, and a plain 'needs' would treat that as a
-    # reason not to run. So: run unless the workflow is cancelled, the channel
-    # job said no (or failed, which leaves outputs empty), or the chart tests
-    # actually failed.
-    if: >-
-      !cancelled() &&
-      needs.channel.outputs.run == 'true' &&
-      needs.helm-test.result != 'failure'
+    if: needs.channel.outputs.run == 'true'
     permissions:
       packages: write   # push image + chart to GHCR
       contents: write   # create the tag and GitHub Release (release channel only)
