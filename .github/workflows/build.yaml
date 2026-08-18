@@ -1,0 +1,363 @@
+# Combined replacement for dev.yaml + beta.yaml + release.yaml.
+#
+# All three old workflows did the same six things (checkout, work out a version,
+# build a multi-arch image, push it, package the Helm chart, publish). They only
+# disagreed on *which* version string to use and *how much* of the tail to run.
+# So this file resolves a "channel" once, up front, and the build job reads the
+# answers off that job's outputs.
+#
+#   channel   selected by                                image tags        chart   GH release
+#   -------   ----------------------------------------   ---------------   -----   ----------
+#   dev       any other branch targeting main            <describe>        no      no
+#   beta      beta/* branch                              <version>, beta   yes     no
+#   release   release/* branch, or workflow_dispatch     <version>, latest yes     yes
+#
+# Two phases, on every channel:
+#
+#   * while the PR is open  — run the chart tests, build the image, package the
+#     chart. Publish nothing. A broken build, chart, or chart test fails the PR
+#     instead of failing after the merge.
+#   * once the PR is merged — same checks again, then publish: image tags always,
+#     chart for beta/release, GitHub Release for release only.
+#
+# The chart tests gate the image build, so they run for dev PRs too even though
+# dev publishes no chart.
+
+name: Build
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - main
+  # Manual re-run of a release, e.g. if the release PR merged but publishing
+  # failed halfway. The "already tagged" guard below makes this safe to repeat.
+  workflow_dispatch:
+
+concurrency:
+  # Concurrency is evaluated before any job runs, so this can't read a job
+  # output and has to re-derive what it needs from the event alone.
+  #
+  # Open PRs get one group each, keyed on the branch, so PRs never queue behind
+  # each other. Everything that publishes shares a single "publish" group, so
+  # two merges can't race to push tags.
+  group: >-
+    build-${{ github.event.pull_request.merged && 'publish'
+      || github.event.pull_request.head.ref
+      || github.ref }}
+  # A new push to an open PR makes the in-flight build pointless, so cancel it.
+  # Never cancel a publishing run.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !github.event.pull_request.merged }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Decide what kind of build this is, and everything derived from that. No
+  # side effects here — this job only reads and computes.
+  # ---------------------------------------------------------------------------
+  channel:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      # dev | beta | release
+      channel: ${{ steps.channel.outputs.channel }}
+      # 'true' if there is anything to do. Goes false for a PR closed without
+      # merging, and for a release whose tag already exists.
+      run: ${{ steps.resolve.outputs.proceed }}
+      # 'true' once merged: this is what separates "build to validate" from
+      # "build to publish". Every publishing step keys off it.
+      push: ${{ steps.resolve.outputs.push }}
+      version: ${{ steps.resolve.outputs.version }}
+      chart_version: ${{ steps.resolve.outputs.chart_version }}
+      # Comma-separated; docker/build-push-action splits on commas and newlines.
+      tags: ${{ steps.resolve.outputs.tags }}
+      # Passed straight through to build-push-action's cache-to.
+      cache_to: ${{ steps.resolve.outputs.cache_to }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # For a merged PR, resolve the version against the commit that landed
+          # on main: 'git describe' has to count from main's history for the dev
+          # build number to line up. An empty ref means "workflow default",
+          # which is right for open PRs (the merge ref) and workflow_dispatch.
+          ref: ${{ github.event.pull_request.merged && github.event.pull_request.merge_commit_sha || '' }}
+          # Full history + tags: needed by 'git describe' (dev) and by the
+          # existing-tag check (release).
+          fetch-depth: 0
+
+      - name: Determine channel
+        id: channel
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          # Never interpolate a branch name straight into a shell script — a
+          # branch can be named anything.
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          MERGED: ${{ github.event.pull_request.merged }}
+        run: |
+          set -euo pipefail
+
+          # Branch prefix picks the channel; anything unprefixed is a dev build.
+          if [[ "$EVENT" == "workflow_dispatch" ]]; then
+            CHANNEL=release
+          elif [[ "$HEAD_REF" == beta/* ]]; then
+            CHANNEL=beta
+          elif [[ "$HEAD_REF" == release/* ]]; then
+            CHANNEL=release
+          else
+            CHANNEL=dev
+          fi
+
+          # A PR closed without merging is the one event with nothing to build:
+          # its code never reached main, and there is no longer a PR to validate.
+          if [[ "$ACTION" == "closed" && "$MERGED" != "true" ]]; then
+            RUN=false
+          else
+            RUN=true
+          fi
+
+          # Publish only from the merge, or from a manual release dispatch.
+          if [[ "$MERGED" == "true" || "$EVENT" == "workflow_dispatch" ]]; then
+            PUSH=true
+          else
+            PUSH=false
+          fi
+
+          {
+            echo "channel=$CHANNEL"
+            echo "run=$RUN"
+            echo "push=$PUSH"
+          } >> "$GITHUB_OUTPUT"
+          echo "Channel: $CHANNEL (run=$RUN, push=$PUSH, event=$EVENT/${ACTION:-none}, merged=${MERGED:-n/a})"
+
+      - name: Resolve version and build parameters
+        id: resolve
+        # Skipped entirely when there is nothing to do, which leaves every output
+        # empty — and an empty 'proceed' is not 'true', so the build job skips too.
+        if: steps.channel.outputs.run == 'true'
+        env:
+          CHANNEL: ${{ steps.channel.outputs.channel }}
+          PUSH: ${{ steps.channel.outputs.push }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          IMAGE: ghcr.io/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          PROCEED=true
+
+          case "$CHANNEL" in
+            dev)
+              # Version is derived from history: v0.5.0-3-gabc1234. On an open PR
+              # this describes the throwaway merge ref, which is fine — nothing
+              # is published, the string only lands in the binary's -ldflags.
+              if ! VERSION="$(git describe --tags --abbrev=7 --match 'v[0-9]*')"; then
+                echo "::error::No v* tag found — cannot derive a dev version"
+                exit 1
+              fi
+              # Sitting exactly on a release tag makes describe return a bare
+              # 'v0.5.0', which would overwrite that release's image. Shouldn't
+              # happen (release/* is a different channel), but never push over it.
+              if [[ ! "$VERSION" =~ -[0-9]+-g[0-9a-f]+$ ]]; then
+                echo "::error::'$VERSION' is a release tag, not a dev version — refusing to push"
+                exit 1
+              fi
+              TAGS="$IMAGE:$VERSION"
+              ;;
+
+            beta)
+              # Version comes from the branch name, so it is visible in the PR.
+              VERSION="${HEAD_REF#beta/}"
+              if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.0-beta\.[0-9]+$ ]]; then
+                echo "::error::Branch name '$HEAD_REF' must match 'beta/v<MAJOR>.<MINOR>.0-beta.<N>' (e.g. beta/v0.4.0-beta.1)"
+                exit 1
+              fi
+              TAGS="$IMAGE:$VERSION,$IMAGE:beta"
+              ;;
+
+            release)
+              # Version is whatever the release PR wrote into hack/VERSION.
+              VERSION="$(tr -d '[:space:]' < hack/VERSION)"
+              if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo "::error::hack/VERSION contains '$VERSION', expected v<MAJOR>.<MINOR>.<PATCH>"
+                exit 1
+              fi
+              # Idempotency guard: an existing tag means this version already
+              # shipped. Matters for workflow_dispatch re-runs, and replaces the
+              # old 'paths: hack/VERSION' trigger filter (a workflow-level filter
+              # can't be scoped to one channel).
+              #
+              # Only applied to publishing runs. An open release/* PR that hasn't
+              # bumped hack/VERSION yet still gets its validation build.
+              if [[ "$PUSH" == "true" ]] && git tag --list | grep -qx "$VERSION"; then
+                echo "::notice::Tag $VERSION already exists — skipping release."
+                PROCEED=false
+              fi
+              TAGS="$IMAGE:$VERSION,$IMAGE:latest"
+              ;;
+          esac
+
+          # Cache policy, uniform across channels: the open-PR build writes the
+          # cache, the publishing build only reads it. Two reasons they can't
+          # both write — GHA cache keys are immutable, so the second write of the
+          # same commit collides and cancels the push; and a cache written during
+          # a closed-PR run lands in that PR's ref scope, where nothing can ever
+          # read it again. ignore-error keeps a cache hiccup from failing a build.
+          if [[ "$PUSH" == "true" ]]; then
+            CACHE_TO=""
+          else
+            CACHE_TO="type=gha,mode=min,ignore-error=true"
+          fi
+
+          # Helm chart versions are semver without the leading 'v'.
+          CHART_VERSION="${VERSION#v}"
+
+          {
+            echo "proceed=$PROCEED"
+            echo "version=$VERSION"
+            echo "chart_version=$CHART_VERSION"
+            echo "tags=$TAGS"
+            echo "push=$PUSH"
+            echo "cache_to=$CACHE_TO"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Version: $VERSION (chart $CHART_VERSION) — tags: $TAGS, push: $PUSH, proceed: $PROCEED"
+
+  # ---------------------------------------------------------------------------
+  # Chart tests, on every channel and both phases — same treatment as the image
+  # build. A dev PR never publishes a chart, but it can still break one, and the
+  # break should surface on that PR rather than on the next beta.
+  #
+  # This gates the build job, so a failing chart test blocks the image too.
+  # ---------------------------------------------------------------------------
+  helm-test:
+    runs-on: ubuntu-latest
+    needs: channel
+    if: needs.channel.outputs.run == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+
+      - name: Install helm-unittest plugin
+        # --verify=false because the plugin repo ships no signature.
+        run: helm plugin install --verify=false https://github.com/helm-unittest/helm-unittest.git
+
+      - name: Run Helm unit tests
+        run: helm unittest deploy/helm/omni-cd
+
+  # ---------------------------------------------------------------------------
+  # The single build. Runs on open PRs and on merges alike; the 'push' output
+  # decides whether anything leaves the runner.
+  # ---------------------------------------------------------------------------
+  build:
+    runs-on: ubuntu-latest
+    # Plain 'needs' now that helm-test runs on every channel: both must succeed,
+    # and if either skipped there is nothing to build anyway. The explicit check
+    # states the intent rather than leaning on skip propagation.
+    needs: [channel, helm-test]
+    if: needs.channel.outputs.run == 'true'
+    permissions:
+      packages: write   # push image + chart to GHCR
+      contents: write   # create the tag and GitHub Release (release channel only)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Same reasoning as the channel job: build the commit that landed on
+          # main, not the ephemeral refs/pull/N/merge. Shallow is fine here — the
+          # version is already resolved and arrives as a build-arg.
+          ref: ${{ github.event.pull_request.merged && github.event.pull_request.merge_commit_sha || '' }}
+
+      - name: Set up Docker Buildx
+        # Required for multi-platform builds and for the GHA cache backend.
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        # Skipped on open-PR runs, which build but never push.
+        if: needs.channel.outputs.push == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        # On an open PR this builds and throws the result away: it proves the
+        # Dockerfile still works, and warms the cache that the merge build reads.
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: ${{ needs.channel.outputs.push }}
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ needs.channel.outputs.tags }}
+          build-args: |
+            APP_VERSION=${{ needs.channel.outputs.version }}
+          cache-from: type=gha
+          cache-to: ${{ needs.channel.outputs.cache_to }}
+
+      # --- Helm chart: beta and release only ---------------------------------
+
+      - name: Set up Helm
+        if: needs.channel.outputs.channel != 'dev'
+        uses: azure/setup-helm@v5
+
+      - name: Sync Chart.yaml version for this beta
+        # Beta versions live in the branch name, so Chart.yaml on main doesn't
+        # know about them and has to be patched in-flight. Release PRs commit the
+        # bumped Chart.yaml themselves, so release skips this.
+        if: needs.channel.outputs.channel == 'beta'
+        env:
+          APP_VERSION: ${{ needs.channel.outputs.version }}
+          CHART_VERSION: ${{ needs.channel.outputs.chart_version }}
+        run: |
+          sed -i "s/^version:.*/version: $CHART_VERSION/" deploy/helm/omni-cd/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: $APP_VERSION/" deploy/helm/omni-cd/Chart.yaml
+
+      - name: Package Helm chart
+        # Runs on open PRs too: packaging is itself a validity check, and it
+        # costs nothing to fail here rather than after the merge.
+        if: needs.channel.outputs.channel != 'dev'
+        run: helm package deploy/helm/omni-cd --destination .
+
+      - name: Log in to GHCR for Helm
+        # Separate from the docker login above: the helm CLI keeps its own
+        # registry credential store.
+        if: needs.channel.outputs.channel != 'dev' && needs.channel.outputs.push == 'true'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push Helm chart to OCI registry
+        if: needs.channel.outputs.channel != 'dev' && needs.channel.outputs.push == 'true'
+        run: helm push omni-cd-${{ needs.channel.outputs.chart_version }}.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+
+      # --- GitHub Release: release only -------------------------------------
+
+      - name: Create GitHub Release
+        if: needs.channel.outputs.channel == 'release' && needs.channel.outputs.push == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.channel.outputs.version }}
+          # Anchor the new tag to the merge commit on main. Left to its default
+          # this action tags github.sha, which on a pull_request event is the
+          # throwaway merge ref — a commit that exists on no branch.
+          target_commitish: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          name: Omni CD ${{ needs.channel.outputs.version }}
+          generate_release_notes: true
+          body: |
+            ## Omni CD ${{ needs.channel.outputs.version }}
+
+            ### Docker
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}:${{ needs.channel.outputs.version }}
+            ```
+
+            ### Helm (OCI)
+            ```bash
+            helm install omni-cd oci://ghcr.io/${{ github.repository_owner }}/charts/omni-cd \
+              --version ${{ needs.channel.outputs.chart_version }} \
+              --namespace omni-cd --create-namespace
+            ```
+
+          draft: false
+          prerelease: false
