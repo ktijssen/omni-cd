@@ -390,52 +390,27 @@
             :class="{ active: detailTab === tab }"
             @click="detailTab = tab as 'live' | 'diff' | 'error'"
           >{{ tab === 'live' ? 'Live' : tab === 'diff' ? 'Diff' : 'Error' }}</button>
-          <label v-if="detailTab === 'live'" class="mc-ignored-toggle" style="margin-left:auto;">
-            <input type="checkbox" class="mc-ignored-cb" v-model="showIgnoredFields" /> Show Ignored Fields
-          </label>
         </div>
         <!-- Content -->
-        <div style="overflow:auto;flex:1;min-height:0;">
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;">
           <template v-if="detailTab === 'error'">
-            <div style="padding:16px;">
+            <div style="padding:16px;overflow-y:auto;">
               <div style="background:#2a1a1a;border:1px solid #6b2020;border-radius:6px;padding:16px;color:#f87171;font-family:monospace;font-size:13px;white-space:pre-wrap;word-break:break-all;">{{ detailModal.error || detailModal.lastSyncError }}</div>
             </div>
           </template>
           <template v-else-if="detailTab === 'live'">
-            <div v-if="detailModal.liveContent" style="padding:16px;">
-              <div class="sbs-table-single">
-                <div
-                  v-for="(row, i) in detailLiveRows"
-                  :key="i"
-                  class="sbs-cell"
-                  :class="{ 'sbs-ignored': row.isPlaceholder, 'sbs-meta-dim': row.isDim }"
-                >
-                  <span class="sbs-ln">{{ row.lineNum ? row.lineNum + '.' : '' }}</span>{{ row.content }}
-                </div>
-              </div>
-            </div>
+            <CodeEditor
+              v-if="detailModal.liveContent"
+              :model-value="detailLiveContentYaml"
+              language="yaml"
+              :read-only="true"
+              style="flex:1;min-height:0;"
+            />
             <div v-else style="color:#7d7d85;text-align:center;padding:40px;">No live state available</div>
           </template>
           <template v-else>
-            <div v-if="detailModal.status !== 'success' && detailModal.status !== 'applied' && detailModal.status !== 'unmanaged' && detailDiffVisible.length" style="padding:16px;">
-              <div class="sbs-table">
-                <template v-for="(row, i) in detailDiffVisible" :key="i">
-                  <template v-if="row.separator">
-                    <div class="sbs-cell sbs-hunk-hdr">···</div>
-                    <div class="sbs-cell sbs-hunk-hdr">···</div>
-                  </template>
-                  <template v-else>
-                    <div
-                      class="sbs-cell"
-                      :class="{ 'sbs-del': row.changed && !!row.l && row.l.content.trim() !== '' }"
-                    ><span class="sbs-ln">{{ row.seq }}.</span>{{ row.l?.content ?? '' }}</div>
-                    <div
-                      class="sbs-cell"
-                      :class="{ 'sbs-add': row.changed && !!row.r && row.r.content.trim() !== '' }"
-                    ><span class="sbs-ln">{{ row.seq }}.</span>{{ row.r?.content ?? '' }}</div>
-                  </template>
-                </template>
-              </div>
+            <div v-if="detailModal.diff" style="flex:1;min-height:0;overflow-y:auto;">
+              <DiffViewer :diff="detailModal.diff" />
             </div>
             <div v-else style="color:#7d7d85;text-align:center;padding:40px;">
               {{ detailModal.status === 'unmanaged' ? 'No diff — this machine class is not managed by Git.' : (detailModal.status === 'success' || detailModal.status === 'applied') ? 'No diff — this machine class is in sync.' : 'No diff available' }}
@@ -521,6 +496,8 @@ import { useAppStore } from '@/stores/appStore'
 import { useAuthStore } from '@/stores/authStore'
 import type { ResourceInfo } from '@/types'
 import { syncedIconSVG, outOfSyncIconSVG, failedIconSVG } from '@/assets/icons'
+import DiffViewer from '@/components/clusters/DiffViewer.vue'
+import CodeEditor from '@/components/CodeEditor/CodeEditor.vue'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -635,139 +612,12 @@ const pageMCs = computed(() => {
 // Detail modal
 const detailModal = ref<ResourceInfo | null>(null)
 const detailTab = ref<'live' | 'diff' | 'error'>('live')
-const showIgnoredFields = ref(false)
 
-interface McRow {
-  lineNum: number | null
-  content: string
-  isPlaceholder: boolean
-  isDim: boolean
-}
-
-// Normalize a line for comparison: collapse leading whitespace to a single level
-// and strip trailing whitespace so indentation style differences don't create false diffs.
-function normalizeLine(s: string): string {
-  return s.trimEnd().replace(/^\s+/, ' ')
-}
-
-const ALWAYS_SHOW_META = /^\s+(namespace|id|type)\s*:/
-
-function buildMcRows(content: string, showMeta: boolean): McRow[] {
-  const text = (content || '').replace(/\\n/g, '\n')
-  const lines = text.split('\n')
-  let metaStart = -1
-  let metaEnd = lines.length
-  for (let i = 0; i < lines.length; i++) {
-    if (/^metadata:/.test(lines[i])) { metaStart = i; break }
-  }
-  if (metaStart >= 0) {
-    for (let j = metaStart + 1; j < lines.length; j++) {
-      if (lines[j].length > 0 && !/^\s/.test(lines[j])) { metaEnd = j; break }
-    }
-  }
-  const rows: McRow[] = []
-  let hiddenCount = 0
-  for (let i = 0; i < lines.length; i++) {
-    const isMeta = metaStart >= 0 && i >= metaStart && i < metaEnd
-    const isAlwaysShown = i === metaStart || ALWAYS_SHOW_META.test(lines[i])
-    if (isMeta && !isAlwaysShown && !showMeta) {
-      hiddenCount++
-      continue
-    }
-    if (hiddenCount > 0) {
-      rows.push({ lineNum: null, content: `(${hiddenCount} fields hidden)`, isPlaceholder: true, isDim: false })
-      hiddenCount = 0
-    }
-    rows.push({ lineNum: i + 1, content: lines[i], isPlaceholder: false, isDim: isMeta && !isAlwaysShown })
-  }
-  if (hiddenCount > 0) {
-    rows.push({ lineNum: null, content: `(${hiddenCount} fields hidden)`, isPlaceholder: true, isDim: false })
-  }
-  return rows
-}
-
-function extractDoc(content: string, id: string): string {
-  const text = (content || '').replace(/\\n/g, '\n')
-  const docs = text.split(/\n---/)
-  for (const d of docs) {
-    if (d.includes('id: ' + id)) return d
-  }
-  return text
-}
-
-const detailLiveRows = computed(() =>
-  buildMcRows(extractDoc(detailModal.value?.liveContent || '', detailModal.value?.id || ''), showIgnoredFields.value)
-)
-
-const detailDiffRows = computed(() => {
-  const id = detailModal.value?.id || ''
-  const live = extractDoc(detailModal.value?.liveContent || '', id)
-  const file = extractDoc(detailModal.value?.fileContent || '', id)
-  if (!live && !file) return []
-  // Always build with showMeta=false so server-injected metadata fields
-  // (version, owner, phase, etc.) are never included in the comparison
-  const lRows = buildMcRows(live, false).filter(r => !r.isPlaceholder)
-  const rRows = buildMcRows(file, false).filter(r => !r.isPlaceholder)
-  const lAligned: (McRow | null)[] = []
-  const rAligned: (McRow | null)[] = []
-  let li = 0, ri = 0
-  while (li < lRows.length || ri < rRows.length) {
-    const l = li < lRows.length ? lRows[li] : null
-    const r = ri < rRows.length ? rRows[ri] : null
-    if (l && l.isPlaceholder) {
-      lAligned.push(l); rAligned.push(null); li++
-    } else if (r && r.isPlaceholder) {
-      lAligned.push(null); rAligned.push(r); ri++
-    } else {
-      lAligned.push(l); rAligned.push(r)
-      if (l) li++; if (r) ri++
-    }
-  }
-  return lAligned.map((l, i) => {
-    const r = rAligned[i]
-    const changed = !!(
-      (l && !r) ||
-      (!l && r) ||
-      (l && r && !l.isPlaceholder && !r.isPlaceholder && normalizeLine(l.content) !== normalizeLine(r.content))
-    )
-    return { l, r, changed }
-  })
-})
-
-type DiffViewRow =
-  | { separator: true }
-  | { separator: false; seq: number; l: McRow | null; r: McRow | null; changed: boolean }
-
-const DIFF_CONTEXT = 2
-
-const detailDiffVisible = computed((): DiffViewRow[] => {
-  const rows = detailDiffRows.value
-  if (!rows.length) return []
-  const show = new Set<number>()
-  rows.forEach((row, i) => {
-    if (row.changed) {
-      for (let j = Math.max(0, i - DIFF_CONTEXT); j <= Math.min(rows.length - 1, i + DIFF_CONTEXT); j++) {
-        show.add(j)
-      }
-    }
-  })
-  if (!show.size) return []
-  const result: DiffViewRow[] = []
-  let lastShown = -1
-  let seq = 0
-  for (const i of Array.from(show).sort((a, b) => a - b)) {
-    if (lastShown >= 0 && i > lastShown + 1) result.push({ separator: true })
-    seq++
-    result.push({ separator: false, seq, ...rows[i] })
-    lastShown = i
-  }
-  return result
-})
+const detailLiveContentYaml = computed(() => (detailModal.value?.liveContent || '').replace(/\\n/g, '\n'))
 
 function openDetail(mc: ResourceInfo) {
   detailModal.value = mc
   detailTab.value = (mc.error || mc.lastSyncError) ? 'error' : mc.liveContent ? 'live' : 'diff'
-  showIgnoredFields.value = false
 }
 
 interface ConfirmModal {
