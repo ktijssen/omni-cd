@@ -19,6 +19,7 @@ import (
 	cosistate "github.com/cosi-project/runtime/pkg/state"
 	omnispec "github.com/siderolabs/omni/client/api/omni/specs"
 	"github.com/siderolabs/omni/client/pkg/client"
+	"github.com/siderolabs/omni/client/pkg/diff"
 	omniapi "github.com/siderolabs/omni/client/pkg/omni/resources/omni"
 	sysresources "github.com/siderolabs/omni/client/pkg/omni/resources/system"
 	"github.com/siderolabs/omni/client/pkg/template/operations"
@@ -317,7 +318,11 @@ func MachineClassDryRunPerID(file string) (map[string]MCDryRunResult, error) {
 			if specErr != nil {
 				results[id] = MCDryRunResult{Missing: true, Diff: fmt.Sprintf("+ new: %s %q", fileRes.Metadata().Type(), id)}
 			} else {
-				results[id] = MCDryRunResult{Missing: true, Diff: fmt.Sprintf("+ new: %s %q\n+++ desired\n%s", fileRes.Metadata().Type(), id, fileYAML)}
+				body, dErr := diff.Compute(nil, []byte(fileYAML))
+				if dErr != nil || body == "" {
+					body = fileYAML
+				}
+				results[id] = MCDryRunResult{Missing: true, Diff: fmt.Sprintf("--- /dev/null\n+++ %s\n%s", resource.String(fileRes), body)}
 			}
 			continue
 		}
@@ -332,8 +337,11 @@ func MachineClassDryRunPerID(file string) (map[string]MCDryRunResult, error) {
 			continue
 		}
 		if fileSpec != liveSpec {
-			results[id] = MCDryRunResult{Diff: fmt.Sprintf("~ changed: %s %q\n--- live\n%s\n+++ desired\n%s",
-				fileRes.Metadata().Type(), id, liveSpec, fileSpec)}
+			body, dErr := diff.Compute([]byte(liveSpec), []byte(fileSpec))
+			if dErr != nil || body == "" {
+				body = fmt.Sprintf("--- live\n%s\n+++ desired\n%s", liveSpec, fileSpec)
+			}
+			results[id] = MCDryRunResult{Diff: fmt.Sprintf("--- %s\n+++ %s\n%s", resource.String(liveRes), resource.String(fileRes), body)}
 		} else {
 			results[id] = MCDryRunResult{} // in sync
 		}
