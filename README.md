@@ -58,6 +58,15 @@ Open `http://localhost:8080` — you will be redirected to `/setup` to create th
 
 ---
 
+## Compatibility
+
+|                | Omni 1.8 | Omni 1.9 | Omni 1.10 | Omni 1.11 |
+| -------------- | -------- | -------- | --------- | --------- |
+| Omni CD v0.5.x | ✓        | ✓        | ✓         |           |
+| Omni CD v0.6.x |          |          |           | ✓         |
+
+---
+
 ## Documentation
 
 | | |

@@ -1,10 +1,11 @@
 <template>
   <div class="diff-viewer">
-    <span
+    <div
       v-for="(line, i) in lines"
       :key="i"
+      class="diff-line"
       :class="lineClass(line)"
-    >{{ line }}<br /></span>
+    >{{ line }}</div>
   </div>
 </template>
 
@@ -21,6 +22,7 @@ function lineClass(line: string) {
   if (line.startsWith('+') && !line.startsWith('+++')) return 'diff-add'
   if (line.startsWith('-') && !line.startsWith('---')) return 'diff-del'
   if (line.startsWith('@@') || line.startsWith('---') || line.startsWith('+++')) return 'diff-hdr'
+  if (line.startsWith('#')) return 'diff-comment'
   return ''
 }
 </script>
