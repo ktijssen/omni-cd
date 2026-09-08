@@ -397,24 +397,25 @@
   .cluster-pool-row-count { color: #e8e8e9; font-weight: 600; width: 20px; text-align: right; flex-shrink: 0; }
   .cluster-pool-row-mc { color: #7d7d85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: 11px; }
   .diff-viewer {
+    height: 100%;
+    overflow-y: auto;
     background: #13141c;
-    border-top: 1px solid #2c2e38;
     padding: 12px 20px;
     font-family: 'Roboto Mono', 'SF Mono', 'Fira Code', monospace;
     font-size: 12px;
     line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-all;
-    max-height: none;
-    overflow-y: visible;
     color: #9fa1a6;
   }
   .diff-viewer::-webkit-scrollbar { width: 6px; }
   .diff-viewer::-webkit-scrollbar-track { background: #13141c; }
   .diff-viewer::-webkit-scrollbar-thumb { background: #2c2e38; border-radius: 3px; }
+  .diff-line { padding: 1px 0; }
   .diff-add { color: #4ade80; }
   .diff-del { color: #f87171; }
   .diff-hdr { color: #60a5fa; }
+  .diff-comment { color: #5b5c64; }
   .sbs-block { margin-bottom: 16px; }
   .sbs-table { display: grid; grid-template-columns: 1fr 1fr; column-gap: 1px; background: #2c2e38; border-radius: 4px; overflow: hidden; border: 1px solid #2c2e38; }
   .sbs-col-hdr { padding: 4px 10px; background: #15161e; color: #7d7d85; font-size: 11px; border-bottom: 1px solid #2c2e38; }
@@ -436,6 +437,11 @@
   .sbs-meta-dim { opacity: 0.45; }
   .sbs-ignored { color: #5b5c64; font-style: italic; }
   .sbs-hunk-hdr { background: #13141c; color: #5b5c64; font-size: 11px; }
+  .yaml-key { color: #7dd3fc; }
+  .yaml-str { color: #ffa657; }
+  .yaml-bool, .yaml-num, .yaml-null { color: #79c0ff; }
+  .yaml-comment { color: #6b7280; font-style: italic; }
+  .yaml-punct { color: #c9d1d9; }
 
 
   .logs-page { display:flex; flex-direction:column; height:100%; }
@@ -873,6 +879,11 @@
   .dag-node-kind { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:#5b5c64; margin-bottom:2px; }
   .dag-node-name { font-size:13px; font-weight:600; color:#e8e8e9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .dag-node-meta { font-size:10px; color:#7d7d85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+  .dag-node-overflow { border-style:dashed; border-color:#3a3d4a; }
+  .dag-node-overflow:hover { border-color:#ff8b59; }
+  .dag-node-overflow .dag-node-body { align-items:center; text-align:center; }
+  .dag-node-overflow .dag-node-kind { color:#9fa1a6; font-size:12px; text-transform:none; letter-spacing:normal; }
+  .dag-node-overflow .dag-node-name { color:#ff8b59; font-weight:500; }
   /* Extension edge highlight states */
   .dag-node { transition: opacity 0.15s, box-shadow 0.15s, border-color 0.3s; }
   .mach-fade-enter-active, .mach-fade-leave-active { transition: opacity 0.25s ease; }
@@ -890,6 +901,10 @@
   .ext-edge.ext-hl-faded { opacity: 0.06; }
   .ext-arrow.ext-hl-faded { opacity: 0.06; }
   .dag-node-badges { display:flex; gap:3px; margin-top:5px; flex-wrap:wrap; }
+
+  .manifest-graph { white-space:normal; word-break:normal; display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
+  .manifest-graph .cluster-graph-toolbar { padding:10px 16px 0; }
+  .manifest-graph-canvas { flex:1; overflow:auto; padding:20px 24px; cursor:grab; user-select:none; }
 
   /* Pagination */
   .pagination {
@@ -1185,7 +1200,10 @@
   .cluster-detail-body { flex:1; min-height:0; overflow-y:auto; font-size:13px; line-height:1.6; color:#e8e8e9; white-space:pre-wrap; word-break:break-all; }
   .cluster-detail-body .sbs-cell, .cluster-detail-body .sbs-ln { font-family:'SF Mono','Fira Code',monospace; }
   .cluster-detail-body.graph-mode { padding:0; overflow:hidden; display:flex; flex-direction:column; white-space:normal; word-break:normal; }
-  .cluster-detail-body.mc-live-mode { white-space:normal; word-break:normal; }
+  .cluster-detail-body.mc-live-mode { padding:0; overflow:hidden; display:flex; flex-direction:column; white-space:normal; word-break:normal; }
+  .cluster-detail-body.diff-mode { padding:0; overflow:hidden; display:flex; flex-direction:column; white-space:normal; word-break:normal; }
+  .cluster-detail-body.manifests-graph-mode { padding:0; overflow:hidden; display:flex; flex-direction:column; white-space:normal; word-break:normal; }
+  .cluster-detail-body.manifests-graph-mode > div { display:flex; flex-direction:column; flex:1; min-height:0; }
   .cluster-detail-body::-webkit-scrollbar { width:8px; }
   .cluster-detail-body::-webkit-scrollbar-track { background:#101118; }
   .cluster-detail-body::-webkit-scrollbar-thumb { background:#2c2e38; border-radius:4px; }

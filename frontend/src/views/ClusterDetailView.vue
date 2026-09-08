@@ -129,6 +129,8 @@
       :class="{
         'graph-mode': activeTab === 'graph',
         'mc-live-mode': activeTab === 'template' && templateSubTab === 'live',
+        'diff-mode': activeTab === 'template' && templateSubTab === 'diff',
+        'manifests-graph-mode': activeTab === 'manifests' && manifestViewMode === 'graph',
       }"
     >
       <template v-if="activeTab === 'graph'">
@@ -143,35 +145,18 @@
         </div>
         <!-- Live sub-tab -->
         <template v-if="templateSubTab === 'live'">
-          <div v-if="cluster.liveContent" style="white-space:normal;word-break:normal;">
-            <div v-if="liveFolds.size > 0" style="display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:6px 14px;border-bottom:1px solid #2c2e38;background:#15161e;position:sticky;top:0;z-index:1;">
-              <button @click="expandAllFolds" class="btn-sort" style="font-size:11px;padding:2px 8px;">Expand all</button>
-              <button @click="collapseAllFolds" class="btn-sort" style="font-size:11px;padding:2px 8px;">Collapse all</button>
-            </div>
-            <div class="sbs-table-single">
-              <template v-for="(line, i) in liveContentLines" :key="i">
-                <div
-                  v-if="!hiddenLines.has(i)"
-                  class="sbs-cell"
-                  style="display:flex;align-items:baseline;padding-left:4px;"
-                  :style="liveFolds.has(i) ? { cursor: 'pointer' } : {}"
-                  @click="liveFolds.has(i) && toggleFold(i)"
-                >
-                  <span style="width:14px;flex-shrink:0;font-size:9px;text-align:center;user-select:none;color:#ff8b59;">
-                    <template v-if="liveFolds.has(i)">{{ collapsedFolds.has(i) ? '▶' : '▼' }}</template>
-                  </span>
-                  <span class="sbs-ln" :style="{ minWidth: lineNumberWidth, textAlign: 'right', display: 'inline-block' }">{{ i + 1 }}.</span>
-                  <span style="white-space:pre;flex:1;">{{ line }}</span>
-                  <span v-if="liveFolds.has(i) && collapsedFolds.has(i)" style="color:#5b5c64;font-size:11px;padding-left:10px;flex-shrink:0;">··· {{ liveFolds.get(i)!.lineCount }} lines</span>
-                </div>
-              </template>
-            </div>
-          </div>
+          <CodeEditor
+            v-if="cluster.liveContent"
+            :model-value="liveContentYaml"
+            language="yaml"
+            :read-only="true"
+            style="flex:1;min-height:0;"
+          />
           <div v-else style="color:#7d7d85;text-align:center;padding:40px;font-size:14px;">No live state available</div>
         </template>
         <!-- Diff sub-tab -->
         <template v-else>
-          <div v-if="cluster.diff">
+          <div v-if="cluster.diff" style="flex:1;min-height:0;">
             <DiffViewer :diff="cluster.diff" />
           </div>
           <div v-else style="color:#7d7d85;text-align:center;padding:40px;font-size:14px;">
@@ -197,29 +182,57 @@
               </span>
               <span v-if="manifestStatus.outOfSync > 0" style="font-size:13px;color:#fb923c;">Out of Sync: <span style="font-weight:600;">{{ manifestStatus.outOfSync }}</span></span>
               <span v-if="manifestStatus.lastError" style="font-size:12px;color:#f87171;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="manifestStatus.lastError">⚠ {{ manifestStatus.lastError }}</span>
+              <input
+                v-model="manifestFilterText"
+                type="text"
+                placeholder="Filter by name, kind, namespace…"
+                style="background:#13141c;border:1px solid #2c2e38;border-radius:6px;color:#e8e8e9;font-size:12px;padding:6px 10px;width:220px;flex-shrink:0;"
+              />
+              <select
+                v-model="manifestFilterPhase"
+                style="background:#13141c;border:1px solid #2c2e38;border-radius:6px;color:#e8e8e9;font-size:12px;padding:6px 8px;flex-shrink:0;"
+              >
+                <option value="">All phases</option>
+                <option value="applied">Applied</option>
+                <option value="progressing">Progressing</option>
+                <option value="pending">Pending</option>
+                <option value="deleting">Deleting</option>
+              </select>
+              <div style="display:flex;gap:0;flex-shrink:0;margin-left:auto;">
+                <button class="cluster-detail-tab" :class="{ active: manifestViewMode === 'list' }" @click="manifestViewMode = 'list'">List</button>
+                <button class="cluster-detail-tab" :class="{ active: manifestViewMode === 'graph' }" @click="manifestViewMode = 'graph'">Graph</button>
+              </div>
             </div>
             <!-- No groups -->
-            <div v-if="Object.keys(manifestStatus.groups).length === 0" style="text-align:center;color:#7d7d85;padding:32px;font-size:13px;">
-              No manifest groups found for this cluster.
+            <div v-if="Object.keys(filteredManifestGroups).length === 0" style="text-align:center;color:#7d7d85;padding:32px;font-size:13px;">
+              {{ manifestFilterActive ? 'No manifests match the current filter.' : 'No manifest groups found for this cluster.' }}
             </div>
-            <!-- Groups -->
-            <template v-for="(group, groupName) in manifestStatus.groups" :key="groupName">
-              <!-- Group row -->
-              <div
-                @click="toggleManifestGroup(groupName as string)"
-                style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 24px;border-bottom:1px solid #1f222e;user-select:none;"
-              >
-                <span style="font-size:10px;color:#5b5c64;flex-shrink:0;width:10px;">{{ expandedGroups.has(groupName as string) ? '▼' : '▶' }}</span>
-                <span style="font-size:13px;font-weight:500;color:#e8e8e9;font-family:'Roboto Mono','SF Mono','Fira Code',monospace;flex-shrink:0;">{{ groupName }}</span>
-                <span style="font-size:13px;color:#5b5c64;flex-shrink:0;">·</span>
-                <span style="font-size:13px;font-weight:500;flex-shrink:0;" :style="{ color: manifestPhaseColorStr(group.phase) }">{{ manifestPhaseName(group.phase) }}</span>
-                <span style="font-size:13px;color:#5b5c64;flex-shrink:0;">·</span>
-                <span style="font-size:13px;color:#7d7d85;flex-shrink:0;">Mode: <span style="color:#c4c4c9;">{{ group.mode === 'one-time' ? 'One-Time' : 'Full' }}</span></span>
-                <span style="font-size:13px;color:#5b5c64;flex-shrink:0;">·</span>
-                <span style="font-size:13px;color:#7d7d85;flex-shrink:0;">{{ manifestSyncCount(group) }}/{{ Object.keys(group.manifests).length }} in sync</span>
-              </div>
-              <!-- Manifest table -->
-              <table v-if="expandedGroups.has(groupName as string)" class="audit-table" style="table-layout:fixed;width:100%;">
+            <!-- Graph mode: all groups in a single canvas -->
+            <ManifestsGraph
+              v-else-if="manifestViewMode === 'graph'"
+              :groups="filteredManifestGroups"
+              :force-expand="manifestFilterActive"
+              @show-full-group="onShowFullManifestGroup"
+            />
+            <!-- List mode: one section per group -->
+            <template v-else>
+              <template v-for="(group, groupName) in filteredManifestGroups" :key="groupName">
+                <!-- Group row -->
+                <div
+                  @click="toggleManifestGroup(groupName as string)"
+                  style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 24px;border-bottom:1px solid #1f222e;user-select:none;"
+                >
+                  <span style="font-size:10px;color:#5b5c64;flex-shrink:0;width:10px;">{{ expandedGroups.has(groupName as string) ? '▼' : '▶' }}</span>
+                  <span style="font-size:13px;font-weight:500;color:#e8e8e9;font-family:'Roboto Mono','SF Mono','Fira Code',monospace;flex-shrink:0;">{{ groupName }}</span>
+                  <span style="font-size:13px;color:#5b5c64;flex-shrink:0;">·</span>
+                  <span style="font-size:13px;font-weight:500;flex-shrink:0;" :style="{ color: manifestPhaseColorStr(group.phase) }">{{ manifestPhaseName(group.phase) }}</span>
+                  <span style="font-size:13px;color:#5b5c64;flex-shrink:0;">·</span>
+                  <span style="font-size:13px;color:#7d7d85;flex-shrink:0;">Mode: <span style="color:#c4c4c9;">{{ group.mode === 'one-time' ? 'One-Time' : 'Full' }}</span></span>
+                  <span style="font-size:13px;color:#5b5c64;flex-shrink:0;">·</span>
+                  <span style="font-size:13px;color:#7d7d85;flex-shrink:0;">{{ manifestSyncCount(group) }}/{{ Object.keys(group.manifests).length }} in sync</span>
+                </div>
+                <!-- Manifest table -->
+                <table v-if="expandedGroups.has(groupName as string)" class="audit-table" style="table-layout:fixed;width:100%;">
                 <colgroup>
                   <col style="width:20%" />
                   <col style="width:40%" />
@@ -244,7 +257,8 @@
                     <td style="text-align:right;white-space:nowrap;font-weight:500;" :style="{ color: manifestPhaseColorStr(m.phase) }">{{ manifestPhaseName(m.phase) }}</td>
                   </tr>
                 </tbody>
-              </table>
+                </table>
+              </template>
             </template>
           </template>
           <div v-else style="text-align:center;padding:60px 24px;">
@@ -309,8 +323,10 @@ import { useAppStore } from '@/stores/appStore'
 import { useAuthStore } from '@/stores/authStore'
 import ClusterGraph from '@/components/clusters/ClusterGraph.vue'
 import DiffViewer from '@/components/clusters/DiffViewer.vue'
+import ManifestsGraph from '@/components/clusters/ManifestsGraph.vue'
 import { syncedIconSVG, outOfSyncIconSVG, failedIconSVG } from '@/assets/icons'
-import type { ClusterManifestStatus, ManifestGroupStatus } from '@/types'
+import type { ClusterManifestStatus, ManifestGroupStatus, ManifestStatus } from '@/types'
+import CodeEditor from '@/components/CodeEditor/CodeEditor.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -332,6 +348,37 @@ const manifestStatus = ref<ClusterManifestStatus | null>(null)
 const manifestsLoading = ref(false)
 const manifestsError = ref('')
 const expandedGroups = ref<Set<string>>(new Set())
+const manifestViewMode = ref<'list' | 'graph'>('list')
+const manifestFilterText = ref('')
+const manifestFilterPhase = ref('')
+
+const manifestFilterActive = computed(() => manifestFilterText.value.trim() !== '' || manifestFilterPhase.value !== '')
+
+const filteredManifestGroups = computed<Record<string, ManifestGroupStatus>>(() => {
+  if (!manifestStatus.value) return {}
+  if (!manifestFilterActive.value) return manifestStatus.value.groups
+  const text = manifestFilterText.value.trim().toLowerCase()
+  const result: Record<string, ManifestGroupStatus> = {}
+  for (const [name, group] of Object.entries(manifestStatus.value.groups)) {
+    const manifests: Record<string, ManifestStatus> = {}
+    for (const [key, m] of Object.entries(group.manifests)) {
+      if (manifestFilterPhase.value && m.phase !== manifestFilterPhase.value) continue
+      if (text && !`${m.kind} ${m.name} ${m.namespace}`.toLowerCase().includes(text)) continue
+      manifests[key] = m
+    }
+    if (Object.keys(manifests).length > 0) result[name] = { ...group, manifests }
+  }
+  return result
+})
+
+watch(filteredManifestGroups, (groups) => {
+  if (manifestFilterActive.value) expandedGroups.value = new Set(Object.keys(groups))
+})
+
+function onShowFullManifestGroup(name: string) {
+  manifestViewMode.value = 'list'
+  expandedGroups.value.add(name)
+}
 
 async function loadManifests() {
   const id = cluster.value?.id
@@ -524,67 +571,7 @@ const lastSyncResultTooltip = computed(() => {
   return parts.join('\n')
 })
 
-const liveContentLines = computed(() => {
-  const content = cluster.value?.liveContent || ''
-  return content.replace(/\\n/g, '\n').split('\n')
-})
-
-interface LiveFoldInfo { bodyStart: number; bodyEnd: number; lineCount: number }
-
-const liveFolds = computed((): Map<number, LiveFoldInfo> => {
-  const lines = liveContentLines.value
-  const folds = new Map<number, LiveFoldInfo>()
-  for (let i = 0; i < lines.length; i++) {
-    // Bare YAML key with no inline value at any indentation level
-    const m = lines[i].match(/^(\s*)[a-zA-Z][\w.-]*:\s*$/)
-    if (!m) continue
-    const indent = m[1].length
-    // Peek at the next non-empty line — must be more indented than this key
-    let peek = i + 1
-    while (peek < lines.length && lines[peek].trim() === '') peek++
-    if (peek >= lines.length || lines[peek].trim() === '---') continue
-    const peekIndent = (lines[peek].match(/^(\s*)/) ?? ['', ''])[1].length
-    if (peekIndent <= indent) continue
-    // Scan to end of body: first non-empty line at same or lesser indentation
-    let end = i + 1
-    while (end < lines.length) {
-      const l = lines[end]
-      if (l.trim() === '---') break
-      if (l.trim() !== '' && (l.match(/^(\s*)/) ?? ['', ''])[1].length <= indent) break
-      end++
-    }
-    // Trim trailing blank lines
-    while (end > i + 1 && lines[end - 1].trim() === '') end--
-    if (end > i + 1) folds.set(i, { bodyStart: i + 1, bodyEnd: end, lineCount: end - i - 1 })
-  }
-  return folds
-})
-
-const collapsedFolds = ref<Set<number>>(new Set())
-
-const lineNumberWidth = computed(() => {
-  const digits = String(liveContentLines.value.length).length
-  return `${digits + 1}ch` // +1 for the trailing dot
-})
-
-const hiddenLines = computed((): Set<number> => {
-  const hidden = new Set<number>()
-  for (const [idx, fold] of liveFolds.value) {
-    if (collapsedFolds.value.has(idx)) {
-      for (let i = fold.bodyStart; i < fold.bodyEnd; i++) hidden.add(i)
-    }
-  }
-  return hidden
-})
-
-watch(() => cluster.value?.id, () => { collapsedFolds.value = new Set() })
-
-function toggleFold(i: number) {
-  if (collapsedFolds.value.has(i)) collapsedFolds.value.delete(i)
-  else collapsedFolds.value.add(i)
-}
-function expandAllFolds() { collapsedFolds.value = new Set() }
-function collapseAllFolds() { collapsedFolds.value = new Set(liveFolds.value.keys()) }
+const liveContentYaml = computed(() => (cluster.value?.liveContent || '').replace(/\\n/g, '\n'))
 
 const omniClusterUrl = computed(() => {
   const ep = (state.value?.omniEndpoint || '').replace(/\/$/, '')

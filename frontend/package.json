@@ -10,16 +10,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "monaco-editor": "^0.56.0",
     "pinia": "^4.0.3",
-    "vue": "^3.5.41",
-    "vue-router": "^5.2.0"
+    "vue": "^3.5.42",
+    "vue-router": "^5.3.1"
   },
   "devDependencies": {
     "@typescript/typescript6": "^6.0.2",
     "@vitejs/plugin-vue": "^6.0.8",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
-    "vite": "^8.2.1",
-    "vue-tsc": "^3.3.9"
+    "vite": "^8.2.2",
+    "vue-tsc": "^3.3.11"
   }
 }
