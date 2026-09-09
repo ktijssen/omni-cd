@@ -100,7 +100,7 @@
           <button class="modal-close" @click="showLogFilesModal = false">&times;</button>
         </div>
         <div style="padding:16px 24px;min-height:80px">
-          <div v-if="logFilesLoading" style="color:#7d7d85;text-align:center;padding:24px">Loading...</div>
+          <div v-if="logFilesLoading" class="loading-hint"><span class="spinner"></span>Loading...</div>
           <table v-else-if="logFiles.length > 0" style="width:100%;border-collapse:collapse;font-size:12px">
             <thead>
               <tr>

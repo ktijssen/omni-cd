@@ -169,7 +169,7 @@
                 @click="setClusterFilter(def.key)"
               >{{ clusterStatusFilter === def.key ? '✓ ' : '\u00a0\u00a0 ' }}{{ def.label }}</button>
               <div v-if="activeSyncFilterCount > 0" class="cluster-list-menu-divider"></div>
-              <button v-if="activeSyncFilterCount > 0" class="cluster-list-menu-item" style="color:#9fa1a6" @click="clearSyncFilters(); activeDropdown = null">Clear filters</button>
+              <button v-if="activeSyncFilterCount > 0" class="cluster-list-menu-item text-muted" @click="clearSyncFilters(); activeDropdown = null">Clear filters</button>
             </div>
           </div>
           <div class="filter-dropdown-wrap">
@@ -216,7 +216,7 @@
         <div class="placeholder-title">No clusters found</div>
         <div class="placeholder-sub">Clusters defined in your git repo will appear here.</div>
       </div>
-      <div v-else-if="displayClusters.length === 0" style="padding:24px;color:#5b5c64">No clusters match the current filters</div>
+      <div v-else-if="displayClusters.length === 0" class="text-faint" style="padding:24px">No clusters match the current filters</div>
 
       <template v-else>
         <!-- Cluster grid -->
@@ -264,28 +264,28 @@
                   <span class="cluster-card-meta-label">Talos Version:</span>
                   <span class="cluster-card-meta-value">
                     <span v-if="cluster.talosVersion">{{ cluster.talosVersion }}</span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else class="text-faint">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Kubernetes Version:</span>
                   <span class="cluster-card-meta-value">
                     <span v-if="cluster.kubernetesVersion">{{ cluster.kubernetesVersion }}</span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else class="text-faint">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Repository:</span>
                   <span class="cluster-card-meta-value">
                     <span v-if="cluster.repoName">{{ cluster.repoName }}</span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else class="text-faint">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Branch:</span>
                   <span class="cluster-card-meta-value">
                     <span v-if="clusterRepo(cluster)?.branch">{{ clusterRepo(cluster)!.branch }}</span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else class="text-faint">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
@@ -293,9 +293,9 @@
                   <span class="cluster-card-meta-value">
                     <span v-if="!isZeroTime(cluster.createdAt)">
                       {{ fmtDateTime(cluster.createdAt) }}
-                      <span style="color:#7d7d85">({{ ago(cluster.createdAt) }})</span>
+                      <span class="text-dim">({{ ago(cluster.createdAt) }})</span>
                     </span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else class="text-faint">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
@@ -303,9 +303,9 @@
                   <span class="cluster-card-meta-value">
                     <span v-if="!isZeroTime(cluster.lastSyncTime)">
                       {{ fmtDateTime(cluster.lastSyncTime) }}
-                      <span style="color:#7d7d85">({{ ago(cluster.lastSyncTime) }})</span>
+                      <span class="text-dim">({{ ago(cluster.lastSyncTime) }})</span>
                     </span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else class="text-faint">—</span>
                   </span>
                 </div>
               </div>
@@ -407,8 +407,8 @@
               <td :style="{ color: healthColor(cluster) }" v-html="healthText(cluster)"></td>
               <td style="color:#c4c4c9">{{ cluster.talosVersion || '—' }}</td>
               <td style="color:#c4c4c9">{{ cluster.kubernetesVersion || '—' }}</td>
-              <td style="color:#9fa1a6">{{ cluster.repoName || '—' }}</td>
-              <td style="color:#9fa1a6">
+              <td class="text-muted">{{ cluster.repoName || '—' }}</td>
+              <td class="text-muted">
                 <span v-if="!isZeroTime(cluster.lastSyncTime)" :title="fmtDateTime(cluster.lastSyncTime)">{{ ago(cluster.lastSyncTime) }}</span>
                 <span v-else>—</span>
               </td>
@@ -468,7 +468,7 @@
 
     <!-- Select modal (Refresh / Sync) -->
     <div v-if="selectModal" class="modal show" @click.self="selectModal = null">
-      <div class="modal-content confirm-modal" style="width:520px;max-height:70vh;display:flex;flex-direction:column;" @click.stop>
+      <div class="modal-content confirm-modal confirm-modal--wide" @click.stop>
         <div class="modal-header">
           <div class="modal-title">
             {{ selectModal.type === 'refresh' ? 'Refresh Clusters' : 'Sync Clusters' }}

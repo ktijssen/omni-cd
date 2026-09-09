@@ -39,9 +39,9 @@
           <span v-else>—</span>
         </div>
         <div class="info-card-sub">
-          Branch: <b style="color:#9fa1a6">{{ repoBranch(rc.name) }}</b>
+          Branch: <b class="text-muted">{{ repoBranch(rc.name) }}</b>
           <template v-if="repoShortSha(rc.name)">
-            &nbsp;·&nbsp; SHA <b style="color:#9fa1a6">{{ repoShortSha(rc.name) }}</b>
+            &nbsp;·&nbsp; SHA <b class="text-muted">{{ repoShortSha(rc.name) }}</b>
           </template>
           <template v-if="rc.hasToken">
             &nbsp;·&nbsp; <span style="color:#4ade80;font-size:11px">🔑 token set</span>
@@ -52,7 +52,7 @@
           <br />
           <template v-if="repoCommitMessage(rc.name)">{{ repoCommitMessage(rc.name) }}<br /></template>
           <template v-if="repoLastSync(rc.name)">Last sync: {{ ago(repoLastSync(rc.name)) }}</template>
-          <span v-else style="color:#5b5c64">Never synced</span>
+          <span v-else class="text-faint">Never synced</span>
         </div>
 
         <!-- Test result -->
@@ -107,11 +107,11 @@
       <div class="repo-modal-box">
         <div class="repo-modal-title">{{ editingRepo ? 'Edit Repository' : 'Add Repository' }}</div>
         <div class="repo-form-group">
-          <label class="repo-form-label">Name <span style="color:#f87171">*</span></label>
+          <label class="repo-form-label">Name <span class="text-danger">*</span></label>
           <input v-model="repoForm.name" class="repo-form-input" :disabled="!!editingRepo" placeholder="my-repo" />
         </div>
         <div class="repo-form-group">
-          <label class="repo-form-label">URL <span style="color:#f87171">*</span></label>
+          <label class="repo-form-label">URL <span class="text-danger">*</span></label>
           <input v-model="repoForm.url" class="repo-form-input" placeholder="https://github.com/org/repo.git" />
         </div>
         <div class="repo-form-group">

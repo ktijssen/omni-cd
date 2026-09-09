@@ -21,10 +21,10 @@
           </div>
           <div class="info-card-value">
             <a v-if="state?.omniEndpoint" :href="state.omniEndpoint" target="_blank" style="color:#ff8b59;text-decoration:none">{{ state.omniEndpoint }}</a>
-            <span v-else style="color:#7d7d85">Not configured</span>
+            <span v-else class="text-dim">Not configured</span>
           </div>
           <div class="info-card-sub">
-            <span v-if="state?.omniConfigured">Version: <b style="color:#9fa1a6">{{ state.omniVersion || '?' }}</b></span>
+            <span v-if="state?.omniConfigured">Version: <b class="text-muted">{{ state.omniVersion || '?' }}</b></span>
           </div>
           <div v-if="testResult" :style="testResultStyle" style="font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;">{{ testResult }}</div>
           <div v-if="authStore.isAdmin()" class="info-card-actions">
@@ -50,7 +50,7 @@
       <div class="repo-modal-box">
         <div class="repo-modal-title">{{ isEdit ? 'Edit Omni Instance' : 'Add Omni Instance' }}</div>
         <div class="repo-form-group">
-          <label class="repo-form-label">Endpoint URL <span v-if="!isEdit" style="color:#f87171">*</span></label>
+          <label class="repo-form-label">Endpoint URL <span v-if="!isEdit" class="text-danger">*</span></label>
           <input class="repo-form-input" v-model="form.endpoint" type="text" placeholder="https://your-omni-instance.example.com" :disabled="isEdit" :style="isEdit ? { opacity: '0.5', cursor: 'not-allowed' } : {}" />
           <div v-if="isEdit" style="font-size:11px;color:#7d7d85;margin-top:4px;">Endpoint cannot be changed — delete the instance to use a different URL</div>
         </div>

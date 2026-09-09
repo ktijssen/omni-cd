@@ -50,7 +50,7 @@
                 @click="toggleFilter(f.key)"
               >{{ activeFilters.has(f.key) ? '✓ ' : '\u00a0\u00a0 ' }}{{ f.label }}</button>
               <div v-if="activeFilterCount > 0" class="cluster-list-menu-divider"></div>
-              <button v-if="activeFilterCount > 0" class="cluster-list-menu-item" style="color:#9fa1a6" @click="clearFilters(); activeDropdown = null">Clear filters</button>
+              <button v-if="activeFilterCount > 0" class="cluster-list-menu-item text-muted" @click="clearFilters(); activeDropdown = null">Clear filters</button>
             </div>
           </div>
           <div class="filter-dropdown-wrap">
@@ -134,7 +134,7 @@
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Sync Status:</span>
                   <span class="cluster-card-meta-value">
-                    <span v-if="mc.status === 'unmanaged'" style="color:#5b5c64">—</span>
+                    <span v-if="mc.status === 'unmanaged'" class="text-faint">—</span>
                     <span v-else :style="{ color: syncStatusColor(mc) }" v-html="syncStatusText(mc)"></span>
                   </span>
                 </div>
@@ -157,28 +157,28 @@
                   <span class="cluster-card-meta-label">Repository:</span>
                   <span class="cluster-card-meta-value">
                     <span v-if="mc.repoName">{{ mc.repoName }}</span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else class="text-faint">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Branch:</span>
                   <span class="cluster-card-meta-value">
                     <span v-if="mcRepoBranch(mc)">{{ mcRepoBranch(mc) }}</span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else class="text-faint">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Created At:</span>
                   <span class="cluster-card-meta-value">
-                    <span v-if="isZeroTime(mc.createdAt)" style="color:#5b5c64">—</span>
-                    <span v-else>{{ fmtDateTime(mc.createdAt) }} <span style="color:#7d7d85">({{ ago(mc.createdAt) }})</span></span>
+                    <span v-if="isZeroTime(mc.createdAt)" class="text-faint">—</span>
+                    <span v-else>{{ fmtDateTime(mc.createdAt) }} <span class="text-dim">({{ ago(mc.createdAt) }})</span></span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Last Sync:</span>
                   <span class="cluster-card-meta-value">
-                    <span v-if="isZeroTime(mc.lastSyncTime)" style="color:#5b5c64">—</span>
-                    <span v-else>{{ fmtDateTime(mc.lastSyncTime) }} <span style="color:#7d7d85">({{ ago(mc.lastSyncTime) }})</span></span>
+                    <span v-if="isZeroTime(mc.lastSyncTime)" class="text-faint">—</span>
+                    <span v-else>{{ fmtDateTime(mc.lastSyncTime) }} <span class="text-dim">({{ ago(mc.lastSyncTime) }})</span></span>
                   </span>
                 </div>
               </div>
@@ -298,11 +298,11 @@
                 {{ mc.status === 'unmanaged' ? 'Unmanaged' : 'Managed' }}
               </td>
               <td>
-                <span v-if="mc.status === 'unmanaged'" style="color:#5b5c64">—</span>
+                <span v-if="mc.status === 'unmanaged'" class="text-faint">—</span>
                 <span v-else :style="{ color: syncStatusColor(mc) }" v-html="syncStatusText(mc)"></span>
               </td>
               <td>
-                <span v-if="clustersUsingMC(mc.id).length === 0" style="color:#5b5c64">—</span>
+                <span v-if="clustersUsingMC(mc.id).length === 0" class="text-faint">—</span>
                 <span v-else class="mc-used-by" style="flex-wrap:wrap;gap:3px">
                   <span
                     v-for="cid in clustersUsingMC(mc.id).slice(0, 3)"
@@ -313,8 +313,8 @@
                   <span v-if="clustersUsingMC(mc.id).length > 3" style="color:#7d7d85;font-size:11px">+{{ clustersUsingMC(mc.id).length - 3 }} more</span>
                 </span>
               </td>
-              <td style="color:#9fa1a6">{{ mc.repoName || '—' }}</td>
-              <td style="color:#9fa1a6">
+              <td class="text-muted">{{ mc.repoName || '—' }}</td>
+              <td class="text-muted">
                 <span v-if="!isZeroTime(mc.lastSyncTime)" :title="fmtDateTime(mc.lastSyncTime)">{{ ago(mc.lastSyncTime) }}</span>
                 <span v-else>—</span>
               </td>
@@ -377,12 +377,12 @@
     <!-- Detail modal: Live / Diff -->
     <div v-if="detailModal" class="repo-modal-wrap show" @click.self="detailModal = null">
       <div class="repo-modal-box" style="width:1000px;max-width:95vw;height:90vh;display:flex;flex-direction:column;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-          <div class="repo-modal-title" style="margin-bottom:0">{{ detailModal.id }}</div>
-          <button class="btn-omni" @click="detailModal = null" style="padding:2px 10px;font-size:13px;">✕</button>
+        <div class="repo-modal-header">
+          <div class="repo-modal-title">{{ detailModal.id }}</div>
+          <button class="repo-modal-close" @click="detailModal = null">✕</button>
         </div>
         <!-- Tabs -->
-        <div class="cluster-detail-tabs-bar" style="margin:0 -24px 12px;padding:0 16px;background:#1f222e;">
+        <div class="cluster-detail-tabs-bar" style="margin:0 -24px 12px;padding:0 16px;background:var(--bg-panel);">
           <button
             v-for="tab in ((detailModal.error || detailModal.lastSyncError) ? ['live','diff','error'] : ['live','diff'])"
             :key="tab"
@@ -406,13 +406,13 @@
               :read-only="true"
               style="flex:1;min-height:0;"
             />
-            <div v-else style="color:#7d7d85;text-align:center;padding:40px;">No live state available</div>
+            <div v-else class="empty-hint">No live state available</div>
           </template>
           <template v-else>
             <div v-if="detailModal.diff" style="flex:1;min-height:0;overflow-y:auto;">
               <DiffViewer :diff="detailModal.diff" />
             </div>
-            <div v-else style="color:#7d7d85;text-align:center;padding:40px;">
+            <div v-else class="empty-hint">
               {{ detailModal.status === 'unmanaged' ? 'No diff — this machine class is not managed by Git.' : (detailModal.status === 'success' || detailModal.status === 'applied') ? 'No diff — this machine class is in sync.' : 'No diff available' }}
             </div>
           </template>
@@ -422,7 +422,7 @@
 
     <!-- Select modal (global Refresh / Sync) -->
     <div v-if="selectModal" class="modal show" @click.self="selectModal = null">
-      <div class="modal-content confirm-modal" style="width:520px;max-height:70vh;display:flex;flex-direction:column;" @click.stop>
+      <div class="modal-content confirm-modal confirm-modal--wide" @click.stop>
         <div class="modal-header">
           <div class="modal-title">
             {{ selectModal.type === 'refresh' ? 'Refresh Machine Classes' : 'Sync Machine Classes' }}

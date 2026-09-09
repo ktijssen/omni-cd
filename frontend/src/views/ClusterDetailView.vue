@@ -152,14 +152,14 @@
             :read-only="true"
             style="flex:1;min-height:0;"
           />
-          <div v-else style="color:#7d7d85;text-align:center;padding:40px;font-size:14px;">No live state available</div>
+          <div v-else class="empty-hint">No live state available</div>
         </template>
         <!-- Diff sub-tab -->
         <template v-else>
           <div v-if="cluster.diff" style="flex:1;min-height:0;">
             <DiffViewer :diff="cluster.diff" />
           </div>
-          <div v-else style="color:#7d7d85;text-align:center;padding:40px;font-size:14px;">
+          <div v-else class="empty-hint">
             {{ cluster.status === 'unmanaged' ? 'Cluster template exists in Omni but is not managed by OmniCD.' : 'No diff available' }}
           </div>
         </template>
@@ -167,7 +167,7 @@
 
       <template v-else-if="activeTab === 'manifests'">
         <div style="white-space:normal;word-break:normal;font-family:Roboto,sans-serif;">
-          <div v-if="manifestsLoading" style="text-align:center;padding:40px;color:#7d7d85;">
+          <div v-if="manifestsLoading" class="empty-hint">
             <span class="spinner" style="width:16px;height:16px;"></span> Loading manifest status…
           </div>
           <div v-else-if="manifestsError" style="padding:16px 24px;">
@@ -476,11 +476,11 @@ const clusterRepo = computed(() => {
 
 const machinesBadge = computed(() => {
   const c = cluster.value
-  if (!c) return '<span style="color:#5b5c64">—</span>'
+  if (!c) return '<span class="text-faint">—</span>'
   const healthy = c.machinesHealthy || 0
   const total = c.machinesTotal || 0
-  if (total === 0) return '<span style="color:#5b5c64">—</span>'
-  if (healthy === total) return `<span style="color:#4ade80">${healthy} / ${total}</span>`
+  if (total === 0) return '<span class="text-faint">—</span>'
+  if (healthy === total) return `<span class="text-success">${healthy} / ${total}</span>`
   return `<span style="color:#fb923c">${healthy} / ${total}</span>`
 })
 
@@ -489,10 +489,10 @@ const repoMessage = computed(() => clusterRepo.value?.commitMessage || '')
 
 const syncStatusBadge = computed(() => {
   const c = cluster.value
-  if (!c) return '<span style="color:#5b5c64">—</span>'
+  if (!c) return '<span class="text-faint">—</span>'
   const repo = clusterRepo.value
   const repoDisconnected = !!(repo && repo.syncError)
-  if (c.status === 'unmanaged') return '<span style="color:#5b5c64">—</span>'
+  if (c.status === 'unmanaged') return '<span class="text-faint">—</span>'
   if (repoDisconnected) return '<span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span>'
   const branchSha = repo
     ? ((repo.branch || '') + (repo.shortSha ? ' (' + repo.shortSha + ')' : ''))
@@ -506,7 +506,7 @@ const syncStatusBadge = computed(() => {
     : ''
   const hasSyncError = !!(c.error || c.lastSyncError)
   const badge = ((c.status === 'outofsync' || c.status === 'missing') && hasSyncError)
-    ? `<span style="color:#f87171">${failedIconSVG} Sync Failed</span>`
+    ? `<span class="text-danger">${failedIconSVG} Sync Failed</span>`
     : syncBadge(c.status || '')
   return branchShaHtml ? badge + ' from ' + branchShaHtml : badge
 })
@@ -529,9 +529,9 @@ const syncStatusTooltip = computed(() => {
 
 const lastSyncResultBadge = computed(() => {
   const c = cluster.value
-  if (!c) return '<span style="color:#5b5c64">—</span>'
-  if (c.status === 'unmanaged') return '<span style="color:#5b5c64">—</span>'
-  if (!c.lastSyncResult) return '<span style="color:#5b5c64">—</span>'
+  if (!c) return '<span class="text-faint">—</span>'
+  if (c.status === 'unmanaged') return '<span class="text-faint">—</span>'
+  if (!c.lastSyncResult) return '<span class="text-faint">—</span>'
   const repo = clusterRepo.value
   const repoUrl = repo?.repo ? repo.repo.replace(/\/+$/, '') : ''
   const shortSHA = c.lastSyncSHA ? c.lastSyncSHA.slice(0, 8) : ''
@@ -541,9 +541,9 @@ const lastSyncResultBadge = computed(() => {
         : `<span style="color:#ff8b59">${escHtml(shortSHA)}</span>`)
     : ''
   if (c.lastSyncResult === 'ok') {
-    return `<span style="color:#4ade80">${syncedIconSVG} Sync OK</span>${shaHtml}`
+    return `<span class="text-success">${syncedIconSVG} Sync OK</span>${shaHtml}`
   }
-  return `<span style="color:#f87171">${failedIconSVG} Sync Failed</span>`
+  return `<span class="text-danger">${failedIconSVG} Sync Failed</span>`
 })
 
 const lastSyncDateStr = computed(() => {
@@ -579,32 +579,32 @@ const omniClusterUrl = computed(() => {
 })
 
 function cpBadge(val?: string): string {
-  if (val === 'ready') return `<span style="color:#4ade80">${syncedIconSVG} Ready</span>`
-  if (val === 'not-ready') return `<span style="color:#f87171">${failedIconSVG} Not Ready</span>`
-  return '<span style="color:#5b5c64">—</span>'
+  if (val === 'ready') return `<span class="text-success">${syncedIconSVG} Ready</span>`
+  if (val === 'not-ready') return `<span class="text-danger">${failedIconSVG} Not Ready</span>`
+  return '<span class="text-faint">—</span>'
 }
 function statusBadge(val?: string): string {
-  if (val === 'ok' || val === 'ready') return `<span style="color:#4ade80">${syncedIconSVG} OK</span>`
-  if (val === 'not-ready') return `<span style="color:#f87171">${failedIconSVG} Not Ready</span>`
-  return '<span style="color:#5b5c64">—</span>'
+  if (val === 'ok' || val === 'ready') return `<span class="text-success">${syncedIconSVG} OK</span>`
+  if (val === 'not-ready') return `<span class="text-danger">${failedIconSVG} Not Ready</span>`
+  return '<span class="text-faint">—</span>'
 }
 function syncBadge(status: string): string {
-  if (status === 'success' || status === 'applied') return `<span style="color:#4ade80">${syncedIconSVG} Synced</span>`
+  if (status === 'success' || status === 'applied') return `<span class="text-success">${syncedIconSVG} Synced</span>`
   if (status === 'outofsync') return `<span style="color:#fb923c">${outOfSyncIconSVG} Out of Sync</span>`
   if (status === 'missing') return '<span style="color:#facc15">○ Missing</span>'
   if (status === 'orphaned') return '<span style="color:#a78bfa">● Orphaned</span>'
-  if (status === 'failed') return `<span style="color:#f87171">${failedIconSVG} Failed</span>`
+  if (status === 'failed') return `<span class="text-danger">${failedIconSVG} Failed</span>`
   if (status === 'syncing') return '<span style="color:#2dd4bf">● Syncing</span>'
-  if (status === 'unmanaged') return '<span style="color:#5b5c64">Unmanaged</span>'
-  return '<span style="color:#5b5c64">—</span>'
+  if (status === 'unmanaged') return '<span class="text-faint">Unmanaged</span>'
+  return '<span class="text-faint">—</span>'
 }
 function phaseBadge(phase?: string): string {
   if (phase === 'scaling-up') return '<span style="color:#60a5fa">↑ Scaling Up</span>'
   if (phase === 'scaling-down') return '<span style="color:#f59e0b">↓ Scaling Down</span>'
   if (phase === 'destroying') return `<span style="color:#f43f5e">${failedIconSVG} Destroying</span>`
   if (phase === 'reconfiguring') return '<span style="color:#a78bfa">↻ Reconfiguring</span>'
-  if (phase === 'running') return `<span style="color:#4ade80">${syncedIconSVG} Running</span>`
-  return '<span style="color:#5b5c64">—</span>'
+  if (phase === 'running') return `<span class="text-success">${syncedIconSVG} Running</span>`
+  return '<span class="text-faint">—</span>'
 }
 
 function escHtml(s: string): string {

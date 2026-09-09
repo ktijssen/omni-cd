@@ -54,7 +54,7 @@
 
     <!-- Table -->
     <div style="margin-top:8px;overflow-x:auto;">
-      <div v-if="loading" style="color:#7d7d85;padding:24px;text-align:center">Loading...</div>
+      <div v-if="loading" class="loading-hint"><span class="spinner"></span>Loading...</div>
       <div v-else-if="error" style="color:#e05c5c;padding:24px;text-align:center">{{ error }}</div>
       <table v-else class="audit-table">
         <thead>
@@ -90,7 +90,7 @@
           <button class="modal-close" @click="showFilesModal = false">&times;</button>
         </div>
         <div style="padding:16px 24px;min-height:80px">
-          <div v-if="filesLoading" style="color:#7d7d85;text-align:center;padding:24px">Loading...</div>
+          <div v-if="filesLoading" class="loading-hint"><span class="spinner"></span>Loading...</div>
           <table v-else-if="auditFiles.length > 0" style="width:100%;border-collapse:collapse;font-size:12px">
             <thead>
               <tr>

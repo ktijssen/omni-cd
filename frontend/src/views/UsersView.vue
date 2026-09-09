@@ -5,7 +5,7 @@
     </div>
 
     <!-- Local admin account section -->
-    <div v-if="!localUsersLoaded" style="color:#7d7d85;font-size:13px;padding:24px 0;">Loading...</div>
+    <div v-if="!localUsersLoaded" class="loading-hint"><span class="spinner"></span>Loading...</div>
     <template v-else-if="localUsers.length > 0">
       <div style="font-size:13px;font-weight:600;color:#9fa1a6;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">Local Admin Account</div>
       <div style="display:flex;align-items:center;gap:12px;background:#15161e;border:1px solid #2c2e38;border-radius:10px;padding:14px 16px;max-width:480px;">
@@ -26,7 +26,7 @@
     <div v-if="authStore.oidcEnabled" style="margin-top:28px">
       <div style="font-size:13px;font-weight:600;color:#9fa1a6;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">SSO Users</div>
       <div style="background:#15161e;border:1px solid #2c2e38;border-radius:10px;overflow:hidden;max-width:560px">
-        <div v-if="!oidcUsersLoaded" style="padding:12px 14px;font-size:13px;color:#7d7d85;">Loading...</div>
+        <div v-if="!oidcUsersLoaded" class="loading-hint"><span class="spinner"></span>Loading...</div>
         <div v-else-if="oidcUsers.length === 0" style="padding:12px 14px;font-size:13px;color:#7d7d85;">No SSO users have logged in yet.</div>
         <div
           v-else
