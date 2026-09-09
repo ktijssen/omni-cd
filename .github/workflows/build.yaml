@@ -12,7 +12,7 @@
 #   beta      beta/* branch                              <version>, beta   yes     no
 #   release   release/* branch, or workflow_dispatch     <version>, latest yes     yes
 #
-# Two phases, on every channel:
+# Two phases, on dev/beta:
 #
 #   * while the PR is open  — run the chart tests, build the image, package the
 #     chart. Publish nothing. A broken build, chart, or chart test fails the PR
@@ -22,6 +22,10 @@
 #
 # The chart tests gate the image build, so they run for dev PRs too even though
 # dev publishes no chart.
+#
+# Release is the exception: opening or pushing to a release/* PR runs nothing
+# at all. The whole pipeline — validation and publish together — only fires
+# once that PR is merged (or via a manual workflow_dispatch).
 
 name: Build
 
@@ -112,6 +116,11 @@ jobs:
           # A PR closed without merging is the one event with nothing to build:
           # its code never reached main, and there is no longer a PR to validate.
           if [[ "$ACTION" == "closed" && "$MERGED" != "true" ]]; then
+            RUN=false
+          # Release channel skips the open-PR validation build entirely: unlike
+          # dev/beta, a release/* PR shouldn't trigger CI just from being opened
+          # or pushed to — only the merge (or a manual workflow_dispatch) does.
+          elif [[ "$CHANNEL" == "release" && "$EVENT" != "workflow_dispatch" && "$MERGED" != "true" ]]; then
             RUN=false
           else
             RUN=true
