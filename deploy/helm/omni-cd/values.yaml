@@ -3,6 +3,10 @@ image:
   tag: ""  # defaults to appVersion
   pullPolicy: IfNotPresent
 
+# Deployment strategy. OmniCD currently only supports Recreate strategy.
+strategy:
+  type: Recreate
+
 replicaCount: 1
 
 service:
