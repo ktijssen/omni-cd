@@ -10,7 +10,7 @@ require (
 	github.com/siderolabs/omni/client v1.11.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.6.0.20260809190231-643e93b9c9be
 	golang.org/x/crypto v0.56.0
-	golang.org/x/oauth2 v0.36.0
+	golang.org/x/oauth2 v0.37.0
 	google.golang.org/grpc v1.83.2
 )
 
