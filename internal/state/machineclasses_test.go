@@ -192,18 +192,24 @@ func TestMergeMachineClasses_SyncStatusSince_PreservedAcrossOutofsyncToMissing(t
 	}
 }
 
-func TestMergeMachineClasses_PreservesErrorWhenMissing(t *testing.T) {
+func TestMergeMachineClasses_ClearsErrorOnSuccessfulDiffRefresh(t *testing.T) {
 	s := newState()
 	s.SetMachineClasses([]state.ResourceInfo{
 		{ID: "mc1", Status: "failed", Error: "boom", LastSyncResult: "failed"},
 	})
-	// Diff-only pass reports "missing" and attempted no apply — the previous error
-	// must survive so the UI keeps its Sync Failed badge.
+	// A later diff-only pass re-tests the resource and reports "missing" with no
+	// error this time — the stale error from the earlier failed apply must NOT
+	// stick around and force a permanent "Sync Failed" badge; the UI should show
+	// the resource's real current status instead. LastSyncResult/LastSyncError
+	// (the historical apply record) are preserved separately.
 	s.MergeMachineClasses([]state.ResourceInfo{
 		{ID: "mc1", Status: "missing"},
 	})
 	mc := s.GetMachineClasses()[0]
-	if mc.Error != "boom" {
-		t.Errorf("Error should be preserved: got %q, want %q", mc.Error, "boom")
+	if mc.Error != "" {
+		t.Errorf("Error should be cleared after a clean re-check: got %q, want empty", mc.Error)
+	}
+	if mc.LastSyncResult != "failed" {
+		t.Errorf("LastSyncResult should still be preserved: got %q, want %q", mc.LastSyncResult, "failed")
 	}
 }

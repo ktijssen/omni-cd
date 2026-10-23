@@ -202,18 +202,45 @@ func hydratePoolMachines(clusterID string, cp state.NodeGroup, workers []state.N
 	// matched to an existing group. This handles the case where liveContent was
 	// empty (ExportCluster failed) so parseLegacyFormat returned zero worker
 	// groups — the topology would otherwise show no workers at all.
+	//
+	// Skip machinesets whose machines are already explicitly listed in an
+	// existing group (e.g. a manually-provisioned Workers block with an
+	// unnamed/unmatched docName from Pass 1/2) — otherwise this creates a
+	// duplicate group that ends up empty once the dedup pass below strips
+	// its already-claimed UUIDs, leaving a phantom nameless machineset.
+	existingMachines := make(map[string]bool)
+	for _, id := range cp.Machines {
+		existingMachines[id] = true
+	}
+	for _, wg := range workers {
+		for _, id := range wg.Machines {
+			existingMachines[id] = true
+		}
+	}
 	for _, k := range workerKeys {
 		if !usedKeys[k] {
 			uuids := msNodes[k]
-			if len(uuids) > 0 {
-				name := strings.TrimPrefix(k, clusterID+"-")
-				workers = append(workers, state.NodeGroup{
-					Name:     name,
-					Machines: uuids,
-					Count:    len(uuids),
-				})
-				usedKeys[k] = true
+			if len(uuids) == 0 {
+				continue
 			}
+			alreadyCovered := true
+			for _, id := range uuids {
+				if !existingMachines[id] {
+					alreadyCovered = false
+					break
+				}
+			}
+			if alreadyCovered {
+				usedKeys[k] = true
+				continue
+			}
+			name := strings.TrimPrefix(k, clusterID+"-")
+			workers = append(workers, state.NodeGroup{
+				Name:     name,
+				Machines: uuids,
+				Count:    len(uuids),
+			})
+			usedKeys[k] = true
 		}
 	}
 

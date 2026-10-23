@@ -35,6 +35,8 @@ docker run -d \
 
 Open `http://localhost:8080` — you will be redirected to `/setup` to create the admin account on first boot. The Omni endpoint and service account key can be configured there, declared in a YAML config file (mount with `--config-path=/config/config.yaml`), or supplied via environment variables. See [`deploy/config.example.yaml`](deploy/config.example.yaml) for the file schema.
 
+This gets the container running, but Omni CD has nothing to sync yet — add at least one Git repository (via the **Repos** page in the UI, or the `repos:` key in the config file) before it will manage any MachineClasses or Clusters. See [Repository management](docs/configuration.md#repository-management) for the expected layout.
+
 → For Docker Compose and Helm see [Installation](docs/installation.md).
 
 ---
