@@ -41,11 +41,14 @@ func (s *AppState) MergeMachineClasses(resources []ResourceInfo) {
 				res.LastSyncSHA = prev.LastSyncSHA
 				res.LastSyncAuthor = prev.LastSyncAuthor
 				res.LastSyncMessage = prev.LastSyncMessage
-				// Preserve the error when no apply was attempted (diff-only or auto-sync
-				// disabled). Clear it only when the resource is now fully in sync.
-				if IsPendingSync(res.Status) && res.Error == "" {
-					res.Error = prev.Error
-				}
+				// Note: res.Error is intentionally NOT carried forward here. A
+				// diff-only refresh that completes without error means the
+				// resource's current drift check succeeded, even if a past
+				// apply attempt failed — that history still lives in
+				// LastSyncResult/LastSyncError above. Keeping res.Error empty
+				// lets the UI show the real current status (e.g. "Missing" /
+				// "Out of Sync") instead of a stale "Sync Failed" badge that a
+				// refresh can never clear.
 			}
 			// Preserve CreatedAt if the incoming resource doesn't set it.
 			if res.CreatedAt.IsZero() {
