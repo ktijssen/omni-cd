@@ -122,10 +122,19 @@ All persistent data is stored under `/data`. Mount this as a volume to preserve 
 
 | Path | Contents |
 |---|---|
-| `/data/state/state.json` | Application state (clusters, repos, settings) |
-| `/data/auth/users.json` | Local user accounts |
-| `/data/config/oidc-users.json` | SSO user roles |
+| `/data/omni-cd.db` | SQLite database: application state, UI-managed repos, Omni connection, local users, SSO user roles, sessions |
+| `/data/omni-cd.db-wal`, `/data/omni-cd.db-shm` | SQLite write-ahead log files — part of the database, keep them with `omni-cd.db` |
 | `/data/logs/` | Daily log files (`omni-cd-YYYY-MM-DD.jsonlog`) |
 | `/data/audit/` | Daily audit files (`audit-YYYY-MM-DD.jsonlog`) |
 
 > Ensure `/data` is backed by a persistent volume. Without it, all state is lost on container restart.
+
+### Upgrading from JSON storage
+
+Versions before the SQLite store kept their data in JSON files (`state/state.json`, `auth/users.json`, `auth/sessions.json`, `config/repos.json`, `config/instances.json`, `config/oidc-users.json`). On the first start of a newer version these are imported into `omni-cd.db` automatically and renamed to `*.migrated`. The renamed files are kept so you can roll back by renaming them back and starting the older image (changes made after the upgrade are not carried back). When you upgrade again, JSON files the older version wrote after the last import are imported again, so changes made while rolled back are kept; anything changed in the database in the meantime is overwritten by those files.
+
+If the users, SSO users, repos or Omni instance file cannot be parsed, startup fails and the files are left untouched. Fix or remove the file and restart.
+
+### Backups
+
+Stop the container (or scale the deployment to zero) and copy the whole `/data` directory. Copying `omni-cd.db` alone while Omni CD is running can produce an inconsistent backup, because recent writes may still be in `omni-cd.db-wal`.

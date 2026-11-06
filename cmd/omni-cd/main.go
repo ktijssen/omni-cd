@@ -22,9 +22,9 @@ import (
 	"omni-cd/internal/metrics"
 	oidcconfig "omni-cd/internal/oidc"
 	"omni-cd/internal/omni"
-	"omni-cd/internal/omniinstance"
 	"omni-cd/internal/reconciler"
 	"omni-cd/internal/state"
+	"omni-cd/internal/storage"
 	"omni-cd/internal/web"
 )
 
@@ -44,6 +44,9 @@ func (s *stringListFlag) String() string     { return strings.Join(*s, ",") }
 func (s *stringListFlag) Set(v string) error { *s = append(*s, v); return nil }
 
 var appState *state.AppState
+
+// dataStore is closed by shutdown() after the final state save.
+var dataStore storage.Store
 
 func main() {
 	var configPaths stringListFlag
@@ -66,13 +69,26 @@ func main() {
 	logInfo("Starting OmniCD")
 	migrateDataFiles()
 
-	// Load (or create) the auth store. ADMIN_PASSWORD is only applied on first
-	// boot (empty store) so a password set via the setup UI is never overwritten.
-	authStore, err := auth.New("/data/auth/users.json")
+	// Open the SQLite store. On first start after upgrading, this imports the
+	// legacy JSON files (users, repos, state, ...) and renames them *.migrated.
+	store, err := storage.Open("/data")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to load auth store: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to open data store: %v\n", err)
 		os.Exit(1)
 	}
+	dataStore = store
+	logInfo("Data store opened", "path", "/data/"+storage.DatabaseFile)
+
+	// Fail fast on an unreadable user store rather than treating it as empty
+	// (which would re-open the first-boot setup flow).
+	if _, err := store.ListUsers(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load users: %v\n", err)
+		os.Exit(1)
+	}
+
+	// ADMIN_PASSWORD is only applied on first boot (empty store) so a password
+	// set via the setup UI is never overwritten.
+	authStore := auth.New(store)
 	if cfg.AdminPassword != "" && authStore.IsEmpty() {
 		if err := authStore.SetUser("admin", "Admin", cfg.AdminPassword); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to set admin password from ENV: %v\n", err)
@@ -83,18 +99,17 @@ func main() {
 	logInfo("Refresh reconcile interval", "interval", cfg.RefreshInterval)
 
 	// Resolve Omni credentials: ENV vars take precedence over the persisted file.
-	instanceFile := omniinstance.DefaultPath
 	effectiveEndpoint := cfg.OmniEndpoint
 	effectiveKey := cfg.OmniServiceAccountKey
 	if cfg.OmniEnvLocked {
 		logInfo("Omni credentials loaded from environment variables", "endpoint", effectiveEndpoint)
 	} else {
-		if inst, err := omniinstance.Load(instanceFile); err != nil {
-			logError("Failed to load instances.json", "error", err)
+		if inst, err := store.LoadInstanceConfig(); err != nil {
+			logError("Failed to load stored Omni instance config", "error", err)
 		} else if inst != nil {
 			effectiveEndpoint = inst.Endpoint
 			effectiveKey = inst.ServiceAccountKey
-			logInfo("Omni credentials loaded from config file", "endpoint", effectiveEndpoint, "path", instanceFile)
+			logInfo("Omni credentials loaded from stored config", "endpoint", effectiveEndpoint)
 		} else {
 			logInfo("No Omni credentials found — waiting for configuration via UI")
 		}
@@ -103,13 +118,11 @@ func main() {
 
 	// Shared state for the web UI — always created so the setup UI works
 	// even before Omni is configured.
-	stateFile := "/data/state/state.json"
-	appState = state.New(500, effectiveEndpoint, true, stateFile)
+	appState = state.New(500, effectiveEndpoint, true, store)
 	appState.AppVersion = version
 	appState.SetEnvLocked(cfg.OmniEnvLocked)
 	appState.SetHasStoredKey(!cfg.OmniEnvLocked && effectiveKey != "")
 	appState.LogLevel = strings.ToUpper(cfg.LogLevel)
-	logDebug("State file configured", "path", stateFile)
 
 	logDir := "/data/logs"
 	appState.SetLogDir(logDir, cfg.LogRetentionDays)
@@ -119,10 +132,8 @@ func main() {
 	appState.SetAuditDir(auditDir, cfg.AuditRetentionDays)
 	logInfo("Audit log rotation configured", "dir", auditDir, "retention_days", cfg.AuditRetentionDays)
 
-	// Set up repo persistence unconditionally so repos can be saved even before
-	// Omni is configured. Without this, SaveRepoConfigs() is a no-op.
-	repoFile := "/data/config/repos.json"
-	appState.SetRepoFile(repoFile)
+	// Load UI-managed repos unconditionally so they are available even before
+	// Omni is configured.
 	if err := appState.LoadRepoConfigs(); err != nil {
 		logError("Failed to load persisted repo configs", "error", err)
 	}
@@ -178,7 +189,9 @@ func main() {
 		TriggerMCRefreshSingle: triggerMCRefreshSingle,
 		TriggerRepoChange:      triggerRepoChange,
 		TriggerOmniConfigured:  triggerOmniConfigured,
-		OmniInstanceFile:       instanceFile,
+		InstanceStore:          store,
+		SessionRepo:            store,
+		OIDCUsers:              store,
 		LogDir:                 logDir,
 		AuditDir:               auditDir,
 		Port:                   cfg.WebPort,
@@ -771,14 +784,18 @@ func watchMaintenanceWindows(trigger chan struct{}) {
 	}
 }
 
-// shutdown persists state and closes file handles so the tail of the
-// log and audit files is flushed before the process exits.
+// shutdown persists state, closes the log and audit file handles so their
+// tail is flushed, and closes the database before the process exits.
 func shutdown() {
-	if appState == nil {
-		return
+	if appState != nil {
+		appState.Save()
+		appState.Close()
 	}
-	appState.Save()
-	appState.Close()
+	if dataStore != nil {
+		if err := dataStore.Close(); err != nil {
+			logError("Failed to close data store", "error", err)
+		}
+	}
 }
 
 // doReconcile performs a git sync + reconcile cycle across all configured repos.

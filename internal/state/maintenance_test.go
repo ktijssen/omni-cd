@@ -11,6 +11,7 @@ import (
 	"omni-cd/internal/maintenance"
 	"omni-cd/internal/omni"
 	"omni-cd/internal/state"
+	"omni-cd/internal/storage"
 )
 
 // satMorning is open Saturdays 06:00–10:00. 2026-11-07 is a Saturday.
@@ -23,9 +24,9 @@ var (
 
 // newMaintenanceState returns state in UTC with the given clusters, all with
 // auto-sync on.
-func newMaintenanceState(t *testing.T, path string, clusters ...string) *state.AppState {
+func newMaintenanceState(t *testing.T, store state.Store, clusters ...string) *state.AppState {
 	t.Helper()
-	s := state.New(100, "", true, path)
+	s := state.New(100, "", true, store)
 	s.SetMaintenanceLocation(time.UTC)
 	var res []state.ResourceInfo
 	for _, id := range clusters {
@@ -48,7 +49,7 @@ func mustCreate(t *testing.T, s *state.AppState, w maintenance.Window) maintenan
 }
 
 func TestMaintenanceWindow_AppliesToEveryListedCluster(t *testing.T) {
-	s := newMaintenanceState(t, "", "a", "b", "free")
+	s := newMaintenanceState(t, nil, "a", "b", "free")
 	mustCreate(t, s, maintenance.Window{Name: "weekend", Clusters: []string{"a", "b"}, TimeRange: satMorning})
 
 	blocked := s.AutoApplyBlockedClusters(outsideWindow)
@@ -66,7 +67,7 @@ func TestMaintenanceWindow_AppliesToEveryListedCluster(t *testing.T) {
 }
 
 func TestMaintenanceWindow_ClusterInSeveralWindowsUsesUnion(t *testing.T) {
-	s := newMaintenanceState(t, "", "a")
+	s := newMaintenanceState(t, nil, "a")
 	mustCreate(t, s, maintenance.Window{Name: "sat", Clusters: []string{"a"}, TimeRange: satMorning})
 	mustCreate(t, s, maintenance.Window{Name: "wed", Clusters: []string{"a"},
 		TimeRange: maintenance.TimeRange{Days: []string{"wed"}, Start: "11:00", End: "13:00"}})
@@ -81,7 +82,7 @@ func TestMaintenanceWindow_ClusterInSeveralWindowsUsesUnion(t *testing.T) {
 }
 
 func TestMaintenanceWindow_AutoSyncOffWins(t *testing.T) {
-	s := newMaintenanceState(t, "", "a")
+	s := newMaintenanceState(t, nil, "a")
 	mustCreate(t, s, maintenance.Window{Name: "w", Clusters: []string{"a"}, TimeRange: satMorning})
 	s.SetClusterAutoSync("a", false)
 	if r := s.AutoApplyBlockReason("a", insideWindow); r != "auto-sync disabled" {
@@ -93,7 +94,7 @@ func TestMaintenanceWindow_AutoSyncOffWins(t *testing.T) {
 }
 
 func TestMaintenanceWindow_Validation(t *testing.T) {
-	s := newMaintenanceState(t, "", "a", "b")
+	s := newMaintenanceState(t, nil, "a", "b")
 	created := mustCreate(t, s, maintenance.Window{Name: "Weekend", Clusters: []string{"a"}, TimeRange: satMorning})
 	if created.ID == "" {
 		t.Fatal("created window has no ID")
@@ -117,7 +118,7 @@ func TestMaintenanceWindow_Validation(t *testing.T) {
 }
 
 func TestMaintenanceWindow_UpdateKeepsVanishedCluster(t *testing.T) {
-	s := newMaintenanceState(t, "", "a", "b")
+	s := newMaintenanceState(t, nil, "a", "b")
 	w := mustCreate(t, s, maintenance.Window{Name: "w", Clusters: []string{"a", "b"}, TimeRange: satMorning})
 
 	// Cluster b disappears from state (e.g. removed from Git).
@@ -134,11 +135,15 @@ func TestMaintenanceWindow_UpdateKeepsVanishedCluster(t *testing.T) {
 }
 
 func TestMaintenanceWindow_PersistsAndDeletes(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "state.json")
-	s := newMaintenanceState(t, path, "a")
+	db, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "omni-cd.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	s := newMaintenanceState(t, db, "a")
 	w := mustCreate(t, s, maintenance.Window{Name: "w", Clusters: []string{"a"}, TimeRange: satMorning})
 
-	reloaded := state.New(100, "", true, path)
+	reloaded := state.New(100, "", true, db)
 	got := reloaded.GetMaintenanceWindows()
 	if len(got) != 1 || got[0].ID != w.ID || got[0].Name != "w" || got[0].Clusters[0] != "a" {
 		t.Fatalf("windows after reload = %+v", got)
@@ -156,7 +161,7 @@ func TestMaintenanceWindow_PersistsAndDeletes(t *testing.T) {
 }
 
 func TestMaintenanceWindow_GetReturnsCopy(t *testing.T) {
-	s := newMaintenanceState(t, "", "a")
+	s := newMaintenanceState(t, nil, "a")
 	mustCreate(t, s, maintenance.Window{Name: "w", Clusters: []string{"a"}, TimeRange: satMorning})
 	got := s.GetMaintenanceWindows()
 	got[0].Clusters[0] = "hacked"
@@ -168,7 +173,7 @@ func TestMaintenanceWindow_GetReturnsCopy(t *testing.T) {
 }
 
 func TestSnapshot_MaintenanceFields(t *testing.T) {
-	s := newMaintenanceState(t, "", "a", "free")
+	s := newMaintenanceState(t, nil, "a", "free")
 	mustCreate(t, s, maintenance.Window{Name: "weekend", Clusters: []string{"a"}, TimeRange: satMorning})
 
 	snap := s.Snapshot()
@@ -199,7 +204,7 @@ func TestSnapshot_MaintenanceFields(t *testing.T) {
 }
 
 func TestOpenMaintenanceWindowsAndApplyPass(t *testing.T) {
-	s := newMaintenanceState(t, "", "on", "off")
+	s := newMaintenanceState(t, nil, "on", "off")
 	s.SetClusterAutoSync("off", false)
 	mustCreate(t, s, maintenance.Window{Name: "w", Clusters: []string{"on", "off"}, TimeRange: satMorning})
 
@@ -224,7 +229,7 @@ func TestOpenMaintenanceWindowsAndApplyPass(t *testing.T) {
 }
 
 func TestMaintenanceWindow_LabelSelector(t *testing.T) {
-	s := newMaintenanceState(t, "", "prod-eu", "prod-us", "dev")
+	s := newMaintenanceState(t, nil, "prod-eu", "prod-us", "dev")
 	s.UpdateClusterReadyStatuses(map[string]omni.ClusterStatus{
 		"prod-eu": {Labels: map[string]string{"env": "prod"}},
 		"prod-us": {Labels: map[string]string{"env": "prod"}},
@@ -267,7 +272,7 @@ func TestMaintenanceWindow_LabelSelector(t *testing.T) {
 }
 
 func TestMaintenanceWindow_SelectorMatchesGitTemplateLabels(t *testing.T) {
-	s := newMaintenanceState(t, "", "existing")
+	s := newMaintenanceState(t, nil, "existing")
 	mustCreate(t, s, maintenance.Window{Name: "prod", TimeRange: satMorning, Selector: map[string]string{"env": "prod"}})
 
 	// A new cluster that is only in Git ("missing" from Omni, so no live
@@ -287,7 +292,7 @@ func TestMaintenanceWindow_SelectorMatchesGitTemplateLabels(t *testing.T) {
 }
 
 func TestSnapshot_SelectorOnlyWindowSerialisesClustersAsList(t *testing.T) {
-	s := newMaintenanceState(t, "", "a")
+	s := newMaintenanceState(t, nil, "a")
 	mustCreate(t, s, maintenance.Window{Name: "labels only", TimeRange: satMorning, Selector: map[string]string{"env": "prod"}})
 	b, err := json.Marshal(s.Snapshot().MaintenanceWindows)
 	if err != nil {

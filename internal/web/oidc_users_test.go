@@ -1,14 +1,15 @@
 package web
 
 import (
-	"path/filepath"
 	"testing"
 	"time"
+
+	"omni-cd/internal/storage"
 )
 
 func newOIDCStore(t *testing.T) *oidcUserStore {
 	t.Helper()
-	return loadOIDCUserStore(filepath.Join(t.TempDir(), "oidc-users.json"))
+	return newOIDCUserStore(storage.NewFileStore(t.TempDir()))
 }
 
 func TestOIDCUserStore_Upsert_NewUser(t *testing.T) {
@@ -119,13 +120,12 @@ func TestOIDCUserStore_List_ReturnsCopy(t *testing.T) {
 
 func TestOIDCUserStore_SaveAndReload(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "oidc-users.json")
 
-	s1 := loadOIDCUserStore(path)
+	s1 := newOIDCUserStore(storage.NewFileStore(dir))
 	s1.upsert("alice@example.com", "Alice", "admin")
 	s1.upsert("bob@example.com", "Bob", "viewer")
 
-	s2 := loadOIDCUserStore(path)
+	s2 := newOIDCUserStore(storage.NewFileStore(dir))
 	users := s2.list()
 	if len(users) != 2 {
 		t.Fatalf("expected 2 users after reload, got %d", len(users))

@@ -1,15 +1,25 @@
 package state
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
+	"log/slog"
 
+	"omni-cd/internal/config"
 	"omni-cd/internal/maintenance"
 )
 
-// persistedState is the struct written to the state file.
-type persistedState struct {
+// Store persists AppState across restarts. Implementations live in
+// internal/storage.
+type Store interface {
+	// LoadState returns nil, nil when no state has been stored yet.
+	LoadState() (*PersistedState, error)
+	SaveState(ps PersistedState) error
+	// LoadRepoConfigs returns the UI-managed repo configs (never config-file ones).
+	LoadRepoConfigs() ([]config.RepoConfig, error)
+	SaveRepoConfigs(repos []config.RepoConfig) error
+}
+
+// PersistedState is the subset of AppState that survives restarts.
+type PersistedState struct {
 	LastReconcile       ReconcileInfo        `json:"lastReconcile"`
 	RepoClusterMap      map[string][]string  `json:"repoClusterMap,omitempty"`
 	RepoMachineClassMap map[string][]string  `json:"repoMachineClassMap,omitempty"`
@@ -19,27 +29,28 @@ type persistedState struct {
 	MaintenanceWindows  []maintenance.Window `json:"maintenanceWindows,omitempty"`
 }
 
-// save persists state to disk (best-effort, ignores errors).
+// save persists state (best-effort, logs errors).
 func (s *AppState) save() {
-	if s.stateFile != "" {
-		_ = s.SaveToFile(s.stateFile)
+	if err := s.saveState(); err != nil {
+		slog.Error("Failed to persist state", "error", err, "component", "State")
 	}
 }
 
-// Save persists state to disk (public method for external callers).
+// Save persists state (public method for external callers).
 func (s *AppState) Save() {
 	s.save()
 }
 
-// SaveToFile persists state to disk. Full cluster and MC data is stored so
+// saveState persists state to the store. Full cluster and MC data is stored so
 // the UI can display last-known state during the window between server start
 // and the first reconcile completing.
 //
-// The marshal happens while RLock is held so concurrent mutations cannot tear
-// the slices/maps mid-encode. The file write itself uses a temp + rename so a
-// crash mid-write leaves either the old file intact or the new file complete —
-// never an empty/partial state.json.
-func (s *AppState) SaveToFile(path string) error {
+// The snapshot is built while RLock is held so concurrent mutations cannot
+// tear the slices/maps mid-encode; the store gets its own copy.
+func (s *AppState) saveState() error {
+	if s.store == nil {
+		return nil
+	}
 	s.mu.RLock()
 
 	// Strip transient in-progress statuses so a crash or restart never
@@ -59,56 +70,33 @@ func (s *AppState) SaveToFile(path string) error {
 		filteredMCs = append(filteredMCs, m)
 	}
 
-	ps := persistedState{
+	ps := PersistedState{
 		LastReconcile:       s.LastReconcile,
-		RepoClusterMap:      s.RepoClusterMap,
-		RepoMachineClassMap: s.RepoMachineClassMap,
-		Clusters:            filteredClusters,
-		MachineClasses:      filteredMCs,
+		RepoClusterMap:      cloneStringSliceMap(s.RepoClusterMap),
+		RepoMachineClassMap: cloneStringSliceMap(s.RepoMachineClassMap),
+		Clusters:            cloneResources(filteredClusters),
+		MachineClasses:      cloneResources(filteredMCs),
 		ClustersEnabled:     s.ClustersEnabled,
 		MaintenanceWindows:  s.maintenanceWindows,
 	}
-
-	data, err := json.MarshalIndent(ps, "", "  ")
 	s.mu.RUnlock()
-	if err != nil {
-		return err
-	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
-		return err
-	}
-
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	return s.store.SaveState(ps)
 }
 
-// LoadFromFile restores state from disk. Full cluster and MC data is restored
-// so the UI shows last-known state immediately on startup.
-func (s *AppState) LoadFromFile(path string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+// loadState restores state from the store. Full cluster and MC data is
+// restored so the UI shows last-known state immediately on startup.
+func (s *AppState) loadState() error {
+	if s.store == nil {
 		return nil
 	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
+	ps, err := s.store.LoadState()
+	if err != nil || ps == nil {
 		return err
 	}
 
-	var ps persistedState
-	if err := json.Unmarshal(data, &ps); err != nil {
-		return err
-	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	s.LastReconcile = ps.LastReconcile
 	s.ClustersEnabled = ps.ClustersEnabled

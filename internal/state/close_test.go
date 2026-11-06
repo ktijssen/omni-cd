@@ -16,7 +16,7 @@ func TestClose_FlushesLogAndAudit(t *testing.T) {
 	logDir := t.TempDir()
 	auditDir := t.TempDir()
 
-	s := New(100, "", true, "")
+	s := New(100, "", true, nil)
 	s.SetLogDir(logDir, 1)
 	s.SetAuditDir(auditDir, 1)
 
@@ -56,7 +56,7 @@ func TestClose_FlushesLogAndAudit(t *testing.T) {
 // and the second call is a no-op.
 func TestClose_Idempotent(t *testing.T) {
 	logDir := t.TempDir()
-	s := New(10, "", true, "")
+	s := New(10, "", true, nil)
 	s.SetLogDir(logDir, 1)
 	s.AddLog("INFO", "Test", "msg")
 	s.Close()

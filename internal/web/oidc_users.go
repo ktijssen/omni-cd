@@ -2,43 +2,28 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
+	"omni-cd/internal/auth"
 	appstate "omni-cd/internal/state"
 )
 
-const oidcUsersPath = "/data/config/oidc-users.json"
+// oidcUser is the web package's name for a persisted OIDC user.
+type oidcUser = auth.OIDCUser
 
-// oidcUser records an OIDC-authenticated user and their assigned role.
-type oidcUser struct {
-	Email       string    `json:"email"`
-	DisplayName string    `json:"displayName"`
-	Role        string    `json:"role"` // admin | viewer | none
-	FirstSeen   time.Time `json:"firstSeen"`
-	LastSeen    time.Time `json:"lastSeen"`
-}
-
-// oidcUserStore is a file-backed list of OIDC users with assignable roles.
+// oidcUserStore wraps an OIDCUserRepository with the role bookkeeping used by
+// the login flow. The mutex serialises read-modify-write updates.
 type oidcUserStore struct {
-	mu    sync.Mutex
-	path  string
-	users []oidcUser
+	mu   sync.Mutex
+	repo auth.OIDCUserRepository
 }
 
-func loadOIDCUserStore(path string) *oidcUserStore {
-	s := &oidcUserStore{path: path}
-	data, err := os.ReadFile(path)
-	if err == nil {
-		if err := json.Unmarshal(data, &s.users); err != nil {
-			slog.Warn("Could not parse OIDC users file, starting with empty list", "error", err, "component", "OIDC")
-		}
-	}
-	return s
+func newOIDCUserStore(repo auth.OIDCUserRepository) *oidcUserStore {
+	return &oidcUserStore{repo: repo}
 }
 
 // upsert adds the user if new (using the provided role) or updates their
@@ -47,83 +32,79 @@ func (s *oidcUserStore) upsert(email, displayName, role string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
-	for i, u := range s.users {
-		if u.Email == email {
-			s.users[i].LastSeen = now
-			if displayName != "" {
-				s.users[i].DisplayName = displayName
-			}
-			s.save()
-			return s.users[i].Role
+	u, err := s.repo.GetOIDCUser(email)
+	switch {
+	case err == nil:
+		u.LastSeen = now
+		if displayName != "" {
+			u.DisplayName = displayName
 		}
+	case errors.Is(err, auth.ErrNotFound):
+		u = oidcUser{Email: email, DisplayName: displayName, Role: role, FirstSeen: now, LastSeen: now}
+	default:
+		// Fail closed: without the stored role we cannot tell whether an
+		// admin demoted this user, so grant no access.
+		slog.Error("Could not read OIDC user", "email", email, "error", err, "component", "OIDC")
+		return "none"
 	}
-	s.users = append(s.users, oidcUser{
-		Email:       email,
-		DisplayName: displayName,
-		Role:        role,
-		FirstSeen:   now,
-		LastSeen:    now,
-	})
-	s.save()
-	return role
+	if err := s.repo.PutOIDCUser(u); err != nil {
+		slog.Warn("Could not save OIDC user", "email", email, "error", err, "component", "OIDC")
+	}
+	return u.Role
 }
 
+// isEmpty reports whether no OIDC user has logged in yet. A read error is
+// treated as non-empty so a broken store never auto-promotes someone to admin.
 func (s *oidcUserStore) isEmpty() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.users) == 0
+	users, err := s.repo.ListOIDCUsers()
+	if err != nil {
+		slog.Error("Could not list OIDC users", "error", err, "component", "OIDC")
+		return false
+	}
+	return len(users) == 0
 }
 
 func (s *oidcUserStore) list() []oidcUser {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]oidcUser, len(s.users))
-	copy(out, s.users)
-	return out
+	users, err := s.repo.ListOIDCUsers()
+	if err != nil {
+		slog.Error("Could not list OIDC users", "error", err, "component", "OIDC")
+		return nil
+	}
+	return users
 }
 
 // setRole updates the stored role for an existing user. Returns false if the
-// user was not found.
+// user was not found or could not be saved.
 func (s *oidcUserStore) setRole(email, role string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for i, u := range s.users {
-		if u.Email == email {
-			s.users[i].Role = role
-			s.save()
-			return true
+	u, err := s.repo.GetOIDCUser(email)
+	if err != nil {
+		if !errors.Is(err, auth.ErrNotFound) {
+			slog.Error("Could not read OIDC user", "email", email, "error", err, "component", "OIDC")
 		}
+		return false
 	}
-	return false
+	u.Role = role
+	if err := s.repo.PutOIDCUser(u); err != nil {
+		slog.Error("Could not save OIDC user", "email", email, "error", err, "component", "OIDC")
+		return false
+	}
+	return true
 }
 
-// delete removes a user by email. Returns false if the user was not found.
+// delete removes a user by email. Returns false if the user was not found or
+// could not be deleted.
 func (s *oidcUserStore) delete(email string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for i, u := range s.users {
-		if u.Email == email {
-			s.users = append(s.users[:i], s.users[i+1:]...)
-			s.save()
-			return true
+	if err := s.repo.DeleteOIDCUser(email); err != nil {
+		if !errors.Is(err, auth.ErrNotFound) {
+			slog.Error("Could not delete OIDC user", "email", email, "error", err, "component", "OIDC")
 		}
+		return false
 	}
-	return false
-}
-
-func (s *oidcUserStore) save() {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0700); err != nil {
-		slog.Warn("Failed to create directory for OIDC users", "error", err, "component", "OIDC")
-		return
-	}
-	data, err := json.MarshalIndent(s.users, "", "  ")
-	if err != nil {
-		slog.Warn("Could not marshal OIDC users", "error", err, "component", "OIDC")
-		return
-	}
-	if err := os.WriteFile(s.path, data, 0600); err != nil {
-		slog.Warn("Could not write OIDC users file", "error", err, "component", "OIDC")
-	}
+	return true
 }
 
 // handleOIDCUsers serves GET /api/users/oidc (list),

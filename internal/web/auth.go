@@ -3,14 +3,14 @@ package web
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"omni-cd/internal/auth"
 )
 
 const (
@@ -18,23 +18,17 @@ const (
 	sessionDuration   = 24 * time.Hour
 	maxLoginFailures  = 5
 	loginLockDuration = 15 * time.Minute
-	sessionFile       = "/data/auth/sessions.json"
 )
 
-// loadSessions reads persisted sessions from disk and populates the in-memory map,
+// loadSessions reads persisted sessions and populates the in-memory map,
 // skipping any that have already expired.
 func (s *Server) loadSessions() {
-	data, err := os.ReadFile(sessionFile)
-	if os.IsNotExist(err) {
+	if s.sessionRepo == nil {
 		return
 	}
+	saved, err := s.sessionRepo.LoadSessions()
 	if err != nil {
-		slog.Warn("Could not read session file", "err", err, "component", "Auth")
-		return
-	}
-	var saved map[string]sessionInfo
-	if err := json.Unmarshal(data, &saved); err != nil {
-		slog.Warn("Could not parse session file", "err", err, "component", "Auth")
+		slog.Warn("Could not load sessions", "err", err, "component", "Auth")
 		return
 	}
 	loaded := 0
@@ -47,8 +41,11 @@ func (s *Server) loadSessions() {
 	slog.Info("Loaded persisted sessions", "count", loaded, "component", "Auth")
 }
 
-// saveSessions writes all active, non-expired sessions to disk so they survive restarts.
+// saveSessions persists all active, non-expired sessions so they survive restarts.
 func (s *Server) saveSessions() {
+	if s.sessionRepo == nil {
+		return
+	}
 	m := make(map[string]sessionInfo)
 	s.sessions.Range(func(key, value any) bool {
 		info := value.(sessionInfo)
@@ -57,17 +54,8 @@ func (s *Server) saveSessions() {
 		}
 		return true
 	})
-	data, err := json.Marshal(m)
-	if err != nil {
-		slog.Warn("Could not marshal sessions", "err", err, "component", "Auth")
-		return
-	}
-	if err := os.MkdirAll("/data/auth", 0700); err != nil {
-		slog.Warn("Could not create auth dir", "err", err, "component", "Auth")
-		return
-	}
-	if err := os.WriteFile(sessionFile, data, 0600); err != nil {
-		slog.Warn("Could not write session file", "err", err, "component", "Auth")
+	if err := s.sessionRepo.SaveSessions(m); err != nil {
+		slog.Warn("Could not save sessions", "err", err, "component", "Auth")
 	}
 }
 
@@ -174,13 +162,7 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // sessionInfo holds per-session metadata.
-type sessionInfo struct {
-	LoginTime   time.Time
-	Username    string // login identifier: username for local, email for OIDC
-	DisplayName string // shown in the sidebar
-	AuthMethod  string // "local" or "oidc"
-	Role        string // "admin", "viewer", "none" — empty means local-auth default (admin)
-}
+type sessionInfo = auth.Session
 
 // validSession returns true if the token is an active, unexpired session.
 func (s *Server) validSession(token string) bool {

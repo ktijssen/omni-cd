@@ -1,11 +1,8 @@
 package state
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"omni-cd/internal/config"
 )
@@ -13,13 +10,6 @@ import (
 // ErrRepoLocked is returned by Update/Delete when the target repo is managed
 // via the config file. Callers (HTTP handlers) map this to 403 Forbidden.
 var ErrRepoLocked = errors.New("repo is managed via the config file and cannot be modified from the UI")
-
-// SetRepoFile sets the path used by SaveRepoConfigs / LoadRepoConfigs.
-func (s *AppState) SetRepoFile(path string) {
-	s.mu.Lock()
-	s.repoFile = path
-	s.mu.Unlock()
-}
 
 // SetRepoConfigs replaces the full repo config list (used at startup).
 func (s *AppState) SetRepoConfigs(repos []config.RepoConfig) {
@@ -246,60 +236,31 @@ func (s *AppState) TakePendingRepoDeletes() []config.RepoConfig {
 	return out
 }
 
-// SaveRepoConfigs persists the current repo configs to repoFile as JSON.
-//
-// The file write uses a temp + rename so a crash mid-write leaves either the
-// old file intact or the new file complete — never a truncated repos.json
-// (which would lose every configured repository on next startup).
+// SaveRepoConfigs persists the UI-managed repo configs to the store.
+// Config-file repos live in the config file and are never persisted here.
 func (s *AppState) SaveRepoConfigs() error {
+	if s.store == nil {
+		return nil
+	}
 	s.mu.RLock()
-	path := s.repoFile
 	var repos []config.RepoConfig
 	for _, r := range s.RepoConfigs {
 		if r.FromConfig {
-			continue // config-file repos live in the config file, not repos.json
+			continue
 		}
 		repos = append(repos, r)
 	}
 	s.mu.RUnlock()
-	if path == "" {
-		return nil
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
-	}
-	data, err := json.Marshal(repos)
-	if err != nil {
-		return err
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return nil
+	return s.store.SaveRepoConfigs(repos)
 }
 
-// LoadRepoConfigs reads repo configs from repoFile if it exists.
+// LoadRepoConfigs reads the UI-managed repo configs from the store.
 func (s *AppState) LoadRepoConfigs() error {
-	s.mu.RLock()
-	path := s.repoFile
-	s.mu.RUnlock()
-	if path == "" {
+	if s.store == nil {
 		return nil
 	}
-	data, err := os.ReadFile(path)
+	repos, err := s.store.LoadRepoConfigs()
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	var repos []config.RepoConfig
-	if err := json.Unmarshal(data, &repos); err != nil {
 		return err
 	}
 	s.mu.Lock()

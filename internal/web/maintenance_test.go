@@ -13,7 +13,7 @@ import (
 
 func maintenanceServer(t *testing.T) *Server {
 	t.Helper()
-	st := state.New(100, "", true, "")
+	st := state.New(100, "", true, nil)
 	st.SetClusters([]state.ResourceInfo{{ID: "prod-eu"}, {ID: "prod-us"}})
 	return &Server{appState: st}
 }
