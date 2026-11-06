@@ -233,7 +233,7 @@
             <div class="cluster-card-body">
               <!-- Header -->
               <div class="cluster-card-header">
-                <div style="display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap;flex:1 1 auto;">
                   <span class="cluster-card-title">{{ cluster.id }}</span>
                   <a
                     v-if="state?.omniEndpoint"
@@ -244,6 +244,14 @@
                     @click.stop
                     title="Open in Omni"
                   >&#8599; Open in Omni</a>
+                  <span v-if="labelEntries(cluster).length" class="cluster-labels cluster-card-labels" aria-label="Labels">
+                    <span
+                      v-for="[k, v] in labelEntries(cluster)"
+                      :key="k"
+                      class="cluster-label"
+                      :title="v ? `${k}: ${v}` : k"
+                    >{{ k }}<template v-if="v">: <span class="cluster-label-value">{{ v }}</span></template></span>
+                  </span>
                 </div>
                 <span class="cluster-card-status" :style="{ color: mgmtColor(cluster), flexShrink: '0' }">{{ mgmtBadge(cluster) }}</span>
               </div>
@@ -372,6 +380,7 @@
           <thead>
             <tr>
               <th>Name</th>
+              <th>Labels</th>
               <th>Status</th>
               <th>Sync</th>
               <th>Health</th>
@@ -401,6 +410,17 @@
                   @click.stop
                   title="Open in Omni"
                 >&#8599;</a>
+              </td>
+              <td class="cluster-list-labels">
+                <div v-if="labelEntries(cluster).length" class="cluster-labels">
+                  <span
+                    v-for="[k, v] in labelEntries(cluster)"
+                    :key="k"
+                    class="cluster-label"
+                    :title="v ? `${k}: ${v}` : k"
+                  >{{ k }}<template v-if="v">: <span class="cluster-label-value">{{ v }}</span></template></span>
+                </div>
+                <span v-else style="color:#5b5c64">—</span>
               </td>
               <td :style="{ color: mgmtColor(cluster) }">{{ mgmtBadge(cluster) }}</td>
               <td :style="{ color: syncColor(cluster) }" v-html="syncText(cluster)"></td>
@@ -549,6 +569,11 @@ import type { ResourceInfo, GitInfo, NodeGroup } from '@/types'
 import { syncedIconSVG, outOfSyncIconSVG, failedIconSVG } from '@/assets/icons'
 
 const router = useRouter()
+
+/** Cluster labels as [key, value] pairs, sorted by key. */
+function labelEntries(c: ResourceInfo): [string, string][] {
+  return Object.entries(c.labels ?? {}).sort(([a], [b]) => a.localeCompare(b))
+}
 const appStore = useAppStore()
 const authStore = useAuthStore()
 

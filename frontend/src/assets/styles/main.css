@@ -382,6 +382,20 @@
   .cluster-health-summary { font-size: 12px; color: #7d7d85; white-space: nowrap; }
   .cluster-card-body { flex: 1; padding: 16px 18px; min-width: 0; display: flex; flex-direction: column; }
   .cluster-card-header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .cluster-labels { display: flex; flex-wrap: wrap; gap: 4px; margin: -2px 0 8px; min-width: 0; }
+  .cluster-label {
+    display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 11px; line-height: 1; padding: 3px 6px; border-radius: 4px;
+    border: 1px solid #2c2e38; background: #1e2130; color: #9fa1a6;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+  }
+  .cluster-label-value { color: #e8e8e9; }
+  /* In the card header, next to "Open in Omni" with extra space (header gap is 6px).
+     Takes the remaining width and wraps its own chips; only moves to the next
+     line as a whole when less than ~160px is left beside the link. */
+  .cluster-card-labels { margin: 0 0 0 10px; align-items: center; flex: 1 1 160px; min-width: 0; }
+  .cluster-list-labels { max-width: 280px; }
+  .cluster-list-labels .cluster-labels { margin: 0; }
   .cluster-card-title { font-size: 15px; font-weight: 600; color: #fff; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cluster-card-title.clickable { color: inherit; }
   .cluster-card-status { font-size: 12px; color: #9fa1a6; white-space: nowrap; flex-shrink: 0; }

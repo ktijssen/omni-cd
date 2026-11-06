@@ -220,9 +220,10 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 				return
 			}
 
-			// Per-cluster auto-sync: if disabled and this is not a manual force-sync,
-			// record the diff as out-of-sync but do NOT apply it.
-			if !isForceSync && !r.state.GetClusterAutoSync(clusterName) {
+			// Automatic apply is blocked when per-cluster auto-sync is disabled or
+			// the cluster's maintenance window is closed. Unless this is a manual
+			// force-sync, record the diff as out-of-sync but do NOT apply it.
+			if blockReason := r.state.AutoApplyBlockReason(clusterName, time.Now()); !isForceSync && blockReason != "" {
 				// A cluster that does not exist in Omni at all is "missing" rather than
 				// merely drifted. The raw diff is all-additions in both cases, so the
 				// diff buffer alone cannot tell "never deployed" from "deployed but
@@ -230,9 +231,9 @@ func (r *Reconciler) ApplyClusters(dir string, forceClusterIDs map[string]bool, 
 				driftStatus := "outofsync"
 				if existsInOmni, ok := omni.ClusterExistsInOmni(clusterName); ok && !existsInOmni {
 					driftStatus = "missing"
-					r.logInfo("Cluster missing from Omni (auto sync disabled, use Sync button to create)", "component", "Clusters", "cluster", clusterName)
+					r.logInfo(fmt.Sprintf("Cluster missing from Omni (%s, use Sync button to create)", blockReason), "component", "Clusters", "cluster", clusterName)
 				} else {
-					r.logInfo("Cluster out of sync (auto sync disabled, use Sync button to apply)", "component", "Clusters", "cluster", clusterName)
+					r.logInfo(fmt.Sprintf("Cluster out of sync (%s, use Sync button to apply)", blockReason), "component", "Clusters", "cluster", clusterName)
 				}
 				r.state.UpsertClusterStatus(clusterName, driftStatus)
 				liveContentAS := allLiveStates[clusterName]
@@ -910,14 +911,10 @@ func (r *Reconciler) DeleteClusters(dir string) {
 
 	r.logInfo("Checking for template-managed clusters to delete", "component", "Clusters")
 
-	// Build a set of cluster IDs where auto-sync is disabled so we skip deletion
-	// for them (user must use the manual Sync button to delete).
-	autoSyncDisabled := make(map[string]bool)
-	for _, c := range r.state.GetClusters() {
-		if c.AutoSync != nil && !*c.AutoSync {
-			autoSyncDisabled[c.ID] = true
-		}
-	}
+	// Clusters whose automatic changes are blocked (auto-sync disabled or
+	// maintenance window closed) are not deleted; the user must use the
+	// manual Sync button, or wait for the window to open.
+	autoApplyBlocked := r.state.AutoApplyBlockedClusters(time.Now())
 
 	// Only delete clusters that omni-cd has previously owned (appeared in a git
 	// repo at some point). Template-managed clusters created externally (outside
@@ -969,10 +966,10 @@ func (r *Reconciler) DeleteClusters(dir string) {
 			continue
 		}
 
-		// Skip deletion for clusters where auto-sync is disabled — the user
-		// must manually sync them via the Sync button.
-		if autoSyncDisabled[id] {
-			r.logInfo("Cluster not in Git but auto sync is disabled, skipping delete", "component", "Clusters", "cluster", id)
+		// Skip deletion while automatic changes are blocked — the user must
+		// manually sync via the Sync button, or wait for the maintenance window.
+		if reason, blocked := autoApplyBlocked[id]; blocked {
+			r.logInfo(fmt.Sprintf("Cluster not in Git but %s, skipping delete", reason), "component", "Clusters", "cluster", id)
 			continue
 		}
 
@@ -1026,8 +1023,8 @@ func (r *Reconciler) DeleteClusters(dir string) {
 		for id := range protectedSnapshotSingle {
 			desiredSet[id] = true
 		}
-		// Preserve clusters that were skipped because auto-sync is disabled —
-		// they must stay in state as outofsync, not be silently dropped.
+		// Preserve clusters that were skipped because automatic changes are
+		// blocked — they must stay in state, not be silently dropped.
 		// Exclude clusters that are in the unmanaged slice — those are handled
 		// below and adding them here would create a duplicate entry.
 		mu.Lock()
@@ -1036,7 +1033,7 @@ func (r *Reconciler) DeleteClusters(dir string) {
 			unmanagedSetSingle[u.ID] = true
 		}
 		mu.Unlock()
-		for id := range autoSyncDisabled {
+		for id := range autoApplyBlocked {
 			if !unmanagedSetSingle[id] {
 				desiredSet[id] = true
 			}
@@ -1103,12 +1100,9 @@ func (r *Reconciler) DeleteClustersAll(dirs []string, liveIDs []string) {
 
 	r.logInfo("Checking for template-managed clusters to delete (multi-repo)", "component", "Clusters")
 
-	autoSyncDisabled := make(map[string]bool)
-	for _, c := range r.state.GetClusters() {
-		if c.AutoSync != nil && !*c.AutoSync {
-			autoSyncDisabled[c.ID] = true
-		}
-	}
+	// Clusters whose automatic changes are blocked (auto-sync disabled or
+	// maintenance window closed) are not deleted.
+	autoApplyBlocked := r.state.AutoApplyBlockedClusters(time.Now())
 
 	// Only delete clusters that omni-cd has previously owned.
 	allTrackedAll := r.state.GetAllTrackedClusterIDs()
@@ -1148,8 +1142,8 @@ func (r *Reconciler) DeleteClustersAll(dirs []string, liveIDs []string) {
 			notOwned = append(notOwned, id)
 			continue
 		}
-		if autoSyncDisabled[id] {
-			r.logInfo("Cluster not in Git but auto sync is disabled, skipping delete", "component", "Clusters", "cluster", id)
+		if reason, blocked := autoApplyBlocked[id]; blocked {
+			r.logInfo(fmt.Sprintf("Cluster not in Git but %s, skipping delete", reason), "component", "Clusters", "cluster", id)
 			continue
 		}
 		r.state.UpdateClusterStatus(id, "deleting")
@@ -1194,8 +1188,8 @@ func (r *Reconciler) DeleteClustersAll(dirs []string, liveIDs []string) {
 		for id := range protectedSnapshot {
 			desiredSet[id] = true
 		}
-		// Preserve clusters that were skipped because auto-sync is disabled —
-		// they must stay in state as outofsync, not be silently dropped.
+		// Preserve clusters that were skipped because automatic changes are
+		// blocked — they must stay in state, not be silently dropped.
 		// Exclude clusters that are in the unmanaged slice — those are handled
 		// below and adding them here would create a duplicate entry.
 		mu.Lock()
@@ -1204,7 +1198,7 @@ func (r *Reconciler) DeleteClustersAll(dirs []string, liveIDs []string) {
 			unmanagedSet[u.ID] = true
 		}
 		mu.Unlock()
-		for id := range autoSyncDisabled {
+		for id := range autoApplyBlocked {
 			if !unmanagedSet[id] {
 				desiredSet[id] = true
 			}

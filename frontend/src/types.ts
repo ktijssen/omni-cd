@@ -51,6 +51,10 @@ export interface ResourceInfo {
   clusterPhase?: string
   machinesHealthy?: number
   machinesTotal?: number
+  /** User labels on the Omni Cluster resource (omni.sidero.dev/* hidden). */
+  labels?: Record<string, string>
+  /** Labels declared in the cluster's Git template. */
+  templateLabels?: Record<string, string>
   etcdStatus?: string
   wireGuardStatus?: string
   lastBackupTime?: string
@@ -68,6 +72,43 @@ export interface ResourceInfo {
   createdAt?: string
   autoSync?: boolean
   repoName?: string
+  /** Names of the maintenance windows that include this cluster (computed). */
+  maintenanceWindows?: string[]
+  /** Combined status of those windows (computed). */
+  maintenanceStatus?: MaintenanceStatus
+}
+
+export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+
+/** One weekly range in server time. End <= start means it ends the next day. */
+export interface MaintenanceTimeRange {
+  days: Weekday[]
+  start: string // "HH:MM"
+  end: string // "HH:MM"
+}
+
+/** A named window: one weekly time range applied to one or more clusters. */
+export interface MaintenanceWindow extends MaintenanceTimeRange {
+  id: string
+  name: string
+  clusters: string[]
+  /** Clusters with all of these labels are included too (AND), now and later. */
+  selector?: Record<string, string>
+}
+
+/** Computed by the server; *Text fields are already in server time, e.g. "Sat 06:00". */
+export interface MaintenanceStatus {
+  open: boolean
+  currentEnd?: string
+  nextStart?: string
+  currentEndText?: string
+  nextStartText?: string
+}
+
+export interface MaintenanceWindowView extends MaintenanceWindow {
+  status: MaintenanceStatus
+  /** Clusters the window applies to right now (by name or label). */
+  matchedClusters: string[]
 }
 
 export interface LogEntry {
@@ -105,6 +146,9 @@ export interface SnapshotData {
   clustersEnabled: boolean
   repoClusterMap?: Record<string, string[]>
   repoMachineClassMap?: Record<string, string[]>
+  maintenanceWindows?: MaintenanceWindowView[]
+  /** Zone maintenance window times are read in, e.g. "UTC" or "Europe/Amsterdam". */
+  maintenanceTimezone?: string
   logs: LogEntry[]
   logLevel: string
 }

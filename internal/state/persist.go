@@ -4,16 +4,19 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"omni-cd/internal/maintenance"
 )
 
 // persistedState is the struct written to the state file.
 type persistedState struct {
-	LastReconcile       ReconcileInfo       `json:"lastReconcile"`
-	RepoClusterMap      map[string][]string `json:"repoClusterMap,omitempty"`
-	RepoMachineClassMap map[string][]string `json:"repoMachineClassMap,omitempty"`
-	Clusters            []ResourceInfo      `json:"clusters,omitempty"`
-	MachineClasses      []ResourceInfo      `json:"machineClasses,omitempty"`
-	ClustersEnabled     bool                `json:"clustersEnabled"`
+	LastReconcile       ReconcileInfo        `json:"lastReconcile"`
+	RepoClusterMap      map[string][]string  `json:"repoClusterMap,omitempty"`
+	RepoMachineClassMap map[string][]string  `json:"repoMachineClassMap,omitempty"`
+	Clusters            []ResourceInfo       `json:"clusters,omitempty"`
+	MachineClasses      []ResourceInfo       `json:"machineClasses,omitempty"`
+	ClustersEnabled     bool                 `json:"clustersEnabled"`
+	MaintenanceWindows  []maintenance.Window `json:"maintenanceWindows,omitempty"`
 }
 
 // save persists state to disk (best-effort, ignores errors).
@@ -63,6 +66,7 @@ func (s *AppState) SaveToFile(path string) error {
 		Clusters:            filteredClusters,
 		MachineClasses:      filteredMCs,
 		ClustersEnabled:     s.ClustersEnabled,
+		MaintenanceWindows:  s.maintenanceWindows,
 	}
 
 	data, err := json.MarshalIndent(ps, "", "  ")
@@ -130,6 +134,8 @@ func (s *AppState) LoadFromFile(path string) error {
 	if len(ps.MachineClasses) > 0 {
 		s.MachineClasses = ps.MachineClasses
 	}
+
+	s.maintenanceWindows = ps.MaintenanceWindows
 
 	return nil
 }

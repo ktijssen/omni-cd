@@ -38,6 +38,10 @@ const router = createRouter({
       component: () => import('@/views/InstancesView.vue'),
     },
     {
+      path: '/maintenance-windows',
+      component: () => import('@/views/MaintenanceWindowsView.vue'),
+    },
+    {
       path: '/:pathMatch(.*)*',
       component: () => import('@/views/NotFoundView.vue'),
     },

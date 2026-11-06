@@ -72,6 +72,15 @@
         </RouterLink>
 
         <RouterLink
+          to="/maintenance-windows"
+          class="sidebar-item sidebar-subitem"
+          :class="{ active: route.path === '/maintenance-windows' }"
+        >
+          <span class="sidebar-item-icon" v-html="clockIconSVG"></span>
+          <span class="sidebar-item-label">Maintenance Windows</span>
+        </RouterLink>
+
+        <RouterLink
           v-if="!authStore.authDisabled && authStore.isAdmin()"
           to="/users"
           class="sidebar-item sidebar-subitem"
@@ -143,6 +152,7 @@ import { useAuthStore } from '@/stores/authStore'
 import {
   clustersIconSVG,
   reposIconSVG,
+  clockIconSVG,
   codeBracketIconSVG,
   usersIconSVG,
   profileIconSVG,
@@ -168,7 +178,7 @@ const clusterSubNav = computed(() => {
   }
 })
 
-const settingsRoutes = ['/instances', '/repos', '/users']
+const settingsRoutes = ['/instances', '/repos', '/maintenance-windows', '/users']
 const isSettingsActive = computed(() => settingsRoutes.includes(route.path))
 
 const settingsOpen = ref(

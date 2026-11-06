@@ -98,6 +98,18 @@
         <div class="detail-strip-value" v-html="machinesBadge"></div>
       </div>
       <div class="detail-strip-sep"></div>
+      <template v-if="cluster.maintenanceWindows?.length">
+        <div class="detail-strip-item" style="min-width:160px" :title="'Maintenance window: ' + cluster.maintenanceWindows!.join(', ')">
+          <div class="detail-strip-label"><RouterLink to="/maintenance-windows" style="color:inherit;text-decoration:none" title="Manage in Settings → Maintenance Windows">Maintenance Window</RouterLink></div>
+          <div class="detail-strip-value">
+            <span v-if="cluster.autoSync === false" style="color:#5b5c64">Auto-sync off</span>
+            <span v-else-if="cluster.maintenanceStatus?.open" style="color:#4ade80">● Open</span>
+            <span v-else style="color:#fb923c">○ Closed</span>
+          </div>
+          <div style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap">{{ maintenanceSummary(cluster.maintenanceStatus) }}</div>
+        </div>
+        <div class="detail-strip-sep"></div>
+      </template>
       <div class="detail-strip-item" style="min-width:160px" :title="syncStatusTooltip">
         <div class="detail-strip-label">Sync Status</div>
         <div class="detail-strip-value" v-html="syncStatusBadge"></div>
@@ -324,6 +336,7 @@ import { useAuthStore } from '@/stores/authStore'
 import ClusterGraph from '@/components/clusters/ClusterGraph.vue'
 import DiffViewer from '@/components/clusters/DiffViewer.vue'
 import ManifestsGraph from '@/components/clusters/ManifestsGraph.vue'
+import { maintenanceSummary } from '@/components/maintenance/maintenance'
 import { syncedIconSVG, outOfSyncIconSVG, failedIconSVG } from '@/assets/icons'
 import type { ClusterManifestStatus, ManifestGroupStatus, ManifestStatus } from '@/types'
 import CodeEditor from '@/components/CodeEditor/CodeEditor.vue'

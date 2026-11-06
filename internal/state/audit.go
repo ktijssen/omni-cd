@@ -17,7 +17,7 @@ const maxAuditEntries = 500
 type AuditEntry struct {
 	Timestamp time.Time `json:"timestamp"`
 	User      string    `json:"user"`     // display name, "system", or "webhook"
-	Action    string    `json:"action"`   // "sync", "refresh", "delete", "auto-sync-on", "auto-sync-off", "repo-add", "repo-update", "repo-delete", "omni-update", "global-sync-on", "global-sync-off"
+	Action    string    `json:"action"`   // "sync", "refresh", "delete", "auto-sync-on", "auto-sync-off", "maintenance-window-create", "maintenance-window-update", "maintenance-window-delete", "repo-add", "repo-update", "repo-delete", "omni-update", "global-sync-on", "global-sync-off"
 	Resource  string    `json:"resource"` // cluster/MC name, repo name, or ""
 	Kind      string    `json:"kind"`     // "cluster", "machineclass", "repo", "omni", "global"
 }

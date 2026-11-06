@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -213,6 +215,7 @@ func (s *Server) Start() {
 	mux.HandleFunc("/api/refresh-cluster", s.requireRole("admin", s.handleRefreshCluster))
 	mux.HandleFunc("/api/delete-cluster", s.requireRole("admin", s.handleDeleteCluster))
 	mux.HandleFunc("/api/set-cluster-autosync", s.requireRole("admin", s.handleSetClusterAutoSync))
+	mux.HandleFunc("/api/maintenance-windows", s.requireRole("admin", s.handleMaintenanceWindows))
 	mux.HandleFunc("/api/export-cluster", s.requireRole("admin", s.handleExportCluster))
 	mux.HandleFunc("/api/cluster-manifests", s.requireRole("viewer", s.handleClusterManifests))
 	mux.HandleFunc("/api/repos", s.requireRole("admin", s.handleRepos))
@@ -385,6 +388,15 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 			hash = hash*31 + 7
 		}
 	}
+	// Maintenance window edits and open/close transitions (the per-window
+	// status covers the per-cluster status derived from it).
+	for _, mw := range snapshot.MaintenanceWindows {
+		if b, err := json.Marshal(mw); err == nil {
+			for _, x := range b {
+				hash = hash*31 + uint64(x)
+			}
+		}
+	}
 	if len(snapshot.LastReconcile.Status) > 0 {
 		hash = hash*31 + uint64(snapshot.LastReconcile.Status[0])
 	}
@@ -425,6 +437,12 @@ func (s *Server) hashState(snapshot state.SnapshotData) uint64 {
 		// Include liveContent length so manifest additions/removals (which don't
 		// change status or topology) still trigger a WebSocket broadcast.
 		hash = hash*31 + uint64(len(c.LiveContent))
+		// Include labels so adding/changing a label in Omni refreshes the UI.
+		for _, k := range slices.Sorted(maps.Keys(c.Labels)) {
+			for _, b := range []byte(k + "=" + c.Labels[k] + ";") {
+				hash = hash*31 + uint64(b)
+			}
+		}
 	}
 	for _, m := range snapshot.MachineClasses {
 		for _, b := range []byte(m.Status) {
