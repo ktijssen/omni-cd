@@ -13,6 +13,7 @@ import (
 
 	"omni-cd/internal/auth"
 	"omni-cd/internal/metrics"
+	"omni-cd/internal/omniinstance"
 	"omni-cd/internal/state"
 
 	"github.com/gorilla/websocket"
@@ -61,7 +62,7 @@ type Server struct {
 	triggerMCRefreshSingle chan string
 	triggerRepoChange      chan struct{}
 	triggerOmniConfigured  chan struct{}
-	omniInstanceFile       string
+	instanceStore          omniinstance.Store
 	logDir                 string
 	auditDir               string
 	port                   string
@@ -73,6 +74,7 @@ type Server struct {
 	authStore              *auth.Store
 	authDisabled           bool
 	sessions               sync.Map // token (string) -> sessionInfo
+	sessionRepo            auth.SessionRepository
 	loginBuckets           sync.Map // IP (string) -> *loginBucket
 	webhookBuckets         sync.Map // IP (string) -> *loginBucket — reused for bad-signature lockouts
 	metricsCollector       *metrics.Collector
@@ -98,17 +100,22 @@ type Options struct {
 	TriggerMCRefreshSingle chan string
 	TriggerRepoChange      chan struct{}
 	TriggerOmniConfigured  chan struct{}
-	OmniInstanceFile       string
-	LogDir                 string
-	AuditDir               string
-	Port                   string
-	Version                string
-	AuthStore              *auth.Store
-	AuthDisabled           bool
-	OIDC                   *OIDCRuntime
-	WebhookSecret          string
-	Metrics                *metrics.Collector
-	MetricsPort            string
+	// InstanceStore persists Omni connection settings entered in the UI.
+	InstanceStore omniinstance.Store
+	// SessionRepo persists login sessions; nil keeps sessions in memory only.
+	SessionRepo auth.SessionRepository
+	// OIDCUsers persists OIDC users and roles; nil disables role tracking.
+	OIDCUsers     auth.OIDCUserRepository
+	LogDir        string
+	AuditDir      string
+	Port          string
+	Version       string
+	AuthStore     *auth.Store
+	AuthDisabled  bool
+	OIDC          *OIDCRuntime
+	WebhookSecret string
+	Metrics       *metrics.Collector
+	MetricsPort   string
 }
 
 // New creates a new web server from the given options.
@@ -124,7 +131,8 @@ func New(opts Options) *Server {
 		triggerMCRefreshSingle: opts.TriggerMCRefreshSingle,
 		triggerRepoChange:      opts.TriggerRepoChange,
 		triggerOmniConfigured:  opts.TriggerOmniConfigured,
-		omniInstanceFile:       opts.OmniInstanceFile,
+		instanceStore:          opts.InstanceStore,
+		sessionRepo:            opts.SessionRepo,
 		logDir:                 opts.LogDir,
 		auditDir:               opts.AuditDir,
 		port:                   opts.Port,
@@ -135,9 +143,12 @@ func New(opts Options) *Server {
 		authDisabled:           opts.AuthDisabled,
 		oidcRT:                 opts.OIDC,
 		webhookSecret:          opts.WebhookSecret,
-		oidcUsers:              loadOIDCUserStore(oidcUsersPath),
 		metricsCollector:       opts.Metrics,
 		metricsPort:            opts.MetricsPort,
+	}
+
+	if opts.OIDCUsers != nil {
+		s.oidcUsers = newOIDCUserStore(opts.OIDCUsers)
 	}
 
 	// Load persisted sessions so users stay logged in across restarts.

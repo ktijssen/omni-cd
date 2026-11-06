@@ -8,7 +8,7 @@ import (
 )
 
 func newState() *state.AppState {
-	return state.New(100, "", true, "")
+	return state.New(100, "", true, nil)
 }
 
 func TestSetClusters_PreservesTransientFields(t *testing.T) {

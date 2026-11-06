@@ -806,7 +806,7 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "omni instance is configured via environment variables"})
 			return
 		}
-		if err := os.Remove(s.omniInstanceFile); err != nil && !os.IsNotExist(err) {
+		if err := s.instanceStore.DeleteInstanceConfig(); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete config: " + err.Error()})
 			return
 		}
@@ -857,7 +857,7 @@ func (s *Server) handleOmniInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := omniinstance.Save(s.omniInstanceFile, omniinstance.InstanceConfig{Endpoint: req.Endpoint, ServiceAccountKey: req.ServiceAccountKey}); err != nil {
+	if err := s.instanceStore.SaveInstanceConfig(omniinstance.InstanceConfig{Endpoint: req.Endpoint, ServiceAccountKey: req.ServiceAccountKey}); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save config: " + err.Error()})
 		return
 	}

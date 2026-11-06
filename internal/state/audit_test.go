@@ -9,7 +9,7 @@ import (
 )
 
 func TestAppendAudit_RingBuffer(t *testing.T) {
-	s := New(100, "", true, "")
+	s := New(100, "", true, nil)
 	// Add more than maxAuditEntries (500) entries.
 	for i := 0; i < 600; i++ {
 		s.AppendAudit(AuditEntry{Action: "sync", Kind: "cluster"})
@@ -23,7 +23,7 @@ func TestAppendAudit_RingBuffer(t *testing.T) {
 }
 
 func TestGetAuditLog_NewestFirst(t *testing.T) {
-	s := New(100, "", true, "")
+	s := New(100, "", true, nil)
 	t1 := time.Now().UTC().Add(-2 * time.Hour)
 	t2 := time.Now().UTC().Add(-1 * time.Hour)
 	t3 := time.Now().UTC()
@@ -46,12 +46,12 @@ func TestGetAuditLog_NewestFirst(t *testing.T) {
 func TestSetAuditDir_WritesAndReadsFile(t *testing.T) {
 	dir := t.TempDir()
 
-	s1 := New(100, "", true, "")
+	s1 := New(100, "", true, nil)
 	s1.SetAuditDir(dir, 30)
 	s1.AppendAudit(AuditEntry{Action: "sync", Kind: "cluster", User: "alice"})
 
 	// A second AppState loading the same dir should restore the entry.
-	s2 := New(100, "", true, "")
+	s2 := New(100, "", true, nil)
 	s2.SetAuditDir(dir, 30)
 
 	s2.mu.RLock()
@@ -73,7 +73,7 @@ func TestSetAuditDir_WritesAndReadsFile(t *testing.T) {
 
 func TestCleanOldAuditFiles(t *testing.T) {
 	dir := t.TempDir()
-	s := New(100, "", true, "")
+	s := New(100, "", true, nil)
 	s.mu.Lock()
 	s.auditDir = dir
 	s.auditRetentionDays = 7
@@ -136,7 +136,7 @@ func TestSetAuditDir_RestoresAcrossDayRollover(t *testing.T) {
 	writeFile(yesterday, 400, "yday")
 	writeFile(today, 50, "today")
 
-	s := New(100, "", true, "")
+	s := New(100, "", true, nil)
 	s.SetAuditDir(dir, 30)
 
 	entries := s.GetAuditLog()
@@ -180,7 +180,7 @@ func TestSetAuditDir_Caps500AcrossDays(t *testing.T) {
 	writeFile(yesterday, 600, "yday")
 	writeFile(today, 0, "today")
 
-	s := New(100, "", true, "")
+	s := New(100, "", true, nil)
 	s.SetAuditDir(dir, 30)
 
 	entries := s.GetAuditLog()

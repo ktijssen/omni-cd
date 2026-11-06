@@ -225,13 +225,13 @@ type AppState struct {
 	logFile             *os.File
 	logFileDate         string // "2006-01-02"
 	logRetentionDays    int
-	stateFile           string        // Path to state file
-	repoFile            string        // Path to repos.json
+	store               Store         // Persistence backend; nil disables persistence
 	changeCh            chan struct{} // Closed/sent on every state mutation
 }
 
-// New creates a new AppState with a max log buffer size.
-func New(maxLogs int, omniEndpoint string, clustersEnabled bool, stateFile string) *AppState {
+// New creates a new AppState with a max log buffer size. When store is
+// non-nil, previously persisted state is loaded from it.
+func New(maxLogs int, omniEndpoint string, clustersEnabled bool, store Store) *AppState {
 	s := &AppState{
 		maxLogs:         maxLogs,
 		OmniEndpoint:    omniEndpoint,
@@ -240,7 +240,7 @@ func New(maxLogs int, omniEndpoint string, clustersEnabled bool, stateFile strin
 		Clusters:        []ResourceInfo{},
 		Logs:            []LogEntry{},
 		auditLog:        []AuditEntry{},
-		stateFile:       stateFile,
+		store:           store,
 		changeCh:        make(chan struct{}, 1),
 		ServerStartedAt: time.Now().UTC(),
 		LastReconcile: ReconcileInfo{
@@ -248,8 +248,8 @@ func New(maxLogs int, omniEndpoint string, clustersEnabled bool, stateFile strin
 		},
 	}
 
-	if stateFile != "" {
-		_ = s.LoadFromFile(stateFile)
+	if err := s.loadState(); err != nil {
+		slog.Error("Failed to load persisted state", "error", err, "component", "State")
 	}
 
 	return s

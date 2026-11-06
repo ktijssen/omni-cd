@@ -1,10 +1,8 @@
 package auth
 
 import (
-	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
+	"log/slog"
 	"sync"
 	"unicode"
 
@@ -24,28 +22,16 @@ type UserInfo struct {
 	DisplayName string `json:"displayName"`
 }
 
-// Store is a thread-safe, file-backed list of users with bcrypt passwords.
+// Store manages local user accounts with bcrypt passwords on top of a
+// UserRepository. The mutex serialises read-modify-write updates.
 type Store struct {
-	mu    sync.RWMutex
-	users []User
-	path  string
+	mu   sync.Mutex
+	repo UserRepository
 }
 
-// New loads (or creates) a Store backed by the file at path.
-// Returns an empty store when the file does not yet exist.
-func New(path string) (*Store, error) {
-	s := &Store{path: path}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return s, nil
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(data, &s.users); err != nil {
-		return nil, err
-	}
-	return s, nil
+// New returns a Store backed by repo.
+func New(repo UserRepository) *Store {
+	return &Store{repo: repo}
 }
 
 // ValidatePasswordStrength returns an error if password doesn't meet the minimum
@@ -78,47 +64,48 @@ func ValidatePasswordStrength(password string) error {
 	return nil
 }
 
-// IsEmpty returns true when no users have been configured yet.
+// IsEmpty returns true when no users have been configured yet. A repository
+// read error is treated as non-empty so a broken store never re-opens setup.
 func (s *Store) IsEmpty() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.users) == 0
+	users, err := s.repo.ListUsers()
+	if err != nil {
+		slog.Error("Failed to list users", "error", err, "component", "Auth")
+		return false
+	}
+	return len(users) == 0
 }
 
 // Validate returns true when the username exists and password matches the stored hash.
 func (s *Store) Validate(username, password string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, u := range s.users {
-		if u.Username == username {
-			return bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) == nil
+	u, err := s.repo.GetUser(username)
+	if err != nil {
+		if !errors.Is(err, ErrNotFound) {
+			slog.Error("Failed to look up user", "error", err, "component", "Auth")
 		}
+		return false
 	}
-	return false
+	return bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) == nil
 }
 
 // GetDisplayName returns the display name for the given username, or the username
 // itself if no display name is set.
 func (s *Store) GetDisplayName(username string) string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, u := range s.users {
-		if u.Username == username {
-			if u.DisplayName != "" {
-				return u.DisplayName
-			}
-			return username
-		}
+	u, err := s.repo.GetUser(username)
+	if err != nil || u.DisplayName == "" {
+		return username
 	}
-	return username
+	return u.DisplayName
 }
 
 // List returns a hash-free snapshot of all users.
 func (s *Store) List() []UserInfo {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	out := make([]UserInfo, len(s.users))
-	for i, u := range s.users {
+	users, err := s.repo.ListUsers()
+	if err != nil {
+		slog.Error("Failed to list users", "error", err, "component", "Auth")
+		return []UserInfo{}
+	}
+	out := make([]UserInfo, len(users))
+	for i, u := range users {
 		out[i] = UserInfo{Username: u.Username, DisplayName: u.DisplayName}
 	}
 	return out
@@ -132,21 +119,18 @@ func (s *Store) SetUser(username, displayName, password string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for i, u := range s.users {
-		if u.Username == username {
-			s.users[i].PasswordHash = string(hash)
-			if displayName != "" {
-				s.users[i].DisplayName = displayName
-			}
-			return s.save()
-		}
+	u, err := s.repo.GetUser(username)
+	switch {
+	case errors.Is(err, ErrNotFound):
+		u = User{Username: username}
+	case err != nil:
+		return err
 	}
-	s.users = append(s.users, User{
-		Username:     username,
-		DisplayName:  displayName,
-		PasswordHash: string(hash),
-	})
-	return s.save()
+	u.PasswordHash = string(hash)
+	if displayName != "" {
+		u.DisplayName = displayName
+	}
+	return s.repo.PutUser(u)
 }
 
 // UpdateProfile updates the display name for an existing user.
@@ -154,15 +138,18 @@ func (s *Store) SetUser(username, displayName, password string) error {
 func (s *Store) UpdateProfile(username, newDisplayName string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for i, u := range s.users {
-		if u.Username == username {
-			if newDisplayName != "" {
-				s.users[i].DisplayName = newDisplayName
-			}
-			return s.save()
-		}
+	u, err := s.repo.GetUser(username)
+	if errors.Is(err, ErrNotFound) {
+		return errors.New("user not found")
 	}
-	return errors.New("user not found")
+	if err != nil {
+		return err
+	}
+	if newDisplayName == "" {
+		return nil
+	}
+	u.DisplayName = newDisplayName
+	return s.repo.PutUser(u)
 }
 
 // ChangePassword verifies currentPassword then replaces the hash with newPassword.
@@ -175,16 +162,4 @@ func (s *Store) ChangePassword(username, currentPassword, newPassword string) er
 		return err
 	}
 	return s.SetUser(username, "", newPassword)
-}
-
-// save writes the current user list to disk. Must be called with s.mu held (write).
-func (s *Store) save() error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0700); err != nil {
-		return err
-	}
-	data, err := json.Marshal(s.users)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(s.path, data, 0600)
 }

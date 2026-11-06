@@ -135,7 +135,7 @@ OIDC requires `oidc.enabled: true` AND a non-empty issuer URL and client ID. OID
 Repositories can be defined in two places:
 
 1. **Config file (`repos:`)** — Declarative. The UI shows these with a "📄 from config" badge; Edit and Delete are disabled. Manage them by editing the file and restarting.
-2. **Web UI (Repos page)** — Interactive. Persisted to `/data/config/repos.json` and fully editable.
+2. **Web UI (Repos page)** — Interactive. Persisted in the SQLite database (`/data/omni-cd.db`) and fully editable.
 
 Both kinds coexist. If a name appears in both, the config file wins (the UI version is shadowed). Remove a repo from the config and restart to demote it back to UI-managed.
 
