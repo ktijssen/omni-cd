@@ -11,7 +11,7 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.6.0.20260809190231-643e93b9c9be
 	golang.org/x/crypto v0.58.0
 	golang.org/x/oauth2 v0.37.0
-	google.golang.org/grpc v1.84.0
+	google.golang.org/grpc v1.85.0
 	modernc.org/sqlite v1.61.1
 )
 
