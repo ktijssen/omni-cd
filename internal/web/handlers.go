@@ -17,6 +17,7 @@ import (
 
 	"omni-cd/internal/config"
 	"omni-cd/internal/git"
+	"omni-cd/internal/maintenance"
 	"omni-cd/internal/omni"
 	"omni-cd/internal/omniinstance"
 	"omni-cd/internal/state"
@@ -251,6 +252,65 @@ func (s *Server) handleSetClusterAutoSync(w http.ResponseWriter, r *http.Request
 	}
 	s.appState.AppendAudit(state.AuditEntry{User: s.sessionIdentity(r), Action: autoSyncAction, Resource: req.ID, Kind: "cluster"})
 	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "id": req.ID, "autoSync": req.AutoSync})
+}
+
+// handleMaintenanceWindows creates (POST), updates (PUT) or deletes (DELETE)
+// a maintenance window. Windows are read via the state snapshot.
+func (s *Server) handleMaintenanceWindows(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost, http.MethodPut, http.MethodDelete:
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req maintenance.Window
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	user := s.sessionIdentity(r)
+
+	switch r.Method {
+	case http.MethodPost:
+		created, err := s.appState.CreateMaintenanceWindow(req)
+		if err != nil {
+			writeMaintenanceError(w, err)
+			return
+		}
+		s.appState.AppendAudit(state.AuditEntry{User: user, Action: "maintenance-window-create", Resource: created.Name, Kind: "maintenance-window"})
+		writeJSON(w, http.StatusCreated, created)
+	case http.MethodPut:
+		if req.ID == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id is required"})
+			return
+		}
+		if err := s.appState.UpdateMaintenanceWindow(req); err != nil {
+			writeMaintenanceError(w, err)
+			return
+		}
+		s.appState.AppendAudit(state.AuditEntry{User: user, Action: "maintenance-window-update", Resource: strings.TrimSpace(req.Name), Kind: "maintenance-window"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	case http.MethodDelete:
+		if req.ID == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id is required"})
+			return
+		}
+		name, err := s.appState.DeleteMaintenanceWindow(req.ID)
+		if err != nil {
+			writeMaintenanceError(w, err)
+			return
+		}
+		s.appState.AppendAudit(state.AuditEntry{User: user, Action: "maintenance-window-delete", Resource: name, Kind: "maintenance-window"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	}
+}
+
+func writeMaintenanceError(w http.ResponseWriter, err error) {
+	status := http.StatusBadRequest
+	if errors.Is(err, state.ErrMaintenanceWindowNotFound) {
+		status = http.StatusNotFound
+	}
+	writeJSON(w, status, map[string]string{"error": err.Error()})
 }
 
 // handleDeleteCluster triggers deletion of a specific cluster without blocking the global reconcile.

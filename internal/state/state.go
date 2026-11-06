@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"omni-cd/internal/config"
+	"omni-cd/internal/maintenance"
 )
 
 // ReconcileType identifies the type of reconciliation.
@@ -98,12 +99,18 @@ type ResourceInfo struct {
 	ControlplaneReady  string      `json:"controlplaneReady,omitempty"`
 	ClusterPhase       string      `json:"clusterPhase,omitempty"`
 	// Live health fields (populated by background polling, not the reconciler)
-	MachinesHealthy int       `json:"machinesHealthy,omitempty"`
-	MachinesTotal   int       `json:"machinesTotal,omitempty"`
-	EtcdStatus      string    `json:"etcdStatus,omitempty"`
-	WireGuardStatus string    `json:"wireGuardStatus,omitempty"`
-	LastBackupTime  time.Time `json:"lastBackupTime,omitempty"`
-	BackupEnabled   bool      `json:"backupEnabled,omitempty"`
+	MachinesHealthy int `json:"machinesHealthy,omitempty"`
+	MachinesTotal   int `json:"machinesTotal,omitempty"`
+	// Labels are the user labels on the Omni Cluster resource (live).
+	Labels map[string]string `json:"labels,omitempty"`
+	// TemplateLabels are the labels declared in the cluster's Git template,
+	// derived from FileContent. Used to match maintenance window selectors
+	// before a cluster (or a new label) exists in Omni.
+	TemplateLabels  map[string]string `json:"templateLabels,omitempty"`
+	EtcdStatus      string            `json:"etcdStatus,omitempty"`
+	WireGuardStatus string            `json:"wireGuardStatus,omitempty"`
+	LastBackupTime  time.Time         `json:"lastBackupTime,omitempty"`
+	BackupEnabled   bool              `json:"backupEnabled,omitempty"`
 	// Extensions parsed from the cluster template
 	ClusterExtensions []string            `json:"clusterExtensions,omitempty"`
 	MachineExtensions map[string][]string `json:"machineExtensions,omitempty"`
@@ -130,6 +137,11 @@ type ResourceInfo struct {
 	AutoSync *bool `json:"autoSync,omitempty"`
 	// RepoName is the name of the git repo this resource was sourced from.
 	RepoName string `json:"repoName,omitempty"`
+	// MaintenanceWindows names the maintenance windows that include this
+	// cluster, and MaintenanceStatus is their combined status. Both are
+	// computed in Snapshot for the UI and never persisted.
+	MaintenanceWindows []string               `json:"maintenanceWindows,omitempty"`
+	MaintenanceStatus  *MaintenanceStatusView `json:"maintenanceStatus,omitempty"`
 }
 
 // IsPendingSync reports whether a status means "git and Omni disagree and a
@@ -151,57 +163,63 @@ type LogEntry struct {
 
 // SnapshotData holds a point-in-time copy of AppState for JSON serialization.
 type SnapshotData struct {
-	ServerStartedAt     time.Time           `json:"serverStartedAt"`
-	AppVersion          string              `json:"appVersion"`
-	OmniEndpoint        string              `json:"omniEndpoint"`
-	OmniVersion         string              `json:"omniVersion"`
-	OmniHealth          OmniHealth          `json:"omniHealth"`
-	OmniEnvLocked       bool                `json:"omniEnvLocked"`
-	OmniConfigured      bool                `json:"omniConfigured"`
-	OmniHasStoredKey    bool                `json:"omniHasStoredKey"`
-	Git                 GitInfo             `json:"git"`
-	Repos               []GitInfo           `json:"repos,omitempty"`
-	RepoConfigs         []RepoConfigView    `json:"repoConfigs,omitempty"`
-	LastReconcile       ReconcileInfo       `json:"lastReconcile"`
-	MachineClasses      []ResourceInfo      `json:"machineClasses"`
-	Clusters            []ResourceInfo      `json:"clusters"`
-	ClustersEnabled     bool                `json:"clustersEnabled"`
-	RepoClusterMap      map[string][]string `json:"repoClusterMap,omitempty"`
-	RepoMachineClassMap map[string][]string `json:"repoMachineClassMap,omitempty"`
-	Logs                []LogEntry          `json:"logs"`
-	LogLevel            string              `json:"logLevel"`
+	ServerStartedAt     time.Time               `json:"serverStartedAt"`
+	AppVersion          string                  `json:"appVersion"`
+	OmniEndpoint        string                  `json:"omniEndpoint"`
+	OmniVersion         string                  `json:"omniVersion"`
+	OmniHealth          OmniHealth              `json:"omniHealth"`
+	OmniEnvLocked       bool                    `json:"omniEnvLocked"`
+	OmniConfigured      bool                    `json:"omniConfigured"`
+	OmniHasStoredKey    bool                    `json:"omniHasStoredKey"`
+	Git                 GitInfo                 `json:"git"`
+	Repos               []GitInfo               `json:"repos,omitempty"`
+	RepoConfigs         []RepoConfigView        `json:"repoConfigs,omitempty"`
+	LastReconcile       ReconcileInfo           `json:"lastReconcile"`
+	MachineClasses      []ResourceInfo          `json:"machineClasses"`
+	Clusters            []ResourceInfo          `json:"clusters"`
+	ClustersEnabled     bool                    `json:"clustersEnabled"`
+	RepoClusterMap      map[string][]string     `json:"repoClusterMap,omitempty"`
+	RepoMachineClassMap map[string][]string     `json:"repoMachineClassMap,omitempty"`
+	MaintenanceWindows  []MaintenanceWindowView `json:"maintenanceWindows"`
+	// MaintenanceTimezone names the zone maintenance window times are read in.
+	MaintenanceTimezone string     `json:"maintenanceTimezone"`
+	Logs                []LogEntry `json:"logs"`
+	LogLevel            string     `json:"logLevel"`
 }
 
 // AppState holds all shared state for the application.
 type AppState struct {
 	mu                  sync.RWMutex
-	OmniEndpoint        string              `json:"omniEndpoint"`
-	OmniVersion         string              `json:"omniVersion"`
-	OmniHealth          OmniHealth          `json:"omniHealth"`
-	omniEnvLocked       bool                // true when Omni creds come from ENV vars — never changes at runtime
-	omniConfigured      bool                // true once omni.Init has succeeded
-	omniHasStoredKey    bool                // true when a key is saved in instances.json
-	Git                 GitInfo             `json:"git"`
-	Repos               []GitInfo           `json:"repos,omitempty"`
-	RepoConfigs         []config.RepoConfig // mutable repo configs — never serialised to browser
-	LastReconcile       ReconcileInfo       `json:"lastReconcile"`
-	MachineClasses      []ResourceInfo      `json:"machineClasses"`
-	Clusters            []ResourceInfo      `json:"clusters"`
-	ClustersEnabled     bool                `json:"clustersEnabled"`
-	RepoClusterMap      map[string][]string `json:"repoClusterMap,omitempty"`
-	RepoMachineClassMap map[string][]string `json:"repoMachineClassMap,omitempty"`
-	forceClusterIDs     map[string]bool     // Cluster IDs queued for force sync
-	forceMCIDs          map[string]bool     // Machine class IDs queued for force sync
-	pendingRepoDeletes  []config.RepoConfig // Repos deleted via UI that need resource cleanup
-	ServerStartedAt     time.Time           // Set once at process start, never persisted
-	AppVersion          string              // Set at startup from build ldflags, never persisted
-	auditLog            []AuditEntry        // In-memory ring buffer, never serialised to state.json
-	auditDir            string              // Directory for daily audit files
-	auditFile           *os.File            // Current day's open audit file
-	auditFileDate       string              // "2006-01-02" of auditFile
-	auditRetentionDays  int                 // Number of days to keep audit files
-	Logs                []LogEntry          `json:"logs"`
-	LogLevel            string              // e.g. "DEBUG", "INFO", "WARN", "ERROR"
+	OmniEndpoint        string               `json:"omniEndpoint"`
+	OmniVersion         string               `json:"omniVersion"`
+	OmniHealth          OmniHealth           `json:"omniHealth"`
+	omniEnvLocked       bool                 // true when Omni creds come from ENV vars — never changes at runtime
+	omniConfigured      bool                 // true once omni.Init has succeeded
+	omniHasStoredKey    bool                 // true when a key is saved in instances.json
+	Git                 GitInfo              `json:"git"`
+	Repos               []GitInfo            `json:"repos,omitempty"`
+	RepoConfigs         []config.RepoConfig  // mutable repo configs — never serialised to browser
+	LastReconcile       ReconcileInfo        `json:"lastReconcile"`
+	MachineClasses      []ResourceInfo       `json:"machineClasses"`
+	Clusters            []ResourceInfo       `json:"clusters"`
+	ClustersEnabled     bool                 `json:"clustersEnabled"`
+	RepoClusterMap      map[string][]string  `json:"repoClusterMap,omitempty"`
+	RepoMachineClassMap map[string][]string  `json:"repoMachineClassMap,omitempty"`
+	forceClusterIDs     map[string]bool      // Cluster IDs queued for force sync
+	clusterApplyPass    bool                 // Next reconcile must run the cluster apply path (a maintenance window opened)
+	maintenanceWindows  []maintenance.Window // Persisted; see maintenance.go
+	maintenanceLoc      *time.Location       // Location window times are read in; nil means time.Local
+	forceMCIDs          map[string]bool      // Machine class IDs queued for force sync
+	pendingRepoDeletes  []config.RepoConfig  // Repos deleted via UI that need resource cleanup
+	ServerStartedAt     time.Time            // Set once at process start, never persisted
+	AppVersion          string               // Set at startup from build ldflags, never persisted
+	auditLog            []AuditEntry         // In-memory ring buffer, never serialised to state.json
+	auditDir            string               // Directory for daily audit files
+	auditFile           *os.File             // Current day's open audit file
+	auditFileDate       string               // "2006-01-02" of auditFile
+	auditRetentionDays  int                  // Number of days to keep audit files
+	Logs                []LogEntry           `json:"logs"`
+	LogLevel            string               // e.g. "DEBUG", "INFO", "WARN", "ERROR"
 	maxLogs             int
 	logDir              string
 	logFile             *os.File
@@ -399,6 +417,7 @@ func (s *AppState) Close() {
 
 // Snapshot returns a copy of the current state for JSON serialization.
 func (s *AppState) Snapshot() SnapshotData {
+	now := time.Now()
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	repoViews := make([]RepoConfigView, len(s.RepoConfigs))
@@ -438,7 +457,9 @@ func (s *AppState) Snapshot() SnapshotData {
 		RepoConfigs:         repoViews,
 		LastReconcile:       s.LastReconcile,
 		MachineClasses:      cloneResources(s.MachineClasses),
-		Clusters:            cloneResources(s.Clusters),
+		Clusters:            s.withMaintenanceStatus(cloneResources(s.Clusters), now),
+		MaintenanceWindows:  s.maintenanceWindowViews(now),
+		MaintenanceTimezone: s.maintenanceTimezone(),
 		ClustersEnabled:     s.ClustersEnabled,
 		RepoClusterMap:      cloneStringSliceMap(s.RepoClusterMap),
 		RepoMachineClassMap: cloneStringSliceMap(s.RepoMachineClassMap),

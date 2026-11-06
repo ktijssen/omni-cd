@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -421,13 +422,21 @@ func main() {
 
 			anySynced := false
 			for _, id := range ids {
-				if appState.GetClusterAutoSync(id) {
-					// Auto-sync enabled: queue a force-sync and trigger a hard reconcile.
-					// The reconcile will pull git, apply MCs, then force-apply this cluster.
+				// Only revert Omni-side changes when automatic changes are allowed
+				// right now: auto-sync on AND, if the cluster is in a maintenance
+				// window, the window is open. A force-sync skips the window check
+				// in the reconciler, so the check has to happen here.
+				blockReason := appState.AutoApplyBlockReason(id, time.Now())
+				if blockReason == "" {
+					// Queue a force-sync and trigger a hard reconcile. The reconcile
+					// will pull git, apply MCs, then force-apply this cluster.
 					logInfo("Omni config change detected, auto-syncing cluster", "cluster", id)
 					appState.AddForceClusterID(id)
 					anySynced = true
 				} else {
+					if blockReason != "auto-sync disabled" {
+						logInfo("Omni config change detected, not syncing ("+blockReason+")", "cluster", id)
+					}
 					foundDir := ""
 					for _, dir := range dirs {
 						if _, err := os.Stat(dir + "/" + id); err == nil {
@@ -594,6 +603,9 @@ func main() {
 	// 5-second tick for the first badge to appear).
 	go pollClusterStatuses()
 
+	// Apply held-back cluster changes as soon as a maintenance window opens.
+	go watchMaintenanceWindows(triggerSoft)
+
 	// Start refresh timer after first reconcile completes
 	refreshTimer := time.NewTimer(cfg.RefreshInterval)
 	defer refreshTimer.Stop()
@@ -716,6 +728,46 @@ func diffAllMCs(gc *git.MultiClient, rec *reconciler.Reconciler, logSyncErrors b
 		}
 		rc := repoByName[r.Name]
 		rec.DiffMachineClasses(r.RepoDir + "/" + rc.MCPath)
+	}
+}
+
+// maintenanceWindowCheckInterval is how often watchMaintenanceWindows looks
+// for windows that have opened. Changes are applied at most this long after a
+// window opens.
+const maintenanceWindowCheckInterval = 30 * time.Second
+
+// watchMaintenanceWindows requests a cluster apply pass whenever a cluster's
+// maintenance window opens. Without it, a change committed while the window
+// was closed would wait for the next commit or a manual full sync, because
+// refresh reconciles only run the apply path when a repo changed.
+func watchMaintenanceWindows(trigger chan struct{}) {
+	ticker := time.NewTicker(maintenanceWindowCheckInterval)
+	defer ticker.Stop()
+	// The startup reconcile already ran with windows evaluated at that time,
+	// so seed with the currently open windows instead of treating them as new.
+	wasOpen := appState.OpenMaintenanceWindows(time.Now())
+	for range ticker.C {
+		open := appState.OpenMaintenanceWindows(time.Now())
+		var opened []string
+		for id := range open {
+			if !wasOpen[id] {
+				opened = append(opened, id)
+			}
+		}
+		wasOpen = open
+		if len(opened) > 0 {
+			sort.Strings(opened)
+			logInfo("Maintenance window opened", "clusters", strings.Join(opened, ", "))
+			appState.RequestClusterApplyPass()
+		}
+		// Keep nudging until a reconcile has consumed the request: the main
+		// loop drops triggers while a reconcile is already running.
+		if appState.ClusterApplyPassPending() {
+			select {
+			case trigger <- struct{}{}:
+			default:
+			}
+		}
 	}
 }
 
@@ -908,7 +960,13 @@ func doReconcile(gitClient *git.MultiClient, rec *reconciler.Reconciler, cfg *co
 	// Check if any (successful) repo changed, or a force-sync was requested.
 	forceClusterIDs := appState.GetAndClearForceClusterIDs()
 	forceMCIDs := appState.GetAndClearForceMCIDs()
-	anyChanged := force || len(forceClusterIDs) > 0 || len(forceMCIDs) > 0
+	// A maintenance window that just opened needs the apply path even when
+	// no repo changed, so changes held back while it was closed get applied.
+	windowApplyPass := appState.TakeClusterApplyPass()
+	if windowApplyPass {
+		logInfo("Maintenance window opened, applying pending cluster changes")
+	}
+	anyChanged := force || windowApplyPass || len(forceClusterIDs) > 0 || len(forceMCIDs) > 0
 	for _, r := range okResults {
 		if r.Changed {
 			anyChanged = true

@@ -1,6 +1,7 @@
 package state
 
 import (
+	"maps"
 	"time"
 
 	"omni-cd/internal/omni"
@@ -19,6 +20,7 @@ type transientClusterFields struct {
 	WireGuardStatus    string
 	LastBackupTime     time.Time
 	BackupEnabled      bool
+	Labels             map[string]string
 	LastSyncResult     string
 	LastSyncError      string
 	LastSyncTime       time.Time
@@ -58,6 +60,7 @@ func (s *AppState) SetClusters(resources []ResourceInfo) {
 			WireGuardStatus:    c.WireGuardStatus,
 			LastBackupTime:     c.LastBackupTime,
 			BackupEnabled:      c.BackupEnabled,
+			Labels:             c.Labels,
 			LastSyncResult:     c.LastSyncResult,
 			LastSyncError:      c.LastSyncError,
 			LastSyncTime:       c.LastSyncTime,
@@ -83,6 +86,7 @@ func (s *AppState) SetClusters(resources []ResourceInfo) {
 			resources[i].WireGuardStatus = f.WireGuardStatus
 			resources[i].LastBackupTime = f.LastBackupTime
 			resources[i].BackupEnabled = f.BackupEnabled
+			resources[i].Labels = f.Labels
 			if resources[i].LastSyncResult == "" {
 				resources[i].LastSyncResult = f.LastSyncResult
 				resources[i].LastSyncError = f.LastSyncError
@@ -116,9 +120,27 @@ func (s *AppState) SetClusters(resources []ResourceInfo) {
 			resources[i].AutoSync = &f
 		}
 	}
+	prevTemplateLabels := make(map[string]map[string]string, len(s.Clusters))
+	for _, c := range s.Clusters {
+		prevTemplateLabels[c.ID] = c.TemplateLabels
+	}
+	for i := range resources {
+		setTemplateLabels(&resources[i], prevTemplateLabels[resources[i].ID])
+	}
 	s.Clusters = resources
 	s.mu.Unlock()
 	s.notifyChange()
+}
+
+// setTemplateLabels derives TemplateLabels from the Git template in
+// FileContent. Without FileContent (e.g. an unmanaged cluster or a live-only
+// update) the previous value is kept.
+func setTemplateLabels(r *ResourceInfo, prev map[string]string) {
+	if r.FileContent != "" {
+		r.TemplateLabels = omni.TemplateClusterLabels(r.FileContent)
+	} else if r.TemplateLabels == nil {
+		r.TemplateLabels = prev
+	}
 }
 
 // RemoveCluster removes a cluster from state by ID. No-op if not found.
@@ -228,6 +250,8 @@ func (s *AppState) UpsertClusterInfo(id string, info ResourceInfo) {
 			info.WireGuardStatus = s.Clusters[i].WireGuardStatus
 			info.LastBackupTime = s.Clusters[i].LastBackupTime
 			info.BackupEnabled = s.Clusters[i].BackupEnabled
+			info.Labels = s.Clusters[i].Labels
+			setTemplateLabels(&info, s.Clusters[i].TemplateLabels)
 			info.AutoSync = s.Clusters[i].AutoSync
 			if info.LastSyncResult == "" {
 				info.LastSyncResult = s.Clusters[i].LastSyncResult
@@ -259,6 +283,7 @@ func (s *AppState) UpsertClusterInfo(id string, info ResourceInfo) {
 		disabled := false
 		info.AutoSync = &disabled
 	}
+	setTemplateLabels(&info, nil)
 	s.Clusters = append(s.Clusters, info)
 	s.mu.Unlock()
 	s.notifyChange()
@@ -275,6 +300,7 @@ func (s *AppState) UpdateClusterReadyStatuses(statuses map[string]omni.ClusterSt
 		var newEtcd, newWireGuard string
 		var newLastBackup time.Time
 		var newBackupEnabled bool
+		var newLabels map[string]string
 		if st, ok := statuses[s.Clusters[i].ID]; ok {
 			if st.Ready {
 				newReady = "ready"
@@ -298,6 +324,7 @@ func (s *AppState) UpdateClusterReadyStatuses(statuses map[string]omni.ClusterSt
 			newLastBackup = st.LastBackupTime
 			newBackupEnabled = st.BackupEnabled
 			newPhase = st.Phase
+			newLabels = st.Labels
 		} else {
 			newReady = "unknown"
 			newAPIReady = "unknown"
@@ -311,7 +338,8 @@ func (s *AppState) UpdateClusterReadyStatuses(statuses map[string]omni.ClusterSt
 			c.ControlplaneReady != newCPReady || c.ClusterPhase != newPhase ||
 			c.MachinesHealthy != newMachinesHealthy || c.MachinesTotal != newMachinesTotal ||
 			c.EtcdStatus != newEtcd || c.WireGuardStatus != newWireGuard ||
-			!c.LastBackupTime.Equal(newLastBackup) || c.BackupEnabled != newBackupEnabled {
+			!c.LastBackupTime.Equal(newLastBackup) || c.BackupEnabled != newBackupEnabled ||
+			!maps.Equal(c.Labels, newLabels) {
 			c.ClusterReady = newReady
 			c.KubernetesAPIReady = newAPIReady
 			c.ControlplaneReady = newCPReady
@@ -322,6 +350,7 @@ func (s *AppState) UpdateClusterReadyStatuses(statuses map[string]omni.ClusterSt
 			c.WireGuardStatus = newWireGuard
 			c.LastBackupTime = newLastBackup
 			c.BackupEnabled = newBackupEnabled
+			c.Labels = cloneStringMap(newLabels)
 			changed = true
 		}
 	}

@@ -87,6 +87,12 @@ Every field has a corresponding env var. When set (and non-empty) it overrides t
 | `METRICS_PORT` | `metricsPort` | |
 | `WEBHOOK_SECRET` | `webhookSecret` | |
 
+### Timezone
+
+| Variable | Description |
+|---|---|
+| `TZ` | Timezone that [maintenance window](web-ui.md#maintenance-windows-maintenance-windows) times are read in, e.g. `Europe/Amsterdam`. Defaults to UTC. Standard environment variable; not available in the config file. |
+
 ### Authentication
 
 | Variable | Maps to |

@@ -9,6 +9,7 @@ The UI is a single-page app with a collapsible sidebar. Navigating to `/` redire
 ![Clusters grid view](clusters-grid.png)
 
 Card grid showing one card per cluster with:
+- The cluster's labels from Omni (e.g. those set with `labels:` in the cluster template); Omni's own `omni.sidero.dev/*` labels are hidden
 - Talos and Kubernetes versions
 - Cluster, controlplane, API, etcd, and WireGuard health badges
 - Controlplane and worker pool configuration
@@ -70,6 +71,31 @@ Manage the Omni endpoint and service account key. When credentials are provided 
 ![Repos view](repos.png)
 
 Add, edit, and remove Git repositories at runtime without restarting. Supports optional per-repo authentication tokens. Default paths are `clusters/` and `machine-classes/` if not specified.
+
+---
+
+## Maintenance Windows (`/maintenance-windows`)
+
+Found under **Settings → Maintenance Windows**. A maintenance window restricts when Omni CD may change clusters automatically. It has a name, one weekly time range (for example *Tue and Thu 22:00–02:00*), and the clusters it applies to.
+
+Click **Add Maintenance Window**, enter a name, choose the clusters, pick the days and the start and end time (24-hour). Clusters can be chosen two ways, and combined:
+
+- **Select by label** — e.g. `env = production`. The window applies to every cluster with all of these labels, including clusters created or labelled later. Labels from Omni and from the `labels:` in the cluster template in Git both count, so a new cluster waits for the window even before it exists in Omni. The dialog previews which clusters match.
+- **Tick clusters** individually. Clusters already matched by a label are shown ticked with *via label*.
+
+Each window is shown as a card with its time range, its labels, the clusters it currently applies to, and an **Open** / **Closed** badge, and can be edited or removed there. The cluster detail page also shows the status, but windows are managed only from this page.
+
+Times are in the server's timezone, shown at the top of the page. It is UTC unless the `TZ` environment variable is set on the container (e.g. `TZ=Europe/Amsterdam`). For different hours on different days, create several windows; a cluster can be in more than one and may be synced when any of them is open.
+
+While auto-sync is on and the window is closed:
+
+- Changes from Git are detected and shown as **Out of Sync**, but not applied.
+- A cluster that is in Git but not yet in Omni stays **Missing** and is not created.
+- A cluster removed from Git is not deleted.
+
+When the window opens, Omni CD applies the pending changes within about 30 seconds, without waiting for a new commit. The manual **Sync** button, deleting a cluster from the UI, and removing a repository all ignore the window. If auto-sync is off, nothing is applied automatically whether or not the window is open.
+
+Creating, editing and removing a window is recorded in the audit log (`maintenance-window-create`, `-update`, `-delete`).
 
 ---
 

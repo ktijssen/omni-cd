@@ -826,6 +826,7 @@ func WatchClusters(
 
 	statusCache := make(map[string]ClusterStatus)
 	clusterPhases := make(map[string]resource.Phase)
+	clusterLabels := make(map[string]map[string]string)
 	// msPhasesByCluster: clusterID -> msID -> MachineSetPhase
 	// Used to derive the cluster-level operational phase from individual MachineSet phases.
 	msPhasesByCluster := make(map[string]map[string]omnispec.MachineSetPhase)
@@ -888,6 +889,7 @@ func WatchClusters(
 		statuses := make(map[string]ClusterStatus, len(statusCache))
 		for k, v := range statusCache {
 			v.Phase = derivedClusterPhase(k, td[k])
+			v.Labels = clusterLabels[k]
 			statuses[k] = v
 		}
 		onUpdate(statuses, allIDs, td)
@@ -991,6 +993,7 @@ func WatchClusters(
 				}
 				id := r.Metadata().ID()
 				clusterPhases[id] = r.Metadata().Phase()
+				clusterLabels[id] = UserLabels(r.Metadata().Labels().Raw())
 				if onClusterChange != nil {
 					onClusterChange(id)
 				}
@@ -999,6 +1002,7 @@ func WatchClusters(
 				if err == nil {
 					id := r.Metadata().ID()
 					delete(clusterPhases, id)
+					delete(clusterLabels, id)
 					delete(msPhasesByCluster, id)
 					if onClusterChange != nil {
 						onClusterChange(id)
@@ -1047,6 +1051,28 @@ type ClusterStatus struct {
 	LastBackupTime     time.Time
 	BackupEnabled      bool
 	Phase              string // "running", "scaling-up", "scaling-down", "destroying", "unknown"
+	// Labels are the user labels on the Cluster resource (see UserLabels).
+	Labels map[string]string
+}
+
+// systemLabelPrefix marks labels Omni manages itself; they are hidden in the UI.
+const systemLabelPrefix = "omni.sidero.dev/"
+
+// UserLabels returns the labels set by users (e.g. via the cluster
+// template's `labels:`), dropping Omni's own omni.sidero.dev/* labels.
+// Returns nil when there are none.
+func UserLabels(all map[string]string) map[string]string {
+	var out map[string]string
+	for k, v := range all {
+		if strings.HasPrefix(k, systemLabelPrefix) {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]string)
+		}
+		out[k] = v
+	}
+	return out
 }
 
 // clusterPhaseString converts an Omni ClusterStatusSpec_Phase to a short string.
@@ -1093,6 +1119,16 @@ func GetAllClusterReadyStatuses() (map[string]ClusterStatus, error) {
 		}
 		result[r.Metadata().ID()] = cs
 	})
+
+	// --- Cluster: user labels ---
+	if clusters, err := safe.StateListAll[*omniapi.Cluster](ctx, omniState); err == nil {
+		clusters.ForEach(func(r *omniapi.Cluster) {
+			if cs, ok := result[r.Metadata().ID()]; ok {
+				cs.Labels = UserLabels(r.Metadata().Labels().Raw())
+				result[r.Metadata().ID()] = cs
+			}
+		})
+	}
 
 	// --- ControlPlaneStatus: etcd + wireguard conditions ---
 	cpList, err := safe.StateListAll[*omniapi.ControlPlaneStatus](ctx, omniState)

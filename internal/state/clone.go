@@ -23,6 +23,15 @@ func cloneResources(in []ResourceInfo) []ResourceInfo {
 		}
 		out[i].MachineExtensions = cloneStringSliceMap(r.MachineExtensions)
 		out[i].MachineHostnames = cloneStringMap(r.MachineHostnames)
+		out[i].Labels = cloneStringMap(r.Labels)
+		out[i].TemplateLabels = cloneStringMap(r.TemplateLabels)
+		if r.MaintenanceWindows != nil {
+			out[i].MaintenanceWindows = append([]string(nil), r.MaintenanceWindows...)
+		}
+		if r.MaintenanceStatus != nil {
+			st := *r.MaintenanceStatus
+			out[i].MaintenanceStatus = &st
+		}
 	}
 	return out
 }

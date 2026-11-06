@@ -50,6 +50,7 @@ This gets the container running, but Omni CD has nothing to sync yet — add at 
 - **Kubernetes manifest status** — Per-cluster manifest sync status with group, mode, phase, and per-resource breakdown
 - **Machine graph** — Visual DAG: Git → Omni → Cluster → MachineSets → Machines
 - **Per-cluster auto-sync** — Enable or disable automatic sync per cluster from the UI
+- **Maintenance windows** — Limit automatic syncs of a group of clusters to weekly time windows (e.g. Tue/Thu 22:00–02:00)
 - **Unmanaged clusters** — Export externally-created clusters as YAML templates
 - **Authentication** — Local login and OIDC/SSO; configurable roles, session management
 - **Audit log** — Every user action recorded with actor, action, and resource; 30-day retention
