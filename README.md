@@ -55,6 +55,7 @@ This gets the container running, but Omni CD has nothing to sync yet — add at 
 - **Authentication** — Local login and OIDC/SSO; configurable roles, session management
 - **Audit log** — Every user action recorded with actor, action, and resource; 30-day retention
 - **Real-time UI** — WebSocket-driven dashboard; no page refreshes needed
+- **Light and dark mode** — Follows the OS setting, or pick one in the top bar
 - **Persistent state** — State and logs survive container restarts via volume mount
 - **Prometheus metrics** — `/metrics` endpoint with cluster, MC, reconcile, and Omni health metrics; includes Grafana dashboard and ServiceMonitor
 - **Helm chart** — Ingress, HTTPRoute (Gateway API), existing secrets, and Prometheus ServiceMonitor support

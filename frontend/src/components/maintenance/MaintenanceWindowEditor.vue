@@ -8,7 +8,7 @@
       </p>
 
       <div class="repo-form-group">
-        <label class="repo-form-label" for="mw-name">Name <span style="color:#f87171">*</span></label>
+        <label class="repo-form-label" for="mw-name">Name <span style="color:var(--red)">*</span></label>
         <input id="mw-name" v-model="name" class="repo-form-input" maxlength="64" placeholder="e.g. Weekend production" />
       </div>
 
@@ -100,7 +100,7 @@
 
       <div class="repo-form-group">
         <div class="repo-form-label">
-          Days <span style="color:#f87171">*</span>
+          Days <span style="color:var(--red)">*</span>
         </div>
         <div class="mw-days" role="group" aria-label="Days">
           <button
@@ -117,7 +117,7 @@
 
       <div class="repo-form-group">
         <div class="repo-form-label">
-          Time <span style="color:#f87171">*</span>
+          Time <span style="color:var(--red)">*</span>
           <span class="mw-count">server time ({{ timezone || 'UTC' }})</span>
         </div>
         <div class="mw-times">
@@ -300,39 +300,39 @@ async function save() {
 
 <style scoped>
 .mw-box { width: 540px; }
-.mw-help { font-size: 12px; line-height: 1.5; color: #9fa1a6; margin: -8px 0 16px; }
+.mw-help { font-size: 12px; line-height: 1.5; color: var(--text-muted); margin: -8px 0 16px; }
 .mw-label-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
-.mw-count { margin-left: 6px; color: #5b5c64; font-size: 11px; }
+.mw-count { margin-left: 6px; color: var(--text-dim); font-size: 11px; }
 .mw-bulk { display: flex; gap: 10px; }
-.mw-link { background: none; border: none; padding: 0; font-size: 12px; color: #ff8b59; cursor: pointer; font-family: inherit; }
-.mw-link:disabled { color: #5b5c64; cursor: default; }
+.mw-link { background: none; border: none; padding: 0; font-size: 12px; color: var(--accent); cursor: pointer; font-family: inherit; }
+.mw-link:disabled { color: var(--text-dim); cursor: default; }
 .mw-filter { margin-bottom: 6px; }
-.mw-cluster-list { max-height: 180px; overflow-y: auto; border: 1px solid #2c2e38; border-radius: 6px; background: #13141c; padding: 4px; }
-.mw-cluster { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 4px; font-size: 13px; color: #e8e8e9; cursor: pointer; }
-.mw-cluster:hover { background: #1f222e; }
-.mw-cluster input { accent-color: #ff8b59; cursor: pointer; }
+.mw-cluster-list { max-height: 180px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-inset); padding: 4px; }
+.mw-cluster { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 4px; font-size: 13px; color: var(--text); cursor: pointer; }
+.mw-cluster:hover { background: var(--surface-2); }
+.mw-cluster input { accent-color: var(--accent); cursor: pointer; }
 .mw-cluster-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mw-missing { margin-left: auto; font-size: 11px; color: #f87171; }
-.mw-empty { padding: 8px; font-size: 12px; color: #5b5c64; }
-.mw-cluster.via-label { color: #9fa1a6; cursor: default; }
+.mw-missing { margin-left: auto; font-size: 11px; color: var(--red); }
+.mw-empty { padding: 8px; font-size: 12px; color: var(--text-dim); }
+.mw-cluster.via-label { color: var(--text-muted); cursor: default; }
 .mw-cluster.via-label input { cursor: default; }
-.mw-via { margin-left: auto; font-size: 11px; color: #ff8b59; }
+.mw-via { margin-left: auto; font-size: 11px; color: var(--accent); }
 .mw-sel-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
-.mw-sel-hint { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: #fb923c; line-height: 1.5; }
+.mw-sel-hint { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--orange); line-height: 1.5; }
 .mw-sel-input { flex: 1 1 0; min-width: 0; font-family: ui-monospace, SFMono-Regular, monospace; }
-.mw-sel-eq { color: #7d7d85; }
-.mw-sel-preview { margin-top: 6px; font-size: 12px; color: #9fa1a6; line-height: 1.5; }
-.mw-remove { background: none; border: none; color: #7d7d85; cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 4px; }
-.mw-remove:hover { color: #f87171; background: #2c2e38; }
+.mw-sel-eq { color: var(--text-faint); }
+.mw-sel-preview { margin-top: 6px; font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+.mw-remove { background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 4px; }
+.mw-remove:hover { color: var(--red); background: var(--border); }
 .mw-days { display: flex; flex-wrap: wrap; gap: 6px; }
 .mw-day {
   min-width: 44px; padding: 5px 8px; font-size: 12px; border-radius: 4px; cursor: pointer;
-  border: 1px solid #3d4059; background: #1e2130; color: #9fa1a6; font-family: inherit;
+  border: 1px solid var(--border-strong); background: var(--input-bg); color: var(--text-muted); font-family: inherit;
 }
-.mw-day:hover { border-color: #ff8b59; color: #e8e8e9; }
-.mw-day.active { border-color: #ff8b59; background: rgba(255, 139, 89, 0.15); color: #ff8b59; }
-.mw-day:focus-visible, .mw-link:focus-visible { outline: 2px solid #ff8b59; outline-offset: 2px; }
+.mw-day:hover { border-color: var(--accent); color: var(--text); }
+.mw-day.active { border-color: var(--accent); background: rgba(255, 139, 89, 0.15); color: var(--accent); }
+.mw-day:focus-visible, .mw-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mw-times { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
-.mw-time { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #9fa1a6; }
-.mw-overnight { font-size: 12px; color: #fb923c; padding-bottom: 8px; }
+.mw-time { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-muted); }
+.mw-overnight { font-size: 12px; color: var(--orange); padding-bottom: 8px; }
 </style>

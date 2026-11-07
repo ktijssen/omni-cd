@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <div class="header" style="border-bottom:none;flex-direction:column;align-items:stretch;gap:8px;">
-      <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;white-space:nowrap;">Machine Classes</h1>
+      <h1 style="font-size:18px;font-weight:600;color:var(--text-strong);letter-spacing:-0.3px;white-space:nowrap;">Machine Classes</h1>
       <div style="display:flex;align-items:center;gap:8px;">
         <template v-if="authStore.isAdmin()">
           <span v-if="isRunning" class="spinner"></span>
@@ -12,9 +12,9 @@
           v-model="mcSearch"
           type="text"
           placeholder="Search machine classes..."
-          style="background:#1e2130;border:1px solid #3d4059;border-radius:4px;color:#c4c4c9;font-size:13px;padding:6px 12px;outline:none;width:200px;font-family:inherit;transition:border-color 0.2s;"
-          @focus="($event.target as HTMLInputElement).style.borderColor='#ff8b59'"
-          @blur="($event.target as HTMLInputElement).style.borderColor='#3d4059'"
+          style="background:var(--input-bg);border:1px solid var(--border-strong);border-radius:4px;color:var(--text-2);font-size:13px;padding:6px 12px;outline:none;width:200px;font-family:inherit;transition:border-color 0.2s;"
+          @focus="($event.target as HTMLInputElement).style.borderColor='var(--accent)'"
+          @blur="($event.target as HTMLInputElement).style.borderColor='var(--border-strong)'"
         />
         <div class="page-size-bar" style="margin-left:auto;">
           <button class="btn-omni" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" title="Tile view">⊞</button>
@@ -50,7 +50,7 @@
                 @click="toggleFilter(f.key)"
               >{{ activeFilters.has(f.key) ? '✓ ' : '\u00a0\u00a0 ' }}{{ f.label }}</button>
               <div v-if="activeFilterCount > 0" class="cluster-list-menu-divider"></div>
-              <button v-if="activeFilterCount > 0" class="cluster-list-menu-item" style="color:#9fa1a6" @click="clearFilters(); activeDropdown = null">Clear filters</button>
+              <button v-if="activeFilterCount > 0" class="cluster-list-menu-item" style="color:var(--text-muted)" @click="clearFilters(); activeDropdown = null">Clear filters</button>
             </div>
           </div>
           <div class="filter-dropdown-wrap">
@@ -123,7 +123,7 @@
                     @click.stop
                   >↗ Open in Omni</a>
                 </div>
-                <span class="mc-card-status" :style="{ color: mc.status === 'unmanaged' ? '#5b5c64' : '#7d7d85' }">
+                <span class="mc-card-status" :style="{ color: mc.status === 'unmanaged' ? 'var(--text-dim)' : 'var(--text-faint)' }">
                   {{ mc.status === 'unmanaged' ? 'unmanaged' : 'managed' }}
                 </span>
               </div>
@@ -134,7 +134,7 @@
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Sync Status:</span>
                   <span class="cluster-card-meta-value">
-                    <span v-if="mc.status === 'unmanaged'" style="color:#5b5c64">—</span>
+                    <span v-if="mc.status === 'unmanaged'" style="color:var(--text-dim)">—</span>
                     <span v-else :style="{ color: syncStatusColor(mc) }" v-html="syncStatusText(mc)"></span>
                   </span>
                 </div>
@@ -157,28 +157,28 @@
                   <span class="cluster-card-meta-label">Repository:</span>
                   <span class="cluster-card-meta-value">
                     <span v-if="mc.repoName">{{ mc.repoName }}</span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else style="color:var(--text-dim)">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Branch:</span>
                   <span class="cluster-card-meta-value">
                     <span v-if="mcRepoBranch(mc)">{{ mcRepoBranch(mc) }}</span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else style="color:var(--text-dim)">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Created At:</span>
                   <span class="cluster-card-meta-value">
-                    <span v-if="isZeroTime(mc.createdAt)" style="color:#5b5c64">—</span>
-                    <span v-else>{{ fmtDateTime(mc.createdAt) }} <span style="color:#7d7d85">({{ ago(mc.createdAt) }})</span></span>
+                    <span v-if="isZeroTime(mc.createdAt)" style="color:var(--text-dim)">—</span>
+                    <span v-else>{{ fmtDateTime(mc.createdAt) }} <span style="color:var(--text-faint)">({{ ago(mc.createdAt) }})</span></span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Last Sync:</span>
                   <span class="cluster-card-meta-value">
-                    <span v-if="isZeroTime(mc.lastSyncTime)" style="color:#5b5c64">—</span>
-                    <span v-else>{{ fmtDateTime(mc.lastSyncTime) }} <span style="color:#7d7d85">({{ ago(mc.lastSyncTime) }})</span></span>
+                    <span v-if="isZeroTime(mc.lastSyncTime)" style="color:var(--text-dim)">—</span>
+                    <span v-else>{{ fmtDateTime(mc.lastSyncTime) }} <span style="color:var(--text-faint)">({{ ago(mc.lastSyncTime) }})</span></span>
                   </span>
                 </div>
               </div>
@@ -189,7 +189,7 @@
               <template v-for="spec in [mcSpec(mc)]" :key="mc.id + '-spec'">
                 <div class="mc-info-row">
                   <span class="mc-info-label">Mode</span>
-                  <span class="mc-info-value" :style="{ color: provisionType(mc) === 'auto' ? '#60a5fa' : '#9fa1a6' }">
+                  <span class="mc-info-value" :style="{ color: provisionType(mc) === 'auto' ? 'var(--blue)' : 'var(--text-muted)' }">
                     {{ provisionType(mc) === 'auto' ? 'Auto-Provision' : 'Manual' }}
                   </span>
                 </div>
@@ -217,7 +217,7 @@
                   <span class="mc-info-label">Match Labels</span>
                   <span class="mc-info-value">
                     <div v-for="(val, key) in spec.matchLabels" :key="key" style="padding:1px 0">
-                      <span style="color:#7d7d85;margin-right:5px">•</span>{{ key }} = {{ val }}
+                      <span style="color:var(--text-faint);margin-right:5px">•</span>{{ key }} = {{ val }}
                     </div>
                   </span>
                 </div>
@@ -294,15 +294,15 @@
                   title="Open in Omni"
                 >&#8599;</a>
               </td>
-              <td :style="{ color: mc.status === 'unmanaged' ? '#5b5c64' : '#7d7d85' }">
+              <td :style="{ color: mc.status === 'unmanaged' ? 'var(--text-dim)' : 'var(--text-faint)' }">
                 {{ mc.status === 'unmanaged' ? 'Unmanaged' : 'Managed' }}
               </td>
               <td>
-                <span v-if="mc.status === 'unmanaged'" style="color:#5b5c64">—</span>
+                <span v-if="mc.status === 'unmanaged'" style="color:var(--text-dim)">—</span>
                 <span v-else :style="{ color: syncStatusColor(mc) }" v-html="syncStatusText(mc)"></span>
               </td>
               <td>
-                <span v-if="clustersUsingMC(mc.id).length === 0" style="color:#5b5c64">—</span>
+                <span v-if="clustersUsingMC(mc.id).length === 0" style="color:var(--text-dim)">—</span>
                 <span v-else class="mc-used-by" style="flex-wrap:wrap;gap:3px">
                   <span
                     v-for="cid in clustersUsingMC(mc.id).slice(0, 3)"
@@ -310,11 +310,11 @@
                     class="mc-used-by-chip"
                     @click.stop="goToCluster(cid)"
                   >{{ cid }}</span>
-                  <span v-if="clustersUsingMC(mc.id).length > 3" style="color:#7d7d85;font-size:11px">+{{ clustersUsingMC(mc.id).length - 3 }} more</span>
+                  <span v-if="clustersUsingMC(mc.id).length > 3" style="color:var(--text-faint);font-size:11px">+{{ clustersUsingMC(mc.id).length - 3 }} more</span>
                 </span>
               </td>
-              <td style="color:#9fa1a6">{{ mc.repoName || '—' }}</td>
-              <td style="color:#9fa1a6">
+              <td style="color:var(--text-muted)">{{ mc.repoName || '—' }}</td>
+              <td style="color:var(--text-muted)">
                 <span v-if="!isZeroTime(mc.lastSyncTime)" :title="fmtDateTime(mc.lastSyncTime)">{{ ago(mc.lastSyncTime) }}</span>
                 <span v-else>—</span>
               </td>
@@ -382,7 +382,7 @@
           <button class="btn-omni" @click="detailModal = null" style="padding:2px 10px;font-size:13px;">✕</button>
         </div>
         <!-- Tabs -->
-        <div class="cluster-detail-tabs-bar" style="margin:0 -24px 12px;padding:0 16px;background:#1f222e;">
+        <div class="cluster-detail-tabs-bar" style="margin:0 -24px 12px;padding:0 16px;background:var(--surface-2);">
           <button
             v-for="tab in ((detailModal.error || detailModal.lastSyncError) ? ['live','diff','error'] : ['live','diff'])"
             :key="tab"
@@ -395,7 +395,7 @@
         <div style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;">
           <template v-if="detailTab === 'error'">
             <div style="padding:16px;overflow-y:auto;">
-              <div style="background:#2a1a1a;border:1px solid #6b2020;border-radius:6px;padding:16px;color:#f87171;font-family:monospace;font-size:13px;white-space:pre-wrap;word-break:break-all;">{{ detailModal.error || detailModal.lastSyncError }}</div>
+              <div style="background:var(--red-bg);border:1px solid var(--red-border);border-radius:6px;padding:16px;color:var(--red);font-family:monospace;font-size:13px;white-space:pre-wrap;word-break:break-all;">{{ detailModal.error || detailModal.lastSyncError }}</div>
             </div>
           </template>
           <template v-else-if="detailTab === 'live'">
@@ -406,13 +406,13 @@
               :read-only="true"
               style="flex:1;min-height:0;"
             />
-            <div v-else style="color:#7d7d85;text-align:center;padding:40px;">No live state available</div>
+            <div v-else style="color:var(--text-faint);text-align:center;padding:40px;">No live state available</div>
           </template>
           <template v-else>
             <div v-if="detailModal.diff" style="flex:1;min-height:0;overflow-y:auto;">
               <DiffViewer :diff="detailModal.diff" />
             </div>
-            <div v-else style="color:#7d7d85;text-align:center;padding:40px;">
+            <div v-else style="color:var(--text-faint);text-align:center;padding:40px;">
               {{ detailModal.status === 'unmanaged' ? 'No diff — this machine class is not managed by Git.' : (detailModal.status === 'success' || detailModal.status === 'applied') ? 'No diff — this machine class is in sync.' : 'No diff available' }}
             </div>
           </template>
@@ -430,7 +430,7 @@
           <button class="modal-close" @click="selectModal = null">&times;</button>
         </div>
         <div class="modal-body" style="padding:16px 20px;overflow-y:auto;flex:1;font-family:inherit;white-space:normal;word-break:normal;">
-          <div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid #2c2e38;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--border);margin-bottom:8px;">
             <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="toggleSelectModalAll">All</button>
             <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set(machineClasses.filter(mc => selectableMC(mc) && mc.status === 'outofsync').map(mc => mc.id))">Out of Sync</button>
             <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set(machineClasses.filter(mc => selectableMC(mc) && mc.status === 'missing').map(mc => mc.id))">Missing</button>
@@ -441,20 +441,20 @@
               v-if="selectModal?.type === 'refresh' || mc.status !== 'unmanaged'"
               style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:13px;"
             >
-              <input type="checkbox" :checked="selectModalItems.has(mc.id)" @change="toggleSelectModalItem(mc.id)" style="accent-color:#ff8b59;" />
-              <span style="flex:1;color:#e8e8e9;">{{ mc.id }}</span>
+              <input type="checkbox" :checked="selectModalItems.has(mc.id)" @change="toggleSelectModalItem(mc.id)" style="accent-color:var(--accent);" />
+              <span style="flex:1;color:var(--text);">{{ mc.id }}</span>
               <span style="font-size:11px;" :style="{ color: mcSyncColor(mc) }">{{ mcSyncText(mc) }}</span>
             </label>
             <div
               v-else
               style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;opacity:0.4;cursor:default;padding-left:20px;"
             >
-              <span style="flex:1;color:#e8e8e9;">{{ mc.id }}</span>
-              <span style="font-size:11px;color:#5b5c64;">Unmanaged</span>
+              <span style="flex:1;color:var(--text);">{{ mc.id }}</span>
+              <span style="font-size:11px;color:var(--text-dim);">Unmanaged</span>
             </div>
           </template>
         </div>
-        <div class="confirm-actions" style="padding:12px 20px;border-top:1px solid #2c2e38;">
+        <div class="confirm-actions" style="padding:12px 20px;border-top:1px solid var(--border);">
           <button class="btn-omni" @click="selectModal = null">Cancel</button>
           <button class="btn-omni" :disabled="selectModalItems.size === 0 || selectModalRunning" @click="doSelectModalAction">
             {{ selectModalRunning ? 'Running...' : selectModal.type === 'refresh' ? 'Refresh' : 'Sync' }}
@@ -468,7 +468,7 @@
       <div class="modal-box">
         <div class="modal-title">{{ confirmModal.title }}</div>
         <div class="modal-body" v-html="confirmModal.message"></div>
-        <div v-if="confirmModal.requireInput" style="font-size:12px;color:#9fa1a6;margin-bottom:6px;">{{ confirmModal.inputPrompt }}</div>
+        <div v-if="confirmModal.requireInput" style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">{{ confirmModal.inputPrompt }}</div>
         <input
           v-if="confirmModal.requireInput"
           v-model="confirmInput"
@@ -681,14 +681,14 @@ async function doSelectModalAction() {
   selectModal.value = null
 }
 function mcSyncColor(mc: ResourceInfo): string {
-  if (mc.status === 'missing' && (mc.error || mc.lastSyncError)) return '#f87171'
-  if (mc.status === 'missing') return '#facc15'
-  if (mc.status === 'outofsync' && (mc.error || mc.lastSyncError)) return '#f87171'
-  if (mc.status === 'outofsync') return '#fb923c'
-  if (mc.status === 'failed') return '#f87171'
-  if (mc.status === 'syncing') return '#2dd4bf'
-  if (mc.status === 'success' || mc.status === 'applied') return '#4ade80'
-  return '#5b5c64'
+  if (mc.status === 'missing' && (mc.error || mc.lastSyncError)) return 'var(--red)'
+  if (mc.status === 'missing') return 'var(--yellow)'
+  if (mc.status === 'outofsync' && (mc.error || mc.lastSyncError)) return 'var(--red)'
+  if (mc.status === 'outofsync') return 'var(--orange)'
+  if (mc.status === 'failed') return 'var(--red)'
+  if (mc.status === 'syncing') return 'var(--teal)'
+  if (mc.status === 'success' || mc.status === 'applied') return 'var(--green)'
+  return 'var(--text-dim)'
 }
 function mcSyncText(mc: ResourceInfo): string {
   if (mc.status === 'missing' && (mc.error || mc.lastSyncError)) return 'Sync Failed'
@@ -791,14 +791,14 @@ function mcRepoBranch(mc: ResourceInfo): string | null {
 
 function syncStatusColor(mc: ResourceInfo): string {
   const status = mc.status
-  if (status === 'success' || status === 'applied') return '#4ade80'
-  if (status === 'failed') return '#f87171'
-  if (status === 'missing' && (mc.error || mc.lastSyncError)) return '#f87171'
-  if (status === 'missing') return '#facc15'
-  if (status === 'outofsync' && (mc.error || mc.lastSyncError)) return '#f87171'
-  if (status === 'outofsync') return '#fb923c'
-  if (status === 'syncing') return '#2dd4bf'
-  return '#7d7d85'
+  if (status === 'success' || status === 'applied') return 'var(--green)'
+  if (status === 'failed') return 'var(--red)'
+  if (status === 'missing' && (mc.error || mc.lastSyncError)) return 'var(--red)'
+  if (status === 'missing') return 'var(--yellow)'
+  if (status === 'outofsync' && (mc.error || mc.lastSyncError)) return 'var(--red)'
+  if (status === 'outofsync') return 'var(--orange)'
+  if (status === 'syncing') return 'var(--teal)'
+  return 'var(--text-faint)'
 }
 
 function syncStatusText(mc: ResourceInfo): string {

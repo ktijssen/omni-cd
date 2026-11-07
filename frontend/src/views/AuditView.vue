@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <div class="header">
-      <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Audit Log</h1>
+      <h1 style="font-size:18px;font-weight:600;color:var(--text-strong);letter-spacing:-0.3px;">Audit Log</h1>
       <div class="header-buttons" style="margin-left:auto;display:flex;align-items:center;gap:8px">
         <button class="btn-omni" @click="openFilesModal">Show Files</button>
         <button class="btn-omni" @click="downloadToday">Download Today's Audit</button>
@@ -14,9 +14,9 @@
         v-model="search"
         type="text"
         placeholder="Search..."
-        style="background:#1e2130;border:1px solid #3d4059;border-radius:4px;color:#c4c4c9;font-size:13px;padding:6px 12px;outline:none;width:200px;font-family:inherit;transition:border-color 0.2s;"
-        @focus="($event.target as HTMLInputElement).style.borderColor='#ff8b59'"
-        @blur="($event.target as HTMLInputElement).style.borderColor='#3d4059'"
+        style="background:var(--input-bg);border:1px solid var(--border-strong);border-radius:4px;color:var(--text-2);font-size:13px;padding:6px 12px;outline:none;width:200px;font-family:inherit;transition:border-color 0.2s;"
+        @focus="($event.target as HTMLInputElement).style.borderColor='var(--accent)'"
+        @blur="($event.target as HTMLInputElement).style.borderColor='var(--border-strong)'"
       />
       <div class="filter-dropdown-wrap">
         <button class="filter-select-btn" :class="{ active: !!kindFilter }" @click="activeDropdown = activeDropdown === 'kind' ? null : 'kind'">
@@ -49,13 +49,13 @@
         class="btn-omni"
         @click="clearFilters"
       >✕ Clear</button>
-      <span style="font-size:11px;color:#5b5c64;margin-left:4px">{{ filtered.length }} / {{ entries.length }}</span>
+      <span style="font-size:11px;color:var(--text-dim);margin-left:4px">{{ filtered.length }} / {{ entries.length }}</span>
     </div>
 
     <!-- Table -->
     <div style="margin-top:8px;overflow-x:auto;">
-      <div v-if="loading" style="color:#7d7d85;padding:24px;text-align:center">Loading...</div>
-      <div v-else-if="error" style="color:#e05c5c;padding:24px;text-align:center">{{ error }}</div>
+      <div v-if="loading" style="color:var(--text-faint);padding:24px;text-align:center">Loading...</div>
+      <div v-else-if="error" style="color:var(--red);padding:24px;text-align:center">{{ error }}</div>
       <table v-else class="audit-table">
         <thead>
           <tr>
@@ -75,7 +75,7 @@
             <td><span class="audit-kind">{{ e.kind }}</span></td>
           </tr>
           <tr v-if="filtered.length === 0">
-            <td colspan="5" style="text-align:center;color:#5b5c64;padding:24px">
+            <td colspan="5" style="text-align:center;color:var(--text-dim);padding:24px">
               {{ entries.length > 0 ? 'No entries match the current filters' : 'No audit entries yet' }}
             </td>
           </tr>
@@ -90,26 +90,26 @@
           <button class="modal-close" @click="showFilesModal = false">&times;</button>
         </div>
         <div style="padding:16px 24px;min-height:80px">
-          <div v-if="filesLoading" style="color:#7d7d85;text-align:center;padding:24px">Loading...</div>
+          <div v-if="filesLoading" style="color:var(--text-faint);text-align:center;padding:24px">Loading...</div>
           <table v-else-if="auditFiles.length > 0" style="width:100%;border-collapse:collapse;font-size:12px">
             <thead>
               <tr>
-                <th style="text-align:left;color:#7d7d85;font-weight:400;padding:4px 8px">Date</th>
-                <th style="text-align:right;color:#7d7d85;font-weight:400;padding:4px 8px">Size</th>
+                <th style="text-align:left;color:var(--text-faint);font-weight:400;padding:4px 8px">Date</th>
+                <th style="text-align:right;color:var(--text-faint);font-weight:400;padding:4px 8px">Size</th>
                 <th style="padding:4px 8px"></th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="f in auditFiles" :key="f.date" style="border-top:1px solid #1f222e">
-                <td style="padding:6px 8px;color:#e8e8e9">{{ f.date }}</td>
-                <td style="padding:6px 8px;color:#7d7d85;text-align:right">{{ formatBytes(f.size) }}</td>
+              <tr v-for="f in auditFiles" :key="f.date" style="border-top:1px solid var(--surface-2)">
+                <td style="padding:6px 8px;color:var(--text)">{{ f.date }}</td>
+                <td style="padding:6px 8px;color:var(--text-faint);text-align:right">{{ formatBytes(f.size) }}</td>
                 <td style="padding:6px 8px;text-align:right">
                   <button class="btn-omni" @click="downloadFile(f.date)">Download</button>
                 </td>
               </tr>
             </tbody>
           </table>
-          <div v-else style="color:#7d7d85;text-align:center;padding:24px">No audit files found</div>
+          <div v-else style="color:var(--text-faint);text-align:center;padding:24px">No audit files found</div>
         </div>
       </div>
     </div>
@@ -171,9 +171,9 @@ function clearFilters() {
 
 function actionColor(action: string): string {
   // Create
-  if (action === 'repo-add') return '#4ade80'
+  if (action === 'repo-add') return 'var(--green)'
   // Delete
-  if (action.endsWith('-delete') || action === 'delete') return '#f87171'
+  if (action.endsWith('-delete') || action === 'delete') return 'var(--red)'
   // Update — anything that mutates state
   if (
     action === 'sync' ||
@@ -184,9 +184,9 @@ function actionColor(action: string): string {
     action === 'update-profile' ||
     action === 'change-password' ||
     action === 'oidc-role-update'
-  ) return '#60a5fa'
+  ) return 'var(--blue)'
   // Read + session + unknown — stay neutral gray
-  return '#7d7d85'
+  return 'var(--text-faint)'
 }
 
 function formatTs(ts: string): string {

@@ -1,17 +1,17 @@
 <template>
   <div class="container">
     <div class="header" style="border-bottom:none;">
-      <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Users</h1>
+      <h1 style="font-size:18px;font-weight:600;color:var(--text-strong);letter-spacing:-0.3px;">Users</h1>
     </div>
 
     <!-- Local admin account section -->
-    <div v-if="!localUsersLoaded" style="color:#7d7d85;font-size:13px;padding:24px 0;">Loading...</div>
+    <div v-if="!localUsersLoaded" style="color:var(--text-faint);font-size:13px;padding:24px 0;">Loading...</div>
     <template v-else-if="localUsers.length > 0">
-      <div style="font-size:13px;font-weight:600;color:#9fa1a6;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">Local Admin Account</div>
-      <div style="display:flex;align-items:center;gap:12px;background:#15161e;border:1px solid #2c2e38;border-radius:10px;padding:14px 16px;max-width:480px;">
-        <div style="width:18px;height:18px;opacity:0.5;flex-shrink:0;color:#9fa1a6;font-size:16px;">👤</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">Local Admin Account</div>
+      <div style="display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;max-width:480px;">
+        <div style="width:18px;height:18px;opacity:0.5;flex-shrink:0;color:var(--text-muted);font-size:16px;">👤</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          <div style="font-size:13px;font-weight:600;color:var(--text-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
             {{ localUsers[0].displayName || localUsers[0].username }}
           </div>
         </div>
@@ -24,22 +24,22 @@
 
     <!-- SSO users section -->
     <div v-if="authStore.oidcEnabled" style="margin-top:28px">
-      <div style="font-size:13px;font-weight:600;color:#9fa1a6;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">SSO Users</div>
-      <div style="background:#15161e;border:1px solid #2c2e38;border-radius:10px;overflow:hidden;max-width:560px">
-        <div v-if="!oidcUsersLoaded" style="padding:12px 14px;font-size:13px;color:#7d7d85;">Loading...</div>
-        <div v-else-if="oidcUsers.length === 0" style="padding:12px 14px;font-size:13px;color:#7d7d85;">No SSO users have logged in yet.</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">SSO Users</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;max-width:560px">
+        <div v-if="!oidcUsersLoaded" style="padding:12px 14px;font-size:13px;color:var(--text-faint);">Loading...</div>
+        <div v-else-if="oidcUsers.length === 0" style="padding:12px 14px;font-size:13px;color:var(--text-faint);">No SSO users have logged in yet.</div>
         <div
           v-else
           v-for="user in oidcUsers"
           :key="user.email"
-          style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #2c2e38;"
+          style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);"
         >
           <div style="flex:1;min-width:0;">
-            <div style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            <div style="font-size:13px;font-weight:600;color:var(--text-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
               {{ user.displayName || user.email }}
             </div>
-            <div style="font-size:12px;color:#7d7d85;">{{ user.email }}</div>
-            <div style="font-size:11px;color:#5b5c64;margin-top:2px">Last seen: {{ formatDate(user.lastSeen) }}</div>
+            <div style="font-size:12px;color:var(--text-faint);">{{ user.email }}</div>
+            <div style="font-size:11px;color:var(--text-dim);margin-top:2px">Last seen: {{ formatDate(user.lastSeen) }}</div>
           </div>
           <span :style="{ fontSize: '12px', fontWeight: '600', color: roleColor(user.role), marginRight: '8px' }">{{ roleLabel(user.role) }}</span>
           <button class="btn-omni" @click="openEditOIDCUser(user)">Edit Role</button>
@@ -52,7 +52,7 @@
     <div v-if="showChangePassword" class="repo-modal-wrap show">
       <div class="repo-modal-box">
         <div class="repo-modal-title">Change Password</div>
-        <div style="color:#f87171;font-size:13px;min-height:18px;margin-bottom:8px;">{{ changePwError }}</div>
+        <div style="color:var(--red);font-size:13px;min-height:18px;margin-bottom:8px;">{{ changePwError }}</div>
         <div class="repo-form-group">
           <label class="repo-form-label">Current Password</label>
           <input v-model="changePwForm.current" class="repo-form-input" type="password" placeholder="••••••••" autocomplete="current-password" />
@@ -64,7 +64,7 @@
         <div class="repo-form-group">
           <label class="repo-form-label">Confirm New Password</label>
           <input v-model="changePwForm.confirm" class="repo-form-input" type="password" placeholder="••••••••" autocomplete="new-password" />
-          <div v-if="changePwForm.confirm" style="font-size:12px;margin-top:6px;" :style="{ color: changePwForm.confirm === changePwForm.newPw ? '#4ade80' : '#f87171' }">
+          <div v-if="changePwForm.confirm" style="font-size:12px;margin-top:6px;" :style="{ color: changePwForm.confirm === changePwForm.newPw ? 'var(--green)' : 'var(--red)' }">
             {{ changePwForm.confirm === changePwForm.newPw ? '✓ Passwords match' : '✗ Passwords do not match' }}
           </div>
         </div>
@@ -93,7 +93,7 @@
     <div v-if="showEditProfile" class="repo-modal-wrap show">
       <div class="repo-modal-box">
         <div class="repo-modal-title">Edit Profile</div>
-        <div style="color:#f87171;font-size:13px;min-height:18px;margin-bottom:8px;">{{ editProfileError }}</div>
+        <div style="color:var(--red);font-size:13px;min-height:18px;margin-bottom:8px;">{{ editProfileError }}</div>
         <div class="repo-form-group">
           <label class="repo-form-label">Username</label>
           <input class="repo-form-input" :value="localUsers[0]?.username" type="text" readonly style="opacity:0.5;cursor:not-allowed;" autocomplete="username" />
@@ -113,7 +113,7 @@
     <div v-if="editOIDCUser" class="repo-modal-wrap show">
       <div class="repo-modal-box">
         <div class="repo-modal-title">Edit SSO User</div>
-        <div style="color:#f87171;font-size:13px;min-height:18px;margin-bottom:8px;">{{ editOIDCError }}</div>
+        <div style="color:var(--red);font-size:13px;min-height:18px;margin-bottom:8px;">{{ editOIDCError }}</div>
         <div class="repo-form-group">
           <label class="repo-form-label">Role</label>
           <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
@@ -121,13 +121,13 @@
               v-for="opt in oidcRoleOptions"
               :key="opt.value"
               style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid;cursor:pointer;transition:border-color 0.15s,background 0.15s;"
-              :style="{ borderColor: selectedOIDCRole === opt.value ? opt.color : '#2c2e38', background: selectedOIDCRole === opt.value ? '#1f222e' : '' }"
+              :style="{ borderColor: selectedOIDCRole === opt.value ? opt.color : 'var(--border)', background: selectedOIDCRole === opt.value ? 'var(--surface-2)' : '' }"
               @click="selectedOIDCRole = opt.value"
             >
               <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;" :style="{ background: opt.color }"></div>
               <div>
                 <div style="font-size:13px;font-weight:600;" :style="{ color: opt.color }">{{ opt.label }}</div>
-                <div style="font-size:11px;color:#7d7d85;">{{ opt.desc }}</div>
+                <div style="font-size:11px;color:var(--text-faint);">{{ opt.desc }}</div>
               </div>
             </div>
           </div>
@@ -143,13 +143,13 @@
     <div v-if="deleteOIDCUser" class="repo-modal-wrap show">
       <div class="repo-modal-box">
         <div class="repo-modal-title">Delete SSO User</div>
-        <p style="font-size:13px;color:#9fa1a6;margin-bottom:4px;">
-          Delete SSO User <span style="color:#fff;font-weight:600;">{{ deleteOIDCUser.email }}</span>?
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:4px;">
+          Delete SSO User <span style="color:var(--text-strong);font-weight:600;">{{ deleteOIDCUser.email }}</span>?
         </p>
-        <p style="font-size:13px;color:#7d7d85;margin-bottom:20px;">
+        <p style="font-size:13px;color:var(--text-faint);margin-bottom:20px;">
           They will be removed from the user list and their active session will be invalidated.
         </p>
-        <div style="color:#f87171;font-size:13px;min-height:18px;margin-bottom:8px;">{{ deleteOIDCError }}</div>
+        <div style="color:var(--red);font-size:13px;min-height:18px;margin-bottom:8px;">{{ deleteOIDCError }}</div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button class="btn-omni" @click="deleteOIDCUser = null">Cancel</button>
           <button class="btn-omni" @click="submitDeleteOIDCUser">Delete</button>
@@ -203,9 +203,9 @@ const editProfileForm = reactive({ displayName: '' })
 
 // OIDC role options
 const oidcRoleOptions = [
-  { value: 'admin',  label: 'Admin',     color: '#ff8b59', desc: 'Full access — can change settings and trigger actions' },
-  { value: 'viewer', label: 'Viewer',    color: '#22c55e', desc: 'Read-only access — can view clusters and logs' },
-  { value: 'none',   label: 'No Access', color: '#7d7d85', desc: 'Cannot log in — redirected to the access denied page' },
+  { value: 'admin',  label: 'Admin',     color: 'var(--accent)', desc: 'Full access — can change settings and trigger actions' },
+  { value: 'viewer', label: 'Viewer',    color: 'var(--green)', desc: 'Read-only access — can view clusters and logs' },
+  { value: 'none',   label: 'No Access', color: 'var(--text-faint)', desc: 'Cannot log in — redirected to the access denied page' },
 ]
 const editOIDCUser = ref<OIDCUser | null>(null)
 const selectedOIDCRole = ref('none')
@@ -219,9 +219,9 @@ function roleLabel(role: string): string {
   return 'No Access'
 }
 function roleColor(role: string): string {
-  if (role === 'admin') return '#ff8b59'
-  if (role === 'viewer') return '#22c55e'
-  return '#7d7d85'
+  if (role === 'admin') return 'var(--accent)'
+  if (role === 'viewer') return 'var(--green)'
+  return 'var(--text-faint)'
 }
 function formatDate(d: string): string {
   if (!d) return ''

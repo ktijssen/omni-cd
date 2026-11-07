@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <div class="header" style="border-bottom:none;flex-direction:column;align-items:stretch;gap:8px;">
-      <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;white-space:nowrap;">Clusters</h1>
+      <h1 style="font-size:18px;font-weight:600;color:var(--text-strong);letter-spacing:-0.3px;white-space:nowrap;">Clusters</h1>
       <div style="display:flex;align-items:center;gap:8px;">
         <template v-if="authStore.isAdmin()">
           <span v-if="isRunning" class="spinner"></span>
@@ -12,9 +12,9 @@
           v-model="clusterSearch"
           type="text"
           placeholder="Search clusters..."
-          style="background:#1e2130;border:1px solid #3d4059;border-radius:4px;color:#c4c4c9;font-size:13px;padding:6px 12px;outline:none;width:200px;font-family:inherit;transition:border-color 0.2s;"
-          @focus="($event.target as HTMLInputElement).style.borderColor='#ff8b59'"
-          @blur="($event.target as HTMLInputElement).style.borderColor='#3d4059'"
+          style="background:var(--input-bg);border:1px solid var(--border-strong);border-radius:4px;color:var(--text-2);font-size:13px;padding:6px 12px;outline:none;width:200px;font-family:inherit;transition:border-color 0.2s;"
+          @focus="($event.target as HTMLInputElement).style.borderColor='var(--accent)'"
+          @blur="($event.target as HTMLInputElement).style.borderColor='var(--border-strong)'"
         />
         <div class="page-size-bar" style="margin-left:auto;">
           <button class="btn-omni" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" title="Tile view">⊞</button>
@@ -93,48 +93,48 @@
           {{ allClusters.length }} clusters
           <template v-if="countReady">
             &nbsp;·&nbsp;<span
-              style="color:#4ade80;cursor:pointer"
+              style="color:var(--green);cursor:pointer"
               :style="{ fontWeight: clusterStatusFilter === 'ready' ? '700' : 'normal' }"
               @click="setClusterFilter('ready')"
             >{{ countReady }} Ready</span>
           </template>
           <template v-if="countNotReady">
             &nbsp;·&nbsp;<span
-              style="color:#f87171;cursor:pointer"
+              style="color:var(--red);cursor:pointer"
               :style="{ fontWeight: clusterStatusFilter === 'not-ready' ? '700' : 'normal' }"
               @click="setClusterFilter('not-ready')"
             >{{ countNotReady }} Not Ready</span>
           </template>
           <template v-if="countScalingUp">
             &nbsp;·&nbsp;<span
-              style="color:#60a5fa;cursor:pointer"
+              style="color:var(--blue);cursor:pointer"
               :style="{ fontWeight: clusterStatusFilter === 'scaling-up' ? '700' : 'normal' }"
               @click="setClusterFilter('scaling-up')"
             >{{ countScalingUp }} Scaling Up</span>
           </template>
           <template v-if="countScalingDown">
             &nbsp;·&nbsp;<span
-              style="color:#f59e0b;cursor:pointer"
+              style="color:var(--amber);cursor:pointer"
               :style="{ fontWeight: clusterStatusFilter === 'scaling-down' ? '700' : 'normal' }"
               @click="setClusterFilter('scaling-down')"
             >{{ countScalingDown }} Scaling Down</span>
           </template>
           <template v-if="countDestroying">
             &nbsp;·&nbsp;<span
-              style="color:#f43f5e;cursor:pointer"
+              style="color:var(--rose);cursor:pointer"
               :style="{ fontWeight: clusterStatusFilter === 'destroying' ? '700' : 'normal' }"
               @click="setClusterFilter('destroying')"
             >{{ countDestroying }} Destroying</span>
           </template>
           <template v-if="countReconfiguring">
             &nbsp;·&nbsp;<span
-              style="color:#a78bfa;cursor:pointer"
+              style="color:var(--purple);cursor:pointer"
               :style="{ fontWeight: clusterStatusFilter === 'reconfiguring' ? '700' : 'normal' }"
               @click="setClusterFilter('reconfiguring')"
             >{{ countReconfiguring }} Reconfiguring</span>
           </template>
           <template v-if="clusterStatusFilter !== null">
-            &nbsp;<span style="cursor:pointer;color:#9fa1a6;text-decoration:underline;font-size:11px" @click="clearClusterFilter">clear</span>
+            &nbsp;<span style="cursor:pointer;color:var(--text-muted);text-decoration:underline;font-size:11px" @click="clearClusterFilter">clear</span>
           </template>
         </div>
       </div>
@@ -169,7 +169,7 @@
                 @click="setClusterFilter(def.key)"
               >{{ clusterStatusFilter === def.key ? '✓ ' : '\u00a0\u00a0 ' }}{{ def.label }}</button>
               <div v-if="activeSyncFilterCount > 0" class="cluster-list-menu-divider"></div>
-              <button v-if="activeSyncFilterCount > 0" class="cluster-list-menu-item" style="color:#9fa1a6" @click="clearSyncFilters(); activeDropdown = null">Clear filters</button>
+              <button v-if="activeSyncFilterCount > 0" class="cluster-list-menu-item" style="color:var(--text-muted)" @click="clearSyncFilters(); activeDropdown = null">Clear filters</button>
             </div>
           </div>
           <div class="filter-dropdown-wrap">
@@ -216,7 +216,7 @@
         <div class="placeholder-title">No clusters found</div>
         <div class="placeholder-sub">Clusters defined in your git repo will appear here.</div>
       </div>
-      <div v-else-if="displayClusters.length === 0" style="padding:24px;color:#5b5c64">No clusters match the current filters</div>
+      <div v-else-if="displayClusters.length === 0" style="padding:24px;color:var(--text-dim)">No clusters match the current filters</div>
 
       <template v-else>
         <!-- Cluster grid -->
@@ -272,28 +272,28 @@
                   <span class="cluster-card-meta-label">Talos Version:</span>
                   <span class="cluster-card-meta-value">
                     <span v-if="cluster.talosVersion">{{ cluster.talosVersion }}</span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else style="color:var(--text-dim)">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Kubernetes Version:</span>
                   <span class="cluster-card-meta-value">
                     <span v-if="cluster.kubernetesVersion">{{ cluster.kubernetesVersion }}</span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else style="color:var(--text-dim)">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Repository:</span>
                   <span class="cluster-card-meta-value">
                     <span v-if="cluster.repoName">{{ cluster.repoName }}</span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else style="color:var(--text-dim)">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
                   <span class="cluster-card-meta-label">Branch:</span>
                   <span class="cluster-card-meta-value">
                     <span v-if="clusterRepo(cluster)?.branch">{{ clusterRepo(cluster)!.branch }}</span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else style="color:var(--text-dim)">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
@@ -301,9 +301,9 @@
                   <span class="cluster-card-meta-value">
                     <span v-if="!isZeroTime(cluster.createdAt)">
                       {{ fmtDateTime(cluster.createdAt) }}
-                      <span style="color:#7d7d85">({{ ago(cluster.createdAt) }})</span>
+                      <span style="color:var(--text-faint)">({{ ago(cluster.createdAt) }})</span>
                     </span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else style="color:var(--text-dim)">—</span>
                   </span>
                 </div>
                 <div class="cluster-card-meta-pair">
@@ -311,9 +311,9 @@
                   <span class="cluster-card-meta-value">
                     <span v-if="!isZeroTime(cluster.lastSyncTime)">
                       {{ fmtDateTime(cluster.lastSyncTime) }}
-                      <span style="color:#7d7d85">({{ ago(cluster.lastSyncTime) }})</span>
+                      <span style="color:var(--text-faint)">({{ ago(cluster.lastSyncTime) }})</span>
                     </span>
-                    <span v-else style="color:#5b5c64">—</span>
+                    <span v-else style="color:var(--text-dim)">—</span>
                   </span>
                 </div>
               </div>
@@ -330,7 +330,7 @@
                 <div class="cluster-pool-row-count">{{ sec.count }}</div>
                 <div class="cluster-pool-row-mc">
                   <span v-if="sec.mc">{{ sec.mc }}</span>
-                  <span v-else style="color:#2c2e38">—</span>
+                  <span v-else style="color:var(--border)">—</span>
                 </div>
               </div>
 
@@ -420,15 +420,15 @@
                     :title="v ? `${k}: ${v}` : k"
                   >{{ k }}<template v-if="v">: <span class="cluster-label-value">{{ v }}</span></template></span>
                 </div>
-                <span v-else style="color:#5b5c64">—</span>
+                <span v-else style="color:var(--text-dim)">—</span>
               </td>
               <td :style="{ color: mgmtColor(cluster) }">{{ mgmtBadge(cluster) }}</td>
               <td :style="{ color: syncColor(cluster) }" v-html="syncText(cluster)"></td>
               <td :style="{ color: healthColor(cluster) }" v-html="healthText(cluster)"></td>
-              <td style="color:#c4c4c9">{{ cluster.talosVersion || '—' }}</td>
-              <td style="color:#c4c4c9">{{ cluster.kubernetesVersion || '—' }}</td>
-              <td style="color:#9fa1a6">{{ cluster.repoName || '—' }}</td>
-              <td style="color:#9fa1a6">
+              <td style="color:var(--text-2)">{{ cluster.talosVersion || '—' }}</td>
+              <td style="color:var(--text-2)">{{ cluster.kubernetesVersion || '—' }}</td>
+              <td style="color:var(--text-muted)">{{ cluster.repoName || '—' }}</td>
+              <td style="color:var(--text-muted)">
                 <span v-if="!isZeroTime(cluster.lastSyncTime)" :title="fmtDateTime(cluster.lastSyncTime)">{{ ago(cluster.lastSyncTime) }}</span>
                 <span v-else>—</span>
               </td>
@@ -496,7 +496,7 @@
           <button class="modal-close" @click="selectModal = null">&times;</button>
         </div>
         <div class="modal-body" style="padding:16px 20px;overflow-y:auto;flex:1;font-family:inherit;white-space:normal;word-break:normal;">
-          <div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid #2c2e38;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--border);margin-bottom:8px;">
             <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="toggleSelectModalAll">All</button>
             <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set(allClusters.filter(c => c.status === 'outofsync').map(c => c.id))">Out of Sync</button>
             <button class="btn-omni" style="padding:2px 10px;font-size:12px;" @click="selectModalItems = new Set(allClusters.filter(c => c.status === 'missing').map(c => c.id))">Missing</button>
@@ -507,20 +507,20 @@
               v-if="selectModal?.type === 'refresh' || (cluster.status !== 'unmanaged' && cluster.status !== 'orphaned')"
               style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:13px;"
             >
-              <input type="checkbox" :checked="selectModalItems.has(cluster.id)" @change="toggleSelectModalItem(cluster.id)" style="accent-color:#ff8b59;" />
-              <span style="flex:1;color:#e8e8e9;">{{ cluster.id }}</span>
+              <input type="checkbox" :checked="selectModalItems.has(cluster.id)" @change="toggleSelectModalItem(cluster.id)" style="accent-color:var(--accent);" />
+              <span style="flex:1;color:var(--text);">{{ cluster.id }}</span>
               <span :style="{ color: syncColor(cluster), fontSize: '11px' }" v-html="syncText(cluster)"></span>
             </label>
             <div
               v-else
               style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;opacity:0.4;cursor:default;padding-left:20px;"
             >
-              <span style="flex:1;color:#e8e8e9;">{{ cluster.id }}</span>
+              <span style="flex:1;color:var(--text);">{{ cluster.id }}</span>
               <span :style="{ color: syncColor(cluster), fontSize: '11px' }" v-html="syncText(cluster)"></span>
             </div>
           </template>
         </div>
-        <div class="confirm-actions" style="padding:12px 20px;border-top:1px solid #2c2e38;">
+        <div class="confirm-actions" style="padding:12px 20px;border-top:1px solid var(--border);">
           <button class="btn-omni" @click="selectModal = null">Cancel</button>
           <button class="btn-omni" :disabled="selectModalItems.size === 0 || selectModalRunning" @click="doSelectModalAction">
             {{ selectModalRunning ? 'Running...' : selectModal.type === 'refresh' ? 'Refresh' : 'Sync' }}
@@ -858,9 +858,9 @@ function mgmtBadge(c: ResourceInfo): string {
   return 'Managed'
 }
 function mgmtColor(c: ResourceInfo): string {
-  if (c.status === 'unmanaged') return '#5b5c64'
-  if (c.status === 'orphaned') return '#a78bfa'
-  return '#7d7d85'
+  if (c.status === 'unmanaged') return 'var(--text-dim)'
+  if (c.status === 'orphaned') return 'var(--purple)'
+  return 'var(--text-faint)'
 }
 
 function syncText(c: ResourceInfo): string {
@@ -880,15 +880,15 @@ function syncText(c: ResourceInfo): string {
   return '—'
 }
 function syncColor(c: ResourceInfo): string {
-  if (c.status === 'unmanaged' || c.status === 'orphaned') return '#5b5c64'
-  if (c.status === 'missing' && (c.error || c.lastSyncError)) return '#f87171'
-  if (c.status === 'missing') return '#facc15'
-  if (c.status === 'outofsync' && (c.error || c.lastSyncError)) return '#f87171'
-  if (c.status === 'outofsync') return '#fb923c'
-  if (c.status === 'failed') return '#f87171'
-  if (c.status === 'syncing') return '#2dd4bf'
-  if (c.status === 'success' || c.status === 'applied') return '#4ade80'
-  return '#5b5c64'
+  if (c.status === 'unmanaged' || c.status === 'orphaned') return 'var(--text-dim)'
+  if (c.status === 'missing' && (c.error || c.lastSyncError)) return 'var(--red)'
+  if (c.status === 'missing') return 'var(--yellow)'
+  if (c.status === 'outofsync' && (c.error || c.lastSyncError)) return 'var(--red)'
+  if (c.status === 'outofsync') return 'var(--orange)'
+  if (c.status === 'failed') return 'var(--red)'
+  if (c.status === 'syncing') return 'var(--teal)'
+  if (c.status === 'success' || c.status === 'applied') return 'var(--green)'
+  return 'var(--text-dim)'
 }
 function healthText(c: ResourceInfo): string {
   const phase = c.clusterPhase || ''
@@ -902,13 +902,13 @@ function healthText(c: ResourceInfo): string {
 }
 function healthColor(c: ResourceInfo): string {
   const phase = c.clusterPhase || ''
-  if (phase === 'scaling-up') return '#60a5fa'
-  if (phase === 'scaling-down') return '#f59e0b'
-  if (phase === 'destroying') return '#f43f5e'
-  if (phase === 'reconfiguring') return '#a78bfa'
-  if (c.clusterReady === 'ready' && c.kubernetesApiReady === 'ready') return '#4ade80'
-  if (c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready') return '#f87171'
-  return '#5b5c64'
+  if (phase === 'scaling-up') return 'var(--blue)'
+  if (phase === 'scaling-down') return 'var(--amber)'
+  if (phase === 'destroying') return 'var(--rose)'
+  if (phase === 'reconfiguring') return 'var(--purple)'
+  if (c.clusterReady === 'ready' && c.kubernetesApiReady === 'ready') return 'var(--green)'
+  if (c.clusterReady === 'not-ready' || c.kubernetesApiReady === 'not-ready') return 'var(--red)'
+  return 'var(--text-dim)'
 }
 
 function clusterSections(c: ResourceInfo) {

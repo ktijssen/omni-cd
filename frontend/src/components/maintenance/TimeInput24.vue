@@ -50,5 +50,5 @@ function update(h: string, m: string) {
 
 <style scoped>
 .t24 { display: inline-flex; align-items: center; gap: 4px; }
-.t24-sep { color: #9fa1a6; }
+.t24-sep { color: var(--text-muted); }
 </style>

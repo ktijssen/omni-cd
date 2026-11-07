@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <div class="header" style="border-bottom:none;">
-      <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Repositories</h1>
+      <h1 style="font-size:18px;font-weight:600;color:var(--text-strong);letter-spacing:-0.3px;">Repositories</h1>
       <button
         v-if="authStore.isAdmin()"
         class="btn-omni"
@@ -34,35 +34,35 @@
             v-if="repoUrl(rc.name)"
             :href="repoUrl(rc.name)"
             target="_blank"
-            style="color:#ff8b59;text-decoration:none"
+            style="color:var(--accent);text-decoration:none"
           >{{ repoUrl(rc.name) }}</a>
           <span v-else>—</span>
         </div>
         <div class="info-card-sub">
-          Branch: <b style="color:#9fa1a6">{{ repoBranch(rc.name) }}</b>
+          Branch: <b style="color:var(--text-muted)">{{ repoBranch(rc.name) }}</b>
           <template v-if="repoShortSha(rc.name)">
-            &nbsp;·&nbsp; SHA <b style="color:#9fa1a6">{{ repoShortSha(rc.name) }}</b>
+            &nbsp;·&nbsp; SHA <b style="color:var(--text-muted)">{{ repoShortSha(rc.name) }}</b>
           </template>
           <template v-if="rc.hasToken">
-            &nbsp;·&nbsp; <span style="color:#4ade80;font-size:11px">🔑 token set</span>
+            &nbsp;·&nbsp; <span style="color:var(--green);font-size:11px">🔑 token set</span>
           </template>
           <template v-if="rc.fromConfig">
-            &nbsp;·&nbsp; <span style="color:#9fa1a6;font-size:11px" title="Managed via the config file — read-only from the UI">📄 from config</span>
+            &nbsp;·&nbsp; <span style="color:var(--text-muted);font-size:11px" title="Managed via the config file — read-only from the UI">📄 from config</span>
           </template>
           <br />
           <template v-if="repoCommitMessage(rc.name)">{{ repoCommitMessage(rc.name) }}<br /></template>
           <template v-if="repoLastSync(rc.name)">Last sync: {{ ago(repoLastSync(rc.name)) }}</template>
-          <span v-else style="color:#5b5c64">Never synced</span>
+          <span v-else style="color:var(--text-dim)">Never synced</span>
         </div>
 
         <!-- Test result -->
         <div
           v-if="testResults[rc.name]"
           style="font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;"
-          :style="{ background: testResults[rc.name].ok ? '#052e16' : '#3f1515', color: testResults[rc.name].ok ? '#4ade80' : '#f87171' }"
+          :style="{ background: testResults[rc.name].ok ? 'var(--green-bg)' : 'var(--red-bg)', color: testResults[rc.name].ok ? 'var(--green)' : 'var(--red)' }"
         >{{ testResults[rc.name].text }}</div>
 
-        <div v-if="repoSyncError(rc.name)" style="color:#f87171;font-size:12px;margin-top:4px;">
+        <div v-if="repoSyncError(rc.name)" style="color:var(--red);font-size:12px;margin-top:4px;">
           {{ repoSyncError(rc.name) }}
         </div>
 
@@ -92,8 +92,8 @@
     <div v-if="deleteConfirm" class="repo-modal-wrap show" @click.self="deleteConfirm = null">
       <div class="repo-modal-box">
         <div class="repo-modal-title">Remove Repository</div>
-        <div style="font-size:13px;color:#e8e8e9;margin-bottom:14px;line-height:1.4;white-space:pre-line;" v-html="deleteConfirm.message"></div>
-        <div style="font-size:13px;color:#9fa1a6;margin-bottom:8px;">{{ deleteConfirm.inputPrompt }}</div>
+        <div style="font-size:13px;color:var(--text);margin-bottom:14px;line-height:1.4;white-space:pre-line;" v-html="deleteConfirm.message"></div>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">{{ deleteConfirm.inputPrompt }}</div>
         <input class="repo-form-input" v-model="deleteConfirmInput" :placeholder="deleteConfirm.requireInput" style="margin-bottom:14px;" />
         <div class="repo-form-actions" style="margin-top:0">
           <button class="btn-omni" @click="deleteConfirm = null">Cancel</button>
@@ -107,11 +107,11 @@
       <div class="repo-modal-box">
         <div class="repo-modal-title">{{ editingRepo ? 'Edit Repository' : 'Add Repository' }}</div>
         <div class="repo-form-group">
-          <label class="repo-form-label">Name <span style="color:#f87171">*</span></label>
+          <label class="repo-form-label">Name <span style="color:var(--red)">*</span></label>
           <input v-model="repoForm.name" class="repo-form-input" :disabled="!!editingRepo" placeholder="my-repo" />
         </div>
         <div class="repo-form-group">
-          <label class="repo-form-label">URL <span style="color:#f87171">*</span></label>
+          <label class="repo-form-label">URL <span style="color:var(--red)">*</span></label>
           <input v-model="repoForm.url" class="repo-form-input" placeholder="https://github.com/org/repo.git" />
         </div>
         <div class="repo-form-group">
@@ -122,7 +122,7 @@
           <label class="repo-form-label">Access Token</label>
           <div class="repo-token-row">
             <input type="checkbox" id="rm-set-token" v-model="repoForm.setToken" />
-            <label for="rm-set-token" style="font-size:12px;color:#9fa1a6">
+            <label for="rm-set-token" style="font-size:12px;color:var(--text-muted)">
               {{ editingRepo ? (repoForm.setToken ? 'Change token' : (editingRepo.hasToken ? 'Token set — check to change' : 'Set access token')) : 'Set access token' }}
             </label>
           </div>
@@ -146,7 +146,7 @@
         <div
           v-if="repoTestResult"
           style="font-size:12px;margin-bottom:8px;padding:6px 10px;border-radius:6px;"
-          :style="{ background: repoTestResult.ok ? '#052e16' : '#3f1515', color: repoTestResult.ok ? '#4ade80' : '#f87171' }"
+          :style="{ background: repoTestResult.ok ? 'var(--green-bg)' : 'var(--red-bg)', color: repoTestResult.ok ? 'var(--green)' : 'var(--red)' }"
         >{{ repoTestResult.text }}</div>
         <div class="repo-form-actions">
           <button class="btn-omni" @click="closeRepoModal">Cancel</button>

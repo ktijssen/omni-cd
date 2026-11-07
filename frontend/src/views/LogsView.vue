@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <div class="header">
-      <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Logs</h1>
+      <h1 style="font-size:18px;font-weight:600;color:var(--text-strong);letter-spacing:-0.3px;">Logs</h1>
       <div class="header-buttons" style="margin-left:auto;display:flex;align-items:center;gap:8px">
         <button class="btn-omni" @click="openLogFilesModal">Show Logs</button>
         <button class="btn-omni" @click="downloadTodaysLogs">Download Today's Logs</button>
@@ -14,9 +14,9 @@
         v-model="logsSearch"
         type="text"
         placeholder="Search logs..."
-        style="background:#1e2130;border:1px solid #3d4059;border-radius:4px;color:#c4c4c9;font-size:13px;padding:6px 12px;outline:none;width:200px;font-family:inherit;transition:border-color 0.2s;"
-        @focus="($event.target as HTMLInputElement).style.borderColor='#ff8b59'"
-        @blur="($event.target as HTMLInputElement).style.borderColor='#3d4059'"
+        style="background:var(--input-bg);border:1px solid var(--border-strong);border-radius:4px;color:var(--text-2);font-size:13px;padding:6px 12px;outline:none;width:200px;font-family:inherit;transition:border-color 0.2s;"
+        @focus="($event.target as HTMLInputElement).style.borderColor='var(--accent)'"
+        @blur="($event.target as HTMLInputElement).style.borderColor='var(--border-strong)'"
       />
       <div class="filter-dropdown-wrap">
         <button class="filter-select-btn" :class="{ active: !!logsComponentFilter }" @click="activeDropdown = activeDropdown === 'component' ? null : 'component'">
@@ -62,7 +62,7 @@
         class="btn-omni"
         @click="clearFilters"
       >✕ Clear</button>
-      <span style="font-size:11px;color:#5b5c64;margin-left:4px">{{ filteredLogs.length }} / {{ allLogs.length }}</span>
+      <span style="font-size:11px;color:var(--text-dim);margin-left:4px">{{ filteredLogs.length }} / {{ allLogs.length }}</span>
     </div>
 
     <!-- Table -->
@@ -81,10 +81,10 @@
             <td class="audit-ts">{{ formatTs(entry.timestamp) }}</td>
             <td><span :class="levelClass(entry.level)" style="font-size:11px">{{ entry.level || 'INFO' }}</span></td>
             <td class="audit-kind">{{ entry.label || '—' }}</td>
-            <td style="color:#e8e8e9">{{ parseMsg(entry.message) }}</td>
+            <td style="color:var(--text)">{{ parseMsg(entry.message) }}</td>
           </tr>
           <tr v-if="displayedLogs.length === 0">
-            <td colspan="4" style="text-align:center;color:#5b5c64;padding:24px">
+            <td colspan="4" style="text-align:center;color:var(--text-dim);padding:24px">
               {{ allLogs.length > 0 ? 'No logs match the current filters' : 'No logs yet' }}
             </td>
           </tr>
@@ -100,26 +100,26 @@
           <button class="modal-close" @click="showLogFilesModal = false">&times;</button>
         </div>
         <div style="padding:16px 24px;min-height:80px">
-          <div v-if="logFilesLoading" style="color:#7d7d85;text-align:center;padding:24px">Loading...</div>
+          <div v-if="logFilesLoading" style="color:var(--text-faint);text-align:center;padding:24px">Loading...</div>
           <table v-else-if="logFiles.length > 0" style="width:100%;border-collapse:collapse;font-size:12px">
             <thead>
               <tr>
-                <th style="text-align:left;color:#7d7d85;font-weight:400;padding:4px 8px">Date</th>
-                <th style="text-align:right;color:#7d7d85;font-weight:400;padding:4px 8px">Size</th>
+                <th style="text-align:left;color:var(--text-faint);font-weight:400;padding:4px 8px">Date</th>
+                <th style="text-align:right;color:var(--text-faint);font-weight:400;padding:4px 8px">Size</th>
                 <th style="padding:4px 8px"></th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="f in logFiles" :key="f.date" style="border-top:1px solid #1f222e">
-                <td style="padding:6px 8px;color:#e8e8e9">{{ f.date }}</td>
-                <td style="padding:6px 8px;color:#7d7d85;text-align:right">{{ formatBytes(f.size) }}</td>
+              <tr v-for="f in logFiles" :key="f.date" style="border-top:1px solid var(--surface-2)">
+                <td style="padding:6px 8px;color:var(--text)">{{ f.date }}</td>
+                <td style="padding:6px 8px;color:var(--text-faint);text-align:right">{{ formatBytes(f.size) }}</td>
                 <td style="padding:6px 8px;text-align:right">
                   <button class="btn-omni" @click="downloadLogFile(f.date)">Download</button>
                 </td>
               </tr>
             </tbody>
           </table>
-          <div v-else style="color:#7d7d85;text-align:center;padding:24px">No log files found</div>
+          <div v-else style="color:var(--text-faint);text-align:center;padding:24px">No log files found</div>
         </div>
       </div>
     </div>

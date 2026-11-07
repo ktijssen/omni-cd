@@ -175,8 +175,8 @@ onBeforeUnmount(close)
   width: 62px; padding: 7px 8px; cursor: pointer; text-align: left;
   font-family: inherit; font-variant-numeric: tabular-nums;
 }
-.ss-button:focus-visible { outline: none; border-color: #ff8b59; }
-.ss-caret { color: #7d7d85; flex-shrink: 0; transition: transform 0.15s; }
+.ss-button:focus-visible { outline: none; border-color: var(--accent); }
+.ss-caret { color: var(--text-faint); flex-shrink: 0; transition: transform 0.15s; }
 .ss-caret.up { transform: rotate(180deg); }
 </style>
 
@@ -184,13 +184,13 @@ onBeforeUnmount(close)
 /* Unscoped: the list is teleported to <body>. */
 .ss-list {
   position: fixed; z-index: 3100; margin: 0; padding: 0; list-style: none; box-sizing: border-box;
-  overflow-y: auto; background: #13141c; border: 1px solid #2c2e38; border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); scrollbar-width: thin; scrollbar-color: #2c2e38 transparent;
+  overflow-y: auto; background: var(--bg-inset); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); scrollbar-width: thin; scrollbar-color: var(--border) transparent;
 }
 .ss-option {
   height: var(--ss-row); line-height: var(--ss-row); padding: 0 12px;
-  font-size: 13px; color: #c4c4c9; cursor: pointer; font-variant-numeric: tabular-nums;
+  font-size: 13px; color: var(--text-2); cursor: pointer; font-variant-numeric: tabular-nums;
 }
-.ss-option.active { background: #1f222e; color: #fff; }
-.ss-option.selected { color: #ff8b59; font-weight: 600; }
+.ss-option.active { background: var(--surface-2); color: var(--text-strong); }
+.ss-option.selected { color: var(--accent); font-weight: 600; }
 </style>
