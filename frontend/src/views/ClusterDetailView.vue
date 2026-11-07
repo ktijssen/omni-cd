@@ -102,35 +102,35 @@
         <div class="detail-strip-item" style="min-width:160px" :title="'Maintenance window: ' + cluster.maintenanceWindows!.join(', ')">
           <div class="detail-strip-label"><RouterLink to="/maintenance-windows" style="color:inherit;text-decoration:none" title="Manage in Settings → Maintenance Windows">Maintenance Window</RouterLink></div>
           <div class="detail-strip-value">
-            <span v-if="cluster.autoSync === false" style="color:#5b5c64">Auto-sync off</span>
-            <span v-else-if="cluster.maintenanceStatus?.open" style="color:#4ade80">● Open</span>
-            <span v-else style="color:#fb923c">○ Closed</span>
+            <span v-if="cluster.autoSync === false" style="color:var(--text-dim)">Auto-sync off</span>
+            <span v-else-if="cluster.maintenanceStatus?.open" style="color:var(--green)">● Open</span>
+            <span v-else style="color:var(--orange)">○ Closed</span>
           </div>
-          <div style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap">{{ maintenanceSummary(cluster.maintenanceStatus) }}</div>
+          <div style="font-size:11px;color:var(--text-faint);margin-top:2px;white-space:nowrap">{{ maintenanceSummary(cluster.maintenanceStatus) }}</div>
         </div>
         <div class="detail-strip-sep"></div>
       </template>
       <div class="detail-strip-item" style="min-width:160px" :title="syncStatusTooltip">
         <div class="detail-strip-label">Sync Status</div>
         <div class="detail-strip-value" v-html="syncStatusBadge"></div>
-        <div v-if="syncSinceStr" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Since: {{ syncSinceStr }}</div>
-        <div v-if="repoAuthor && cluster.status !== 'unmanaged'" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Author: {{ repoAuthor }}</div>
-        <div v-if="repoMessage && cluster.status !== 'unmanaged'" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: {{ repoMessage }}</div>
+        <div v-if="syncSinceStr" style="font-size:11px;color:var(--text-faint);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Since: {{ syncSinceStr }}</div>
+        <div v-if="repoAuthor && cluster.status !== 'unmanaged'" style="font-size:11px;color:var(--text-faint);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Author: {{ repoAuthor }}</div>
+        <div v-if="repoMessage && cluster.status !== 'unmanaged'" style="font-size:11px;color:var(--text-faint);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: {{ repoMessage }}</div>
       </div>
       <div class="detail-strip-sep"></div>
       <div class="detail-strip-item" style="min-width:140px" :title="lastSyncResultTooltip">
         <div class="detail-strip-label">Last Sync Result</div>
         <div class="detail-strip-value" v-html="lastSyncResultBadge"></div>
-        <div v-if="lastSyncDateStr && cluster.status !== 'unmanaged'" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap">{{ lastSyncDateStr }}</div>
-        <div v-if="lastSyncAuthor && cluster.status !== 'unmanaged'" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap">Author: {{ lastSyncAuthor }}</div>
-        <div v-if="lastSyncMessage && cluster.status !== 'unmanaged'" style="font-size:11px;color:#7d7d85;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: {{ lastSyncMessage }}</div>
+        <div v-if="lastSyncDateStr && cluster.status !== 'unmanaged'" style="font-size:11px;color:var(--text-faint);margin-top:2px;white-space:nowrap">{{ lastSyncDateStr }}</div>
+        <div v-if="lastSyncAuthor && cluster.status !== 'unmanaged'" style="font-size:11px;color:var(--text-faint);margin-top:2px;white-space:nowrap">Author: {{ lastSyncAuthor }}</div>
+        <div v-if="lastSyncMessage && cluster.status !== 'unmanaged'" style="font-size:11px;color:var(--text-faint);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">Message: {{ lastSyncMessage }}</div>
       </div>
       <template v-if="cluster.status === 'unmanaged' && createdAgo">
         <div class="detail-strip-sep"></div>
         <div class="detail-strip-item">
           <div class="detail-strip-label">Created At</div>
-          <div class="detail-strip-value" style="font-size:12px;color:#e8e8e9;">{{ new Date(cluster.createdAt!).toLocaleString() }}</div>
-          <div style="font-size:11px;color:#7d7d85;margin-top:2px;">{{ createdAgo }}</div>
+          <div class="detail-strip-value" style="font-size:12px;color:var(--text);">{{ new Date(cluster.createdAt!).toLocaleString() }}</div>
+          <div style="font-size:11px;color:var(--text-faint);margin-top:2px;">{{ createdAgo }}</div>
         </div>
       </template>
     </div>
@@ -164,14 +164,14 @@
             :read-only="true"
             style="flex:1;min-height:0;"
           />
-          <div v-else style="color:#7d7d85;text-align:center;padding:40px;font-size:14px;">No live state available</div>
+          <div v-else style="color:var(--text-faint);text-align:center;padding:40px;font-size:14px;">No live state available</div>
         </template>
         <!-- Diff sub-tab -->
         <template v-else>
           <div v-if="cluster.diff" style="flex:1;min-height:0;">
             <DiffViewer :diff="cluster.diff" />
           </div>
-          <div v-else style="color:#7d7d85;text-align:center;padding:40px;font-size:14px;">
+          <div v-else style="color:var(--text-faint);text-align:center;padding:40px;font-size:14px;">
             {{ cluster.status === 'unmanaged' ? 'Cluster template exists in Omni but is not managed by OmniCD.' : 'No diff available' }}
           </div>
         </template>
@@ -179,30 +179,30 @@
 
       <template v-else-if="activeTab === 'manifests'">
         <div style="white-space:normal;word-break:normal;font-family:Roboto,sans-serif;">
-          <div v-if="manifestsLoading" style="text-align:center;padding:40px;color:#7d7d85;">
+          <div v-if="manifestsLoading" style="text-align:center;padding:40px;color:var(--text-faint);">
             <span class="spinner" style="width:16px;height:16px;"></span> Loading manifest status…
           </div>
           <div v-else-if="manifestsError" style="padding:16px 24px;">
-            <div style="background:#3f1515;border:1px solid #7f1d1d;border-radius:8px;padding:12px 16px;font-size:13px;color:#f87171;">⚠ {{ manifestsError }}</div>
+            <div style="background:var(--red-bg);border:1px solid var(--red-border);border-radius:8px;padding:12px 16px;font-size:13px;color:var(--red);">⚠ {{ manifestsError }}</div>
           </div>
           <template v-else-if="manifestStatus">
             <!-- Header -->
-            <div style="display:flex;align-items:center;gap:20px;padding:12px 24px;border-bottom:1px solid #1f222e;">
-              <span style="font-size:13px;color:#9fa1a6;">Total: <span style="color:#e8e8e9;font-weight:600;">{{ manifestStatus.total }}</span></span>
-              <span style="font-size:13px;" :style="manifestStatus.outOfSync === 0 ? 'color:#4ade80' : 'color:#fb923c'">
+            <div style="display:flex;align-items:center;gap:20px;padding:12px 24px;border-bottom:1px solid var(--surface-2);">
+              <span style="font-size:13px;color:var(--text-muted);">Total: <span style="color:var(--text);font-weight:600;">{{ manifestStatus.total }}</span></span>
+              <span style="font-size:13px;" :style="manifestStatus.outOfSync === 0 ? 'color:var(--green)' : 'color:var(--orange)'">
                 In Sync: <span style="font-weight:600;">{{ manifestStatus.total - manifestStatus.outOfSync }}</span>
               </span>
-              <span v-if="manifestStatus.outOfSync > 0" style="font-size:13px;color:#fb923c;">Out of Sync: <span style="font-weight:600;">{{ manifestStatus.outOfSync }}</span></span>
-              <span v-if="manifestStatus.lastError" style="font-size:12px;color:#f87171;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="manifestStatus.lastError">⚠ {{ manifestStatus.lastError }}</span>
+              <span v-if="manifestStatus.outOfSync > 0" style="font-size:13px;color:var(--orange);">Out of Sync: <span style="font-weight:600;">{{ manifestStatus.outOfSync }}</span></span>
+              <span v-if="manifestStatus.lastError" style="font-size:12px;color:var(--red);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="manifestStatus.lastError">⚠ {{ manifestStatus.lastError }}</span>
               <input
                 v-model="manifestFilterText"
                 type="text"
                 placeholder="Filter by name, kind, namespace…"
-                style="background:#13141c;border:1px solid #2c2e38;border-radius:6px;color:#e8e8e9;font-size:12px;padding:6px 10px;width:220px;flex-shrink:0;"
+                style="background:var(--bg-inset);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:6px 10px;width:220px;flex-shrink:0;"
               />
               <select
                 v-model="manifestFilterPhase"
-                style="background:#13141c;border:1px solid #2c2e38;border-radius:6px;color:#e8e8e9;font-size:12px;padding:6px 8px;flex-shrink:0;"
+                style="background:var(--bg-inset);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:6px 8px;flex-shrink:0;"
               >
                 <option value="">All phases</option>
                 <option value="applied">Applied</option>
@@ -216,7 +216,7 @@
               </div>
             </div>
             <!-- No groups -->
-            <div v-if="Object.keys(filteredManifestGroups).length === 0" style="text-align:center;color:#7d7d85;padding:32px;font-size:13px;">
+            <div v-if="Object.keys(filteredManifestGroups).length === 0" style="text-align:center;color:var(--text-faint);padding:32px;font-size:13px;">
               {{ manifestFilterActive ? 'No manifests match the current filter.' : 'No manifest groups found for this cluster.' }}
             </div>
             <!-- Graph mode: all groups in a single canvas -->
@@ -232,16 +232,16 @@
                 <!-- Group row -->
                 <div
                   @click="toggleManifestGroup(groupName as string)"
-                  style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 24px;border-bottom:1px solid #1f222e;user-select:none;"
+                  style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 24px;border-bottom:1px solid var(--surface-2);user-select:none;"
                 >
-                  <span style="font-size:10px;color:#5b5c64;flex-shrink:0;width:10px;">{{ expandedGroups.has(groupName as string) ? '▼' : '▶' }}</span>
-                  <span style="font-size:13px;font-weight:500;color:#e8e8e9;font-family:'Roboto Mono','SF Mono','Fira Code',monospace;flex-shrink:0;">{{ groupName }}</span>
-                  <span style="font-size:13px;color:#5b5c64;flex-shrink:0;">·</span>
+                  <span style="font-size:10px;color:var(--text-dim);flex-shrink:0;width:10px;">{{ expandedGroups.has(groupName as string) ? '▼' : '▶' }}</span>
+                  <span style="font-size:13px;font-weight:500;color:var(--text);font-family:'Roboto Mono','SF Mono','Fira Code',monospace;flex-shrink:0;">{{ groupName }}</span>
+                  <span style="font-size:13px;color:var(--text-dim);flex-shrink:0;">·</span>
                   <span style="font-size:13px;font-weight:500;flex-shrink:0;" :style="{ color: manifestPhaseColorStr(group.phase) }">{{ manifestPhaseName(group.phase) }}</span>
-                  <span style="font-size:13px;color:#5b5c64;flex-shrink:0;">·</span>
-                  <span style="font-size:13px;color:#7d7d85;flex-shrink:0;">Mode: <span style="color:#c4c4c9;">{{ group.mode === 'one-time' ? 'One-Time' : 'Full' }}</span></span>
-                  <span style="font-size:13px;color:#5b5c64;flex-shrink:0;">·</span>
-                  <span style="font-size:13px;color:#7d7d85;flex-shrink:0;">{{ manifestSyncCount(group) }}/{{ Object.keys(group.manifests).length }} in sync</span>
+                  <span style="font-size:13px;color:var(--text-dim);flex-shrink:0;">·</span>
+                  <span style="font-size:13px;color:var(--text-faint);flex-shrink:0;">Mode: <span style="color:var(--text-2);">{{ group.mode === 'one-time' ? 'One-Time' : 'Full' }}</span></span>
+                  <span style="font-size:13px;color:var(--text-dim);flex-shrink:0;">·</span>
+                  <span style="font-size:13px;color:var(--text-faint);flex-shrink:0;">{{ manifestSyncCount(group) }}/{{ Object.keys(group.manifests).length }} in sync</span>
                 </div>
                 <!-- Manifest table -->
                 <table v-if="expandedGroups.has(groupName as string)" class="audit-table" style="table-layout:fixed;width:100%;">
@@ -274,13 +274,13 @@
             </template>
           </template>
           <div v-else style="text-align:center;padding:60px 24px;">
-            <span style="font-size:14px;color:#7d7d85;">No Kubernetes manifests configured for this cluster</span>
+            <span style="font-size:14px;color:var(--text-faint);">No Kubernetes manifests configured for this cluster</span>
           </div>
         </div>
       </template>
 
       <template v-else-if="activeTab === 'error'">
-        <div style="padding:24px;color:#f87171;white-space:pre-wrap;">{{ cluster.error || cluster.lastSyncError }}</div>
+        <div style="padding:24px;color:var(--red);white-space:pre-wrap;">{{ cluster.error || cluster.lastSyncError }}</div>
       </template>
     </div>
 
@@ -292,7 +292,7 @@
           <button class="modal-close" @click="showSyncError = false">&times;</button>
         </div>
         <div class="modal-body confirm-body">
-          <pre style="margin:0;white-space:pre-wrap;color:#f87171;font-size:12px;font-family:'SF Mono','Fira Code',monospace">{{ cluster.lastSyncError }}</pre>
+          <pre style="margin:0;white-space:pre-wrap;color:var(--red);font-size:12px;font-family:'SF Mono','Fira Code',monospace">{{ cluster.lastSyncError }}</pre>
         </div>
       </div>
     </div>
@@ -442,11 +442,11 @@ function manifestPhaseName(phase: string): string {
 
 function manifestPhaseColorStr(phase: string): string {
   switch (phase) {
-    case 'applied':     return '#4ade80'
-    case 'progressing': return '#fbbf24'
-    case 'pending':     return '#9fa1a6'
-    case 'deleting':    return '#f87171'
-    default:            return '#7d7d85'
+    case 'applied':     return 'var(--green)'
+    case 'progressing': return 'var(--amber)'
+    case 'pending':     return 'var(--text-muted)'
+    case 'deleting':    return 'var(--red)'
+    default:            return 'var(--text-faint)'
   }
 }
 
@@ -489,12 +489,12 @@ const clusterRepo = computed(() => {
 
 const machinesBadge = computed(() => {
   const c = cluster.value
-  if (!c) return '<span style="color:#5b5c64">—</span>'
+  if (!c) return '<span style="color:var(--text-dim)">—</span>'
   const healthy = c.machinesHealthy || 0
   const total = c.machinesTotal || 0
-  if (total === 0) return '<span style="color:#5b5c64">—</span>'
-  if (healthy === total) return `<span style="color:#4ade80">${healthy} / ${total}</span>`
-  return `<span style="color:#fb923c">${healthy} / ${total}</span>`
+  if (total === 0) return '<span style="color:var(--text-dim)">—</span>'
+  if (healthy === total) return `<span style="color:var(--green)">${healthy} / ${total}</span>`
+  return `<span style="color:var(--orange)">${healthy} / ${total}</span>`
 })
 
 const repoAuthor = computed(() => clusterRepo.value?.commitAuthor || '')
@@ -502,10 +502,10 @@ const repoMessage = computed(() => clusterRepo.value?.commitMessage || '')
 
 const syncStatusBadge = computed(() => {
   const c = cluster.value
-  if (!c) return '<span style="color:#5b5c64">—</span>'
+  if (!c) return '<span style="color:var(--text-dim)">—</span>'
   const repo = clusterRepo.value
   const repoDisconnected = !!(repo && repo.syncError)
-  if (c.status === 'unmanaged') return '<span style="color:#5b5c64">—</span>'
+  if (c.status === 'unmanaged') return '<span style="color:var(--text-dim)">—</span>'
   if (repoDisconnected) return '<span class="spinner" style="width:10px;height:10px;display:inline-block;vertical-align:middle"></span>'
   const branchSha = repo
     ? ((repo.branch || '') + (repo.shortSha ? ' (' + repo.shortSha + ')' : ''))
@@ -514,12 +514,12 @@ const syncStatusBadge = computed(() => {
   const commitUrl = repoUrl && repo?.sha ? repoUrl.replace(/\/+$/, '') + '/commit/' + repo.sha : ''
   const branchShaHtml = branchSha
     ? (commitUrl
-        ? `<a href="${escHtml(commitUrl)}" target="_blank" rel="noopener" style="color:#ff8b59;text-decoration:none" onclick="event.stopPropagation()">${escHtml(branchSha)}</a>`
-        : `<span style="color:#ff8b59">${escHtml(branchSha)}</span>`)
+        ? `<a href="${escHtml(commitUrl)}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none" onclick="event.stopPropagation()">${escHtml(branchSha)}</a>`
+        : `<span style="color:var(--accent)">${escHtml(branchSha)}</span>`)
     : ''
   const hasSyncError = !!(c.error || c.lastSyncError)
   const badge = ((c.status === 'outofsync' || c.status === 'missing') && hasSyncError)
-    ? `<span style="color:#f87171">${failedIconSVG} Sync Failed</span>`
+    ? `<span style="color:var(--red)">${failedIconSVG} Sync Failed</span>`
     : syncBadge(c.status || '')
   return branchShaHtml ? badge + ' from ' + branchShaHtml : badge
 })
@@ -542,21 +542,21 @@ const syncStatusTooltip = computed(() => {
 
 const lastSyncResultBadge = computed(() => {
   const c = cluster.value
-  if (!c) return '<span style="color:#5b5c64">—</span>'
-  if (c.status === 'unmanaged') return '<span style="color:#5b5c64">—</span>'
-  if (!c.lastSyncResult) return '<span style="color:#5b5c64">—</span>'
+  if (!c) return '<span style="color:var(--text-dim)">—</span>'
+  if (c.status === 'unmanaged') return '<span style="color:var(--text-dim)">—</span>'
+  if (!c.lastSyncResult) return '<span style="color:var(--text-dim)">—</span>'
   const repo = clusterRepo.value
   const repoUrl = repo?.repo ? repo.repo.replace(/\/+$/, '') : ''
   const shortSHA = c.lastSyncSHA ? c.lastSyncSHA.slice(0, 8) : ''
   const shaHtml = shortSHA
     ? ' to ' + (repoUrl
-        ? `<a href="${escHtml(repoUrl + '/commit/' + c.lastSyncSHA)}" target="_blank" rel="noopener" style="color:#ff8b59;text-decoration:none" onclick="event.stopPropagation()">${escHtml(shortSHA)}</a>`
-        : `<span style="color:#ff8b59">${escHtml(shortSHA)}</span>`)
+        ? `<a href="${escHtml(repoUrl + '/commit/' + c.lastSyncSHA)}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none" onclick="event.stopPropagation()">${escHtml(shortSHA)}</a>`
+        : `<span style="color:var(--accent)">${escHtml(shortSHA)}</span>`)
     : ''
   if (c.lastSyncResult === 'ok') {
-    return `<span style="color:#4ade80">${syncedIconSVG} Sync OK</span>${shaHtml}`
+    return `<span style="color:var(--green)">${syncedIconSVG} Sync OK</span>${shaHtml}`
   }
-  return `<span style="color:#f87171">${failedIconSVG} Sync Failed</span>`
+  return `<span style="color:var(--red)">${failedIconSVG} Sync Failed</span>`
 })
 
 const lastSyncDateStr = computed(() => {
@@ -592,32 +592,32 @@ const omniClusterUrl = computed(() => {
 })
 
 function cpBadge(val?: string): string {
-  if (val === 'ready') return `<span style="color:#4ade80">${syncedIconSVG} Ready</span>`
-  if (val === 'not-ready') return `<span style="color:#f87171">${failedIconSVG} Not Ready</span>`
-  return '<span style="color:#5b5c64">—</span>'
+  if (val === 'ready') return `<span style="color:var(--green)">${syncedIconSVG} Ready</span>`
+  if (val === 'not-ready') return `<span style="color:var(--red)">${failedIconSVG} Not Ready</span>`
+  return '<span style="color:var(--text-dim)">—</span>'
 }
 function statusBadge(val?: string): string {
-  if (val === 'ok' || val === 'ready') return `<span style="color:#4ade80">${syncedIconSVG} OK</span>`
-  if (val === 'not-ready') return `<span style="color:#f87171">${failedIconSVG} Not Ready</span>`
-  return '<span style="color:#5b5c64">—</span>'
+  if (val === 'ok' || val === 'ready') return `<span style="color:var(--green)">${syncedIconSVG} OK</span>`
+  if (val === 'not-ready') return `<span style="color:var(--red)">${failedIconSVG} Not Ready</span>`
+  return '<span style="color:var(--text-dim)">—</span>'
 }
 function syncBadge(status: string): string {
-  if (status === 'success' || status === 'applied') return `<span style="color:#4ade80">${syncedIconSVG} Synced</span>`
-  if (status === 'outofsync') return `<span style="color:#fb923c">${outOfSyncIconSVG} Out of Sync</span>`
-  if (status === 'missing') return '<span style="color:#facc15">○ Missing</span>'
-  if (status === 'orphaned') return '<span style="color:#a78bfa">● Orphaned</span>'
-  if (status === 'failed') return `<span style="color:#f87171">${failedIconSVG} Failed</span>`
-  if (status === 'syncing') return '<span style="color:#2dd4bf">● Syncing</span>'
-  if (status === 'unmanaged') return '<span style="color:#5b5c64">Unmanaged</span>'
-  return '<span style="color:#5b5c64">—</span>'
+  if (status === 'success' || status === 'applied') return `<span style="color:var(--green)">${syncedIconSVG} Synced</span>`
+  if (status === 'outofsync') return `<span style="color:var(--orange)">${outOfSyncIconSVG} Out of Sync</span>`
+  if (status === 'missing') return '<span style="color:var(--yellow)">○ Missing</span>'
+  if (status === 'orphaned') return '<span style="color:var(--purple)">● Orphaned</span>'
+  if (status === 'failed') return `<span style="color:var(--red)">${failedIconSVG} Failed</span>`
+  if (status === 'syncing') return '<span style="color:var(--teal)">● Syncing</span>'
+  if (status === 'unmanaged') return '<span style="color:var(--text-dim)">Unmanaged</span>'
+  return '<span style="color:var(--text-dim)">—</span>'
 }
 function phaseBadge(phase?: string): string {
-  if (phase === 'scaling-up') return '<span style="color:#60a5fa">↑ Scaling Up</span>'
-  if (phase === 'scaling-down') return '<span style="color:#f59e0b">↓ Scaling Down</span>'
-  if (phase === 'destroying') return `<span style="color:#f43f5e">${failedIconSVG} Destroying</span>`
-  if (phase === 'reconfiguring') return '<span style="color:#a78bfa">↻ Reconfiguring</span>'
-  if (phase === 'running') return `<span style="color:#4ade80">${syncedIconSVG} Running</span>`
-  return '<span style="color:#5b5c64">—</span>'
+  if (phase === 'scaling-up') return '<span style="color:var(--blue)">↑ Scaling Up</span>'
+  if (phase === 'scaling-down') return '<span style="color:var(--amber)">↓ Scaling Down</span>'
+  if (phase === 'destroying') return `<span style="color:var(--rose)">${failedIconSVG} Destroying</span>`
+  if (phase === 'reconfiguring') return '<span style="color:var(--purple)">↻ Reconfiguring</span>'
+  if (phase === 'running') return `<span style="color:var(--green)">${syncedIconSVG} Running</span>`
+  return '<span style="color:var(--text-dim)">—</span>'
 }
 
 function escHtml(s: string): string {

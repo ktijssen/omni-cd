@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <div class="header" style="border-bottom:none;">
-      <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Maintenance Windows</h1>
+      <h1 style="font-size:18px;font-weight:600;color:var(--text-strong);letter-spacing:-0.3px;">Maintenance Windows</h1>
       <span class="mw-tz" title="Window times are read in the server's timezone (set with the TZ environment variable)">
         Server time: {{ timezone }}
       </span>
@@ -74,7 +74,7 @@
     <div v-if="deleteTarget" class="repo-modal-wrap show" @click.self="deleteTarget = null">
       <div class="repo-modal-box">
         <div class="repo-modal-title">Remove Maintenance Window</div>
-        <div style="font-size:13px;color:#e8e8e9;margin-bottom:14px;line-height:1.4;">
+        <div style="font-size:13px;color:var(--text);margin-bottom:14px;line-height:1.4;">
           Remove <b>{{ deleteTarget.name }}</b>? Clusters that are in no other window will have changes
           from Git applied at any time while auto-sync is on.
         </div>
@@ -162,22 +162,22 @@ async function doDelete() {
 </script>
 
 <style scoped>
-.mw-tz { margin-left: 12px; font-size: 12px; color: #7d7d85; }
-.mw-placeholder-icon { display: flex; justify-content: center; color: #5b5c64; }
+.mw-tz { margin-left: 12px; font-size: 12px; color: var(--text-faint); }
+.mw-placeholder-icon { display: flex; justify-content: center; color: var(--text-dim); }
 .mw-placeholder-icon :deep(svg) { width: 40px; height: 40px; }
-.mw-range { display: flex; gap: 10px; color: #e8e8e9; }
-.mw-range-days { min-width: 140px; color: #9fa1a6; }
-.mw-next-day { color: #7d7d85; }
+.mw-range { display: flex; gap: 10px; color: var(--text); }
+.mw-range-days { min-width: 140px; color: var(--text-muted); }
+.mw-next-day { color: var(--text-faint); }
 .mw-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .mw-chip {
   font-size: 12px; line-height: 1; padding: 5px 8px; border-radius: 4px; text-decoration: none;
-  border: 1px solid #3d4059; background: #1e2130; color: #c4c4c9;
+  border: 1px solid var(--border-strong); background: var(--input-bg); color: var(--text-2);
 }
-.mw-chip:hover { border-color: #ff8b59; color: #ff8b59; }
-.mw-chip.off { color: #7d7d85; }
-.mw-chip.gone { color: #f87171; border-style: dashed; }
+.mw-chip:hover { border-color: var(--accent); color: var(--accent); }
+.mw-chip.off { color: var(--text-faint); }
+.mw-chip.gone { color: var(--red); border-style: dashed; }
 .mw-selector { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 8px; }
-.mw-selector-label { color: #7d7d85; margin-right: 2px; }
-.mw-none { font-size: 12px; color: #5b5c64; }
-.mw-hint { margin-top: 6px; font-size: 12px; color: #fb923c; line-height: 1.5; }
+.mw-selector-label { color: var(--text-faint); margin-right: 2px; }
+.mw-none { font-size: 12px; color: var(--text-dim); }
+.mw-hint { margin-top: 6px; font-size: 12px; color: var(--orange); line-height: 1.5; }
 </style>

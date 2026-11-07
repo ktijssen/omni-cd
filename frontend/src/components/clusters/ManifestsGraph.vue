@@ -47,8 +47,8 @@
           <!-- Edges: group -> kind -->
           <svg :width="EW" :height="maxH" overflow="visible" style="flex-shrink:0;">
             <g v-for="c in groupKindConnections" :key="c.key">
-              <path :d="c.d" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3" />
-              <polygon :points="c.arrowPoints" fill="#5b5c64" />
+              <path :d="c.d" stroke="var(--border)" stroke-width="1.5" fill="none" stroke-dasharray="4,3" />
+              <polygon :points="c.arrowPoints" fill="var(--text-dim)" />
             </g>
           </svg>
 
@@ -79,8 +79,8 @@
             <!-- Edges: kind -> manifest -->
             <svg :width="EW" :height="maxH" overflow="visible" style="flex-shrink:0;">
               <g v-for="c in connections" :key="c.key">
-                <path :d="c.d" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3" />
-                <polygon :points="c.arrowPoints" fill="#5b5c64" />
+                <path :d="c.d" stroke="var(--border)" stroke-width="1.5" fill="none" stroke-dasharray="4,3" />
+                <polygon :points="c.arrowPoints" fill="var(--text-dim)" />
               </g>
             </svg>
 
@@ -363,11 +363,11 @@ function phaseName(phase: string): string {
 
 function phaseColor(phase: string): string {
   switch (phase) {
-    case 'applied':     return '#4ade80'
-    case 'progressing': return '#fbbf24'
-    case 'pending':     return '#9fa1a6'
-    case 'deleting':    return '#f87171'
-    default:            return '#7d7d85'
+    case 'applied':     return 'var(--green)'
+    case 'progressing': return 'var(--amber)'
+    case 'pending':     return 'var(--text-muted)'
+    case 'deleting':    return 'var(--red)'
+    default:            return 'var(--text-faint)'
   }
 }
 

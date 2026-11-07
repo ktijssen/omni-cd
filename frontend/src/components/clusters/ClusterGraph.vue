@@ -59,13 +59,13 @@
                 v-for="(ly, i) in col1Ys"
                 :key="i"
                 :d="`M0,${ly.toFixed(1)} H${(EW*0.5).toFixed(1)} V${col2MidY.toFixed(1)} H${EW}`"
-                stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"
+                stroke="var(--border)" stroke-width="1.5" fill="none" stroke-dasharray="4,3"
               />
               <polygon
                 v-for="(ly, i) in col1Ys"
                 :key="'a'+i"
                 :points="`${EW},${col2MidY.toFixed(1)} ${EW-5},${(col2MidY-3).toFixed(1)} ${EW-5},${(col2MidY+3).toFixed(1)}`"
-                fill="#5b5c64"
+                fill="var(--text-dim)"
               />
             </svg>
           </div>
@@ -101,8 +101,8 @@
             <!-- Edge col2 → col3 -->
             <svg :width="EW" :height="maxH" overflow="visible" style="flex-shrink:0;">
               <g v-for="cc in col2Col3Connections" :key="cc.key">
-                <path :d="cc.d" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>
-                <polygon :points="cc.arrowPoints" fill="#5b5c64"/>
+                <path :d="cc.d" stroke="var(--border)" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>
+                <polygon :points="cc.arrowPoints" fill="var(--text-dim)"/>
               </g>
             </svg>
 
@@ -140,8 +140,8 @@
             <!-- Edge col3 → col4: only when there are visible machines -->
             <template v-if="visibleMachines.length > 0">
               <svg :width="EW" :height="maxH" overflow="visible" style="flex-shrink:0;">
-                <path v-for="mc in machineConnections" :key="`mp-${mc.uuid}`" :d="mc.d" stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>
-                <polygon v-for="mc in machineConnections" :key="`ma-${mc.uuid}`" :points="mc.arrowPoints" fill="#5b5c64"/>
+                <path v-for="mc in machineConnections" :key="`mp-${mc.uuid}`" :d="mc.d" stroke="var(--border)" stroke-width="1.5" fill="none" stroke-dasharray="4,3"/>
+                <polygon v-for="mc in machineConnections" :key="`ma-${mc.uuid}`" :points="mc.arrowPoints" fill="var(--text-dim)"/>
               </svg>
 
               <!-- Col 4: Individual machines, grouped (with intra-group gap) -->
@@ -176,12 +176,12 @@
                     <path
                       :class="['ext-edge', extEdgeClassForConn(ep.srcIdx, ep.tgtIdx)]"
                       :d="ep.d"
-                      stroke="#2c2e38" stroke-width="1.5" fill="none" stroke-dasharray="4,3"
+                      stroke="var(--border)" stroke-width="1.5" fill="none" stroke-dasharray="4,3"
                     />
                     <polygon
                       :class="['ext-arrow', extEdgeClassForConn(ep.srcIdx, ep.tgtIdx)]"
                       :points="ep.arrowPoints"
-                      fill="#5b5c64"
+                      fill="var(--text-dim)"
                     />
                   </template>
                 </svg>
@@ -305,9 +305,9 @@ const omniEndpointDisplay = computed(() =>
 
 const omniColor = computed(() => {
   const st = appState.value?.omniHealth?.status
-  if (st === 'healthy') return '#fb923c'
-  if (st === 'failed') return '#f87171'
-  return '#7d7d85'
+  if (st === 'healthy') return 'var(--orange)'
+  if (st === 'failed') return 'var(--red)'
+  return 'var(--text-faint)'
 })
 
 
@@ -331,7 +331,7 @@ const nodeGroups = computed(() => {
       machines: cp.machines || [],
       count: cp.count || 0,
       exts: cp.extensions || [],
-      color: '#ff8b59',
+      color: 'var(--accent)',
       isPool: (cp.machines || []).length === 0,
     }] : []),
     ...workers
@@ -344,7 +344,7 @@ const nodeGroups = computed(() => {
         machines: wk.machines || [],
         count: wk.count || 0,
         exts: wk.extensions || [],
-        color: '#8b5cf6',
+        color: 'var(--purple)',
         isPool: (wk.machines || []).length === 0,
       })),
   ]

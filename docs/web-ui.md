@@ -4,6 +4,8 @@ The UI is a single-page app with a collapsible sidebar. Navigating to `/` redire
 
 ---
 
+**Light and dark mode** — the toggle in the top bar switches between Light, Dark and System (follows the operating system's setting, the default). The choice is remembered per browser.
+
 ## Clusters (`/clusters`)
 
 ![Clusters grid view](clusters-grid.png)

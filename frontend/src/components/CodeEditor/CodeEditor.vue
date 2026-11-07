@@ -8,6 +8,7 @@ window.MonacoEnvironment = {
 }
 
 const OMNICD_THEME = 'omnicd-dark'
+const OMNICD_THEME_LIGHT = 'omnicd-light'
 
 monaco.editor.defineTheme(OMNICD_THEME, {
   base: 'vs-dark',
@@ -30,10 +31,34 @@ monaco.editor.defineTheme(OMNICD_THEME, {
     'scrollbarSlider.hoverBackground': '#3a3d4a99',
   },
 })
+
+// Monaco needs literal colours; these match the light tokens in main.css.
+monaco.editor.defineTheme(OMNICD_THEME_LIGHT, {
+  base: 'vs',
+  inherit: true,
+  rules: [],
+  colors: {
+    'editor.background': '#f4f5f7',
+    'editor.lineHighlightBackground': '#f4f5f7',
+    'editorLineNumber.foreground': '#888b94',
+    'editorLineNumber.activeForeground': '#4f525b',
+    'editorGutter.background': '#f4f5f7',
+    'editorIndentGuide.background1': '#dcdfe5',
+    'editorIndentGuide.activeBackground1': '#c3c7d0',
+    'editorWidget.background': '#ffffff',
+    'editorWidget.border': '#dcdfe5',
+    'editorHoverWidget.background': '#ffffff',
+    'editorHoverWidget.border': '#dcdfe5',
+    'editorStickyScroll.background': '#f4f5f7',
+    'scrollbarSlider.background': '#c3c7d099',
+    'scrollbarSlider.hoverBackground': '#888b9499',
+  },
+})
 </script>
 
 <script setup lang="ts">
 import { onWatcherCleanup, useTemplateRef, watch } from 'vue'
+import { useTheme } from '@/composables/theme'
 
 const props = defineProps<{
   modelValue: string
@@ -45,6 +70,11 @@ const editorEl = useTemplateRef<HTMLDivElement>('editorEl')
 
 let instance: monaco.editor.IStandaloneCodeEditor | undefined
 
+// Monaco's theme is global; follow the app's colour theme.
+const { resolved } = useTheme()
+const editorTheme = () => (resolved.value === 'light' ? OMNICD_THEME_LIGHT : OMNICD_THEME)
+watch(resolved, () => monaco.editor.setTheme(editorTheme()))
+
 watch(
   editorEl,
   (el) => {
@@ -54,7 +84,7 @@ watch(
 
     const created = monaco.editor.create(el, {
       model,
-      theme: OMNICD_THEME,
+      theme: editorTheme(),
       readOnly: props.readOnly ?? true,
       domReadOnly: props.readOnly ?? true,
       automaticLayout: true,

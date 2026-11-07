@@ -107,7 +107,7 @@
           <span class="sidebar-item-icon"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" class="sidebar-nav-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg></span>
           <span class="sidebar-item-label">Manifests</span>
         </RouterLink>
-        <RouterLink v-if="clusterSubNav.hasError" :to="`/clusters/${clusterSubNav.id}/error`" class="sidebar-item sidebar-subitem" :class="{ active: clusterSubNav.tab === 'error' }" style="color:#f87171;">
+        <RouterLink v-if="clusterSubNav.hasError" :to="`/clusters/${clusterSubNav.id}/error`" class="sidebar-item sidebar-subitem" :class="{ active: clusterSubNav.tab === 'error' }" style="color:var(--red);">
           <span class="sidebar-item-icon" style="font-size:13px;">⚠</span>
           <span class="sidebar-item-label">Error</span>
         </RouterLink>
@@ -136,7 +136,7 @@
           </div>
         </div>
       </div>
-      <a v-else href="/logout" class="sidebar-item" style="color:#7d7d85;">
+      <a v-else href="/logout" class="sidebar-item" style="color:var(--text-faint);">
         <span class="sidebar-item-icon">⏻</span>
         <span class="sidebar-item-label">Sign out</span>
       </a>

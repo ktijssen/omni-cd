@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <div class="header" style="border-bottom:none;">
-      <h1 style="font-size:18px;font-weight:600;color:#fff;letter-spacing:-0.3px;">Instances</h1>
+      <h1 style="font-size:18px;font-weight:600;color:var(--text-strong);letter-spacing:-0.3px;">Instances</h1>
       <button
         v-if="authStore.isAdmin()"
         class="btn-omni"
@@ -20,11 +20,11 @@
             <span :class="healthBadgeClass">{{ healthLabel }}</span>
           </div>
           <div class="info-card-value">
-            <a v-if="state?.omniEndpoint" :href="state.omniEndpoint" target="_blank" style="color:#ff8b59;text-decoration:none">{{ state.omniEndpoint }}</a>
-            <span v-else style="color:#7d7d85">Not configured</span>
+            <a v-if="state?.omniEndpoint" :href="state.omniEndpoint" target="_blank" style="color:var(--accent);text-decoration:none">{{ state.omniEndpoint }}</a>
+            <span v-else style="color:var(--text-faint)">Not configured</span>
           </div>
           <div class="info-card-sub">
-            <span v-if="state?.omniConfigured">Version: <b style="color:#9fa1a6">{{ state.omniVersion || '?' }}</b></span>
+            <span v-if="state?.omniConfigured">Version: <b style="color:var(--text-muted)">{{ state.omniVersion || '?' }}</b></span>
           </div>
           <div v-if="testResult" :style="testResultStyle" style="font-size:12px;margin:4px 0 0;padding:6px 10px;border-radius:6px;">{{ testResult }}</div>
           <div v-if="authStore.isAdmin()" class="info-card-actions">
@@ -50,14 +50,14 @@
       <div class="repo-modal-box">
         <div class="repo-modal-title">{{ isEdit ? 'Edit Omni Instance' : 'Add Omni Instance' }}</div>
         <div class="repo-form-group">
-          <label class="repo-form-label">Endpoint URL <span v-if="!isEdit" style="color:#f87171">*</span></label>
+          <label class="repo-form-label">Endpoint URL <span v-if="!isEdit" style="color:var(--red)">*</span></label>
           <input class="repo-form-input" v-model="form.endpoint" type="text" placeholder="https://your-omni-instance.example.com" :disabled="isEdit" :style="isEdit ? { opacity: '0.5', cursor: 'not-allowed' } : {}" />
-          <div v-if="isEdit" style="font-size:11px;color:#7d7d85;margin-top:4px;">Endpoint cannot be changed — delete the instance to use a different URL</div>
+          <div v-if="isEdit" style="font-size:11px;color:var(--text-faint);margin-top:4px;">Endpoint cannot be changed — delete the instance to use a different URL</div>
         </div>
         <div class="repo-form-group">
           <label class="repo-form-label">Service Account Key</label>
           <input class="repo-form-input" v-model="form.key" type="password" placeholder="Paste service account key" />
-          <div v-if="state?.omniHasStoredKey" style="font-size:11px;color:#7d7d85;margin-top:4px;">Stored — leave blank to keep current key</div>
+          <div v-if="state?.omniHasStoredKey" style="font-size:11px;color:var(--text-faint);margin-top:4px;">Stored — leave blank to keep current key</div>
         </div>
         <div v-if="modalTestResult" :style="modalTestResultStyle" style="display:block;margin-top:4px;font-size:12px;padding:6px 10px;border-radius:6px;">{{ modalTestResult }}</div>
         <div v-if="formError" class="repo-form-error">{{ formError }}</div>
@@ -73,7 +73,7 @@
     <div v-if="showConfirm" class="repo-modal-wrap show" @click.self="showConfirm = false">
       <div class="repo-modal-box">
         <div class="repo-modal-title">Delete Omni Instance</div>
-        <div style="font-size:13px;color:#e8e8e9;margin-bottom:14px;line-height:1.4;">
+        <div style="font-size:13px;color:var(--text);margin-bottom:14px;line-height:1.4;">
           This will remove the Omni instance configuration and clear all clusters and machine classes. Type the endpoint URL to confirm:
         </div>
         <input class="repo-form-input" v-model="confirmInput" :placeholder="state?.omniEndpoint || 'endpoint URL'" style="margin-bottom:14px;" />
@@ -116,8 +116,8 @@ const testPending = ref(false)
 const testResult = ref('')
 const testResultOk = ref(false)
 const testResultStyle = computed(() => ({
-  background: testResultOk.value ? '#052e16' : '#3f1515',
-  color: testResultOk.value ? '#4ade80' : '#f87171',
+  background: testResultOk.value ? 'var(--green-bg)' : 'var(--red-bg)',
+  color: testResultOk.value ? 'var(--green)' : 'var(--red)',
 }))
 
 async function testConnection() {
@@ -147,8 +147,8 @@ const modalTestResult = ref('')
 const modalTestOk = ref(false)
 const modalTestPending = ref(false)
 const modalTestResultStyle = computed(() => ({
-  background: modalTestOk.value ? '#052e16' : '#3f1515',
-  color: modalTestOk.value ? '#4ade80' : '#f87171',
+  background: modalTestOk.value ? 'var(--green-bg)' : 'var(--red-bg)',
+  color: modalTestOk.value ? 'var(--green)' : 'var(--red)',
 }))
 
 function openModal() {
