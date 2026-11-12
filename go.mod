@@ -8,7 +8,7 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/prometheus/client_golang v1.25.0
 	github.com/siderolabs/omni/client v1.12.4
-	go.yaml.in/yaml/v4 v4.0.0-rc.6.0.20260809190231-643e93b9c9be
+	go.yaml.in/yaml/v4 v4.0.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/oauth2 v0.37.0
 	google.golang.org/grpc v1.84.0
